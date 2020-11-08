@@ -913,7 +913,7 @@ extern	char	tcl_versionstr[];
 	}
 	if (get_int_var(CLOAK_VAR))
 		return NULL;
-	malloc_strcpy(&version_reply, stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, "*IX", "ÿ", tcl_versionstr)));
+	malloc_strcpy(&version_reply, stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, "*IX", "Ã¿", tcl_versionstr)));
 	send_ctcp(CTCP_NOTICE, from, CTCP_VERSION, "%s :%s", version_reply, 
 #endif
 		(tmp = get_string_var(CLIENTINFO_VAR)) ?  tmp : IRCII_COMMENT);

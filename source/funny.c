@@ -408,7 +408,7 @@ void funny_mode(char *from, char **ArgList)
 	{
 		set_display_target(channel, LOG_CRAP);
 		if (do_hook(current_numeric, "%s %s %s", from, channel, mode))
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_MODE_CHANNEL_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, *FromUserHost ? FromUserHost:"ÿ", channel, mode));
+			put_it("%s", convert_output_format(fget_string_var(FORMAT_MODE_CHANNEL_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, *FromUserHost ? FromUserHost:"Ã¿", channel, mode));
 		reset_display_target();
 	}
 }

@@ -377,11 +377,11 @@ void awhois(IrcCommandDll *intp, char *command, char *args, char *subargs, char 
 		return;
 	}
 
-	statusprintf("%s", cparse("ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -", NULL));
+	statusprintf("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -", NULL));
         statusprintf("%s", cparse("| User       : $0-", "%s", b->name));
-        statusprintf("%s", cparse("³ Class      : $0-", "%s", ((b->uc <= 5 && b->uc >= 0) ? USER_CLASSES[b->uc] : "Unknown")));
-        statusprintf("%s", cparse("³ Evil       : $0-", "%d", b->evil));
-	statusprintf("%s", cparse("³ SignOn     : $0-", "%s", my_ctime(b->signon)));
+        statusprintf("%s", cparse("Â³ Class      : $0-", "%s", ((b->uc <= 5 && b->uc >= 0) ? USER_CLASSES[b->uc] : "Unknown")));
+        statusprintf("%s", cparse("Â³ Evil       : $0-", "%d", b->evil));
+	statusprintf("%s", cparse("Â³ SignOn     : $0-", "%s", my_ctime(b->signon)));
         statusprintf("%s", cparse(": Idle       : $0-", "%d", b->idle));
 }
 

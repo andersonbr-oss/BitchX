@@ -165,19 +165,19 @@ BUILT_IN_COMMAND(do_uptime)
 	put_it("%s",convert_output_format("%G| %cTotal Users on Shitlist: %K[%R$0%K]","%d",shit_count));
 
 #else
-	put_it("%s",convert_output_format("%GÚÄ[ %WBitchX%gÄ%wClient%gÄ%RStatistics %G]ÄÄÄÄ---%gÄ--ÄÄ%K-%gÄÄÄÄÄ--%GÄ--ÄÄ%K-%gÄÄÄÄÄÄÄ--- %K--%g  -",NULL));
+	put_it("%s",convert_output_format("%GÃšÃ„[ %WBitchX%gÃ„%wClient%gÃ„%RStatistics %G]Ã„Ã„Ã„Ã„---%gÃ„--Ã„Ã„%K-%gÃ„Ã„Ã„Ã„Ã„--%GÃ„--Ã„Ã„%K-%gÃ„Ã„Ã„Ã„Ã„Ã„Ã„--- %K--%g  -",NULL));
 	put_it("%s",convert_output_format("%G| %CClient Version: %W$0 $1","%s %s", irc_version, internal_version));
-	put_it("%s",convert_output_format("%G³ %CClient Running Since %W$0-","%s",my_ctime(start_time)));
+	put_it("%s",convert_output_format("%GÂ³ %CClient Running Since %W$0-","%s",my_ctime(start_time)));
 	put_it("%s",convert_output_format("%G| %CClient Uptime: %W$0-","%s",convert_time(now-start_time)));
-	put_it("%s",convert_output_format("%G³ %CCurrent UserName: %W$0-","%s", username));
+	put_it("%s",convert_output_format("%GÂ³ %CCurrent UserName: %W$0-","%s", username));
 	put_it("%s",convert_output_format("%G: %CCurrent RealName: %W$0-","%s", realname));
 	put_it("%s",convert_output_format("%G. %CLast Recv Message: %W$0-","%s",last_msg[0].last_msg?last_msg[0].last_msg:"None"));
 	put_it("%s",convert_output_format("%G: %CLast Recv Notice: %W$0-","%s",last_notice[0].last_msg?last_notice[0].last_msg:"None"));
 	put_it("%s",convert_output_format("%G. %CLast Sent Msg: %W$0-","%s",last_sent_msg[0].last_msg?last_sent_msg[0].last_msg:"None"));
 	put_it("%s",convert_output_format("%G: %CLast Sent Notice: %W$0-","%s",last_sent_notice[0].last_msg?last_sent_notice[0].last_msg:"None"));
-	put_it("%s",convert_output_format("%G³ %CLast Channel invited to: %R$0-","%s",invite_channel?invite_channel:"None"));
+	put_it("%s",convert_output_format("%GÂ³ %CLast Channel invited to: %R$0-","%s",invite_channel?invite_channel:"None"));
 	put_it("%s",convert_output_format("%G| %cTotal Users on Userlist: %K[%R$0%K]","%d",user_count));
-	put_it("%s",convert_output_format("%G³ %cTotal Users on Shitlist: %K[%R$0%K]","%d",shit_count));
+	put_it("%s",convert_output_format("%GÂ³ %cTotal Users on Shitlist: %K[%R$0%K]","%d",shit_count));
 
 #endif
 }

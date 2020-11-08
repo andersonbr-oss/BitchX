@@ -1808,17 +1808,17 @@ static int l_stats(char *args, char *rest)
 {
 	char cdcc_minspeed_s[80];
 	sprintf(cdcc_minspeed_s, "%1.3f", cdcc_minspeed);
-	put_it("%s",convert_output_format("       %GÕÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ%K[%C    cdcc stat     %K]%GÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¸", NULL));
-	put_it("%s",convert_output_format("       %G³                                                                 ³", NULL));
-	put_it("%s",convert_output_format("       %G³%gÖÄ%K[%Cp%ctimer  %K]%gÄÖ-%K[%Ct%cype     %K]%gÄ·Ä%K[%Ct%cotal %Cp%cacks%K]%gÄÖÄ%K[%Cs%cent  %K]%gÄ·Ä[%Cq%cueue%K]%gÄ·%G³", NULL));
-	put_it("%s",convert_output_format("       %G³%gº %W$[-10]0 %gº  %W$[-10]1 %gº    %W$[-10]2 %gº %W$[-8]3 %gº %W$[-7]4 %gº%G³", "%d %s %d %d %d", ptimer, do_notice_list ?"notice":"privmsg", cdcc_numpacks, send_numpacks, numqueue));
-	put_it("%s",convert_output_format("       %G³%gÓÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄ½%G³", NULL));
-	put_it("%s",convert_output_format("       %G³ CDCC channel                                                    ³", NULL));
-	put_it("%s",convert_output_format("       %G³ %W$[63]0-%G ³", "%s", !public_channel ? "current channel": public_channel));
-	put_it("%s",convert_output_format("       %gÖÄÄÄÄ%K[%C %c  %C %c    %K]%gÄÄÄÖÄÄÄ%K[%C %c   %C %c    %K]%gÄÄÄ·ÄÄÄÄÄÄÄÄÄÄ%K[%Ct%coggles%K]%gÄÄÄÄÄÄÄÄÄÄ·", NULL));
-	put_it("%s",convert_output_format("       %gº %C %n    %W$[-6]0%n%R     %gº %C %n    %W$[-6]1%n%R     %gº   %Ct%nimer:   %W$[-3]2%n   %Ce%ncho:  %W$[-3]3 %gº", "1 1 %s %s", on_off(ptimer), on_off(do_cdcc_echo)));
-	put_it("%s",convert_output_format("       %gº %C %n    %W$[-6]0%n%R     %gº %C %n    %W$[-6]1%n%R     %gº %Cm%ninspeed:  %W$[-3]2%n   %Cs%necure:%W$[-3]3 %gº", "1 1 %s %s", cdcc_minspeed == 0.0 ? "off":cdcc_minspeed_s, on_off(get_string_var(CDCC_SECURITY_VAR) ? 1 : 0)));
-	put_it("%s",convert_output_format("       %gÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½", NULL));
+	put_it("%s",convert_output_format("       %GÃ•ÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃ%K[%C    cdcc stat     %K]%GÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÂ¸", NULL));
+	put_it("%s",convert_output_format("       %GÂ³                                                                 Â³", NULL));
+	put_it("%s",convert_output_format("       %GÂ³%gÃ–Ã„%K[%Cp%ctimer  %K]%gÃ„Ã–-%K[%Ct%cype     %K]%gÃ„Â·Ã„%K[%Ct%cotal %Cp%cacks%K]%gÃ„Ã–Ã„%K[%Cs%cent  %K]%gÃ„Â·Ã„[%Cq%cueue%K]%gÃ„Â·%GÂ³", NULL));
+	put_it("%s",convert_output_format("       %GÂ³%gÂº %W$[-10]0 %gÂº  %W$[-10]1 %gÂº    %W$[-10]2 %gÂº %W$[-8]3 %gÂº %W$[-7]4 %gÂº%GÂ³", "%d %s %d %d %d", ptimer, do_notice_list ?"notice":"privmsg", cdcc_numpacks, send_numpacks, numqueue));
+	put_it("%s",convert_output_format("       %GÂ³%gÃ“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½%GÂ³", NULL));
+	put_it("%s",convert_output_format("       %GÂ³ CDCC channel                                                    Â³", NULL));
+	put_it("%s",convert_output_format("       %GÂ³ %W$[63]0-%G Â³", "%s", !public_channel ? "current channel": public_channel));
+	put_it("%s",convert_output_format("       %gÃ–Ã„Ã„Ã„Ã„%K[%C %c  %C %c    %K]%gÃ„Ã„Ã„Ã–Ã„Ã„Ã„%K[%C %c   %C %c    %K]%gÃ„Ã„Ã„Â·Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%K[%Ct%coggles%K]%gÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â·", NULL));
+	put_it("%s",convert_output_format("       %gÂº %C %n    %W$[-6]0%n%R     %gÂº %C %n    %W$[-6]1%n%R     %gÂº   %Ct%nimer:   %W$[-3]2%n   %Ce%ncho:  %W$[-3]3 %gÂº", "1 1 %s %s", on_off(ptimer), on_off(do_cdcc_echo)));
+	put_it("%s",convert_output_format("       %gÂº %C %n    %W$[-6]0%n%R     %gÂº %C %n    %W$[-6]1%n%R     %gÂº %Cm%ninspeed:  %W$[-3]2%n   %Cs%necure:%W$[-3]3 %gÂº", "1 1 %s %s", cdcc_minspeed == 0.0 ? "off":cdcc_minspeed_s, on_off(get_string_var(CDCC_SECURITY_VAR) ? 1 : 0)));
+	put_it("%s",convert_output_format("       %gÃ“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½", NULL));
 	return 0;
 }
 

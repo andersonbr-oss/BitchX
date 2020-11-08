@@ -2335,17 +2335,17 @@ static char *_dcc_offer[12] = {"%K-.........%n",		/*  0 */
 				"%K-=*%1%K=-. %R.-=%n",		/* 100 */
 				empty_string};
 #else
-static char *_dcc_offer[12] = {"%K±°°°°°°°°°%n",		/*  0 */
-				"%K±°°°°°°°°°%n",		/* 10 */
-				"%K±²°°°°°°°°%n",		/* 20 */
-				"%K±²Û°°°°°°°%n",		/* 30 */
-				"%K±²Û%1%K²%0%K°°°°°°%n",	/* 40 */
-				"%K±²Û%1%K²±%0%K°°°°°%n",	/* 50 */
-				"%K±²Û%1%K²±°%0%K°°°°%n",	/* 60 */
-				"%K±²Û%1%K²±°ÿ%0%K°°°%n",	/* 70 */
-				"%K±²Û%1%K²±°ÿ%R°%0%K°°%n",	/* 80 */
-				"%K±²Û%1%K²±°ÿ%R°±%0%K°%n",	/* 90 */
-				"%K±²Û%1%K²±°ÿ%R°±²%n",		/* 100 */
+static char *_dcc_offer[12] = {"%KÂ±Â°Â°Â°Â°Â°Â°Â°Â°Â°%n",		/*  0 */
+				"%KÂ±Â°Â°Â°Â°Â°Â°Â°Â°Â°%n",		/* 10 */
+				"%KÂ±Â²Â°Â°Â°Â°Â°Â°Â°Â°%n",		/* 20 */
+				"%KÂ±Â²Ã›Â°Â°Â°Â°Â°Â°Â°%n",		/* 30 */
+				"%KÂ±Â²Ã›%1%KÂ²%0%KÂ°Â°Â°Â°Â°Â°%n",	/* 40 */
+				"%KÂ±Â²Ã›%1%KÂ²Â±%0%KÂ°Â°Â°Â°Â°%n",	/* 50 */
+				"%KÂ±Â²Ã›%1%KÂ²Â±Â°%0%KÂ°Â°Â°Â°%n",	/* 60 */
+				"%KÂ±Â²Ã›%1%KÂ²Â±Â°Ã¿%0%KÂ°Â°Â°%n",	/* 70 */
+				"%KÂ±Â²Ã›%1%KÂ²Â±Â°Ã¿%RÂ°%0%KÂ°Â°%n",	/* 80 */
+				"%KÂ±Â²Ã›%1%KÂ²Â±Â°Ã¿%RÂ°Â±%0%KÂ°%n",	/* 90 */
+				"%KÂ±Â²Ã›%1%KÂ²Â±Â°Ã¿%RÂ°Â±Â²%n",		/* 100 */
 				empty_string};
 #endif
 	if (percent <= 100)
@@ -2388,8 +2388,8 @@ char *filename, *p;
 		put_it("%s", convert_output_format("%G#  %W|%n %GT%gype  %W|%n %GN%gick      %W|%n %GP%gercent %GC%gomplete        %W|%n %GK%g/s   %W|%n %GF%gile", NULL, NULL));
 		put_it("%s", convert_output_format("%W------------------------------------------------------------------------------", NULL, NULL));
 #else
-		put_it("%s", convert_output_format("%G#  %W³%n %GT%gype  %W³%n %GN%gick      %W³%n %GP%gercent %GC%gomplete        %W³%n %GK%g/s   %W³%n %GF%gile", NULL, NULL));
-		put_it("%s", convert_output_format("%KÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ", NULL, NULL));
+		put_it("%s", convert_output_format("%G#  %WÂ³%n %GT%gype  %WÂ³%n %GN%gick      %WÂ³%n %GP%gercent %GC%gomplete        %WÂ³%n %GK%g/s   %WÂ³%n %GF%gile", NULL, NULL));
+		put_it("%s", convert_output_format("%KÃ„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„", NULL, NULL));
 #endif
 	}
 	for (c = pending_dcc; c; c = c->next, count++)	
@@ -2422,7 +2422,7 @@ char *filename, *p;
 			put_it("%s", convert_output_format(dformat, "%d %s %s %s %s %s %s", 
 				n->dccnum, 
 				local_type, 
-				n->encrypt ? "E" : "ÿ",
+				n->encrypt ? "E" : "Ã¿",
 				c->sock.server,
 			
 				s->flags & DCC_OFFER ?     "Offer " :
@@ -2477,7 +2477,7 @@ char *filename, *p;
 				put_it("%s", convert_output_format(c1format, "%d %s %s %s %s %s %s %s", 
 					n->dccnum, 
 					local_type, 
-					n->encrypt ? "E" : "ÿ",
+					n->encrypt ? "E" : "Ã¿",
 					s->server,
 					s->flags & DCC_OFFER ? "Offer" :
 					s->flags & DCC_WAIT ? "Wait" :
@@ -2501,7 +2501,7 @@ char *filename, *p;
 				put_it("%s", convert_output_format(dformat, "%d %s %s %s %s %s %s", 
 					n->dccnum, 
 					local_type, 
-					n->encrypt ? "E" : "ÿ",
+					n->encrypt ? "E" : "Ã¿",
 					s->server,
 					s->flags & DCC_OFFER ?     "Offer" :
 					s->flags & DCC_WAIT ?      "Wait" :
@@ -2565,7 +2565,7 @@ char *filename, *p;
 					s1 = dformat;
 
 				put_it("%s", convert_output_format(s1, "%d %s %s %s %s %s %s", 
-					n->dccnum, local_type, n->encrypt ? "E":"ÿ",
+					n->dccnum, local_type, n->encrypt ? "E":"Ã¿",
 					s->server, spec, kilobytes, 
 					strip_path(filename)));
 			}
@@ -2869,16 +2869,16 @@ char min_rate_out[20];
 
 #else
 
-		put_it("%s",convert_output_format("       %GÕÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ%K[%Cdcc transfer stats%K]%GÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¸", NULL));
-		put_it("%s",convert_output_format("       %G³                                                                 ³", NULL));
-		put_it("%s",convert_output_format("       %G³%gÖÄ%K[%Cx%cferd %Ci%cn%K]%gÄÖ-%K[%Cx%cferd %Co%cut%K]%gÄ·Ä%K[%Ct%cotal %Cf%ciles%K]%gÄÖÄ%K[%Ca%cctive%K]%gÄ·Ä[%Cl%cimit%K]%gÄ·%G³", NULL));
-		put_it("%s",convert_output_format("       %G³%gº %W$[-10]0 %gº  %W$[-10]1 %gº    %W$[-10]2 %gº %W$[-8]3 %gº %W$[-7]4 %gº%G³", "%s %s %d %d %d", in, out,send_count_stat+get_count_stat,get_active_count(),get_int_var(DCC_SEND_LIMIT_VAR)));
-		put_it("%s",convert_output_format("       %G³%gÓÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄ½%G³", NULL));
-		put_it("%s",convert_output_format("       %G³                                                                 ³", NULL));
-		put_it("%s",convert_output_format("       %gÖÄÄÄÄ%K[%Ci%cn %Cs%ctats%K]%gÄÄÄÖÄÄÄ%K[%Co%cut %Cs%ctats%K]%gÄÄÄ·ÄÄÄÄÄÄÄÄÄÄ%K[%Ct%coggles%K]%gÄÄÄÄÄÄÄÄÄÄ·", NULL));
-		put_it("%s",convert_output_format("       %gº %Cm%nax: %W$[-6]0%n%Rkb/s %gº %Cm%nax: %W$[-6]1%n%Rkb/s %gº   %Ca%nutoget: %W$[-3]2%n   %Cp%naths: %W$[-3]3 %gº", "%s %s %s %s", max_rate_in, max_rate_out, on_off(get_int_var(DCC_AUTOGET_VAR)),on_off(dcc_paths)));
-		put_it("%s",convert_output_format("       %gº %Cm%nin: %W$[-6]0%n%Rkb/s %gº %Cm%nin: %W$[-6]1%n%Rkb/s %gº %Co%nverwrite: %W$[-3]2%n   %Cq%nuiet: %W$[-3]3 %gº", "%s %s %s %s", min_rate_in, min_rate_out, on_off(dcc_overwrite_var), on_off(dcc_quiet)));
-		put_it("%s",convert_output_format("       %gÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½", NULL));
+		put_it("%s",convert_output_format("       %GÃ•ÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃ%K[%Cdcc transfer stats%K]%GÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÃÂ¸", NULL));
+		put_it("%s",convert_output_format("       %GÂ³                                                                 Â³", NULL));
+		put_it("%s",convert_output_format("       %GÂ³%gÃ–Ã„%K[%Cx%cferd %Ci%cn%K]%gÃ„Ã–-%K[%Cx%cferd %Co%cut%K]%gÃ„Â·Ã„%K[%Ct%cotal %Cf%ciles%K]%gÃ„Ã–Ã„%K[%Ca%cctive%K]%gÃ„Â·Ã„[%Cl%cimit%K]%gÃ„Â·%GÂ³", NULL));
+		put_it("%s",convert_output_format("       %GÂ³%gÂº %W$[-10]0 %gÂº  %W$[-10]1 %gÂº    %W$[-10]2 %gÂº %W$[-8]3 %gÂº %W$[-7]4 %gÂº%GÂ³", "%s %s %d %d %d", in, out,send_count_stat+get_count_stat,get_active_count(),get_int_var(DCC_SEND_LIMIT_VAR)));
+		put_it("%s",convert_output_format("       %GÂ³%gÃ“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½%GÂ³", NULL));
+		put_it("%s",convert_output_format("       %GÂ³                                                                 Â³", NULL));
+		put_it("%s",convert_output_format("       %gÃ–Ã„Ã„Ã„Ã„%K[%Ci%cn %Cs%ctats%K]%gÃ„Ã„Ã„Ã–Ã„Ã„Ã„%K[%Co%cut %Cs%ctats%K]%gÃ„Ã„Ã„Â·Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%K[%Ct%coggles%K]%gÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â·", NULL));
+		put_it("%s",convert_output_format("       %gÂº %Cm%nax: %W$[-6]0%n%Rkb/s %gÂº %Cm%nax: %W$[-6]1%n%Rkb/s %gÂº   %Ca%nutoget: %W$[-3]2%n   %Cp%naths: %W$[-3]3 %gÂº", "%s %s %s %s", max_rate_in, max_rate_out, on_off(get_int_var(DCC_AUTOGET_VAR)),on_off(dcc_paths)));
+		put_it("%s",convert_output_format("       %gÂº %Cm%nin: %W$[-6]0%n%Rkb/s %gÂº %Cm%nin: %W$[-6]1%n%Rkb/s %gÂº %Co%nverwrite: %W$[-3]2%n   %Cq%nuiet: %W$[-3]3 %gÂº", "%s %s %s %s", min_rate_in, min_rate_out, on_off(dcc_overwrite_var), on_off(dcc_quiet)));
+		put_it("%s",convert_output_format("       %gÃ“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½", NULL));
 
 #endif
 

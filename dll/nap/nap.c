@@ -755,12 +755,12 @@ NAP_COMM(cmd_whowas)
 		d_port = next_arg(args, &args);
 		email = next_arg(args, &args);
 		
-		nap_put("%s", cparse("ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -", NULL));
+		nap_put("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -", NULL));
 		if (l_ip)
 			nap_put("%s", cparse("| User    : $0($1) $2 l:$3 d:$4", "%s %s %s %s %s", nick, email, l_ip, l_port, d_port));
 		else
 			nap_put("%s", cparse("| User       : $0", "%s", nick));
-		nap_put("%s", cparse("³ Class      : $0", "%s", class));
+		nap_put("%s", cparse("Â³ Class      : $0", "%s", class));
 		nap_put("%s", cparse(": Last online: $0-", "%s", my_ctime(online)));
 		if (t_down || t_up)
 			nap_put("%s", cparse(": Total Uploads : $0 Downloading : $1", "%d %d", t_up, t_down));
@@ -794,17 +794,17 @@ NAP_COMM(cmd_whois)
 		d_port = next_arg(args, &args);		
 		email = next_arg(args, &args);
 		
-		nap_put("%s", cparse("ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -", NULL));
+		nap_put("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -", NULL));
 		if (l_ip)
 			nap_put("%s", cparse("| User    : $0($1) $2 l:$3 d:$4", "%s %s %s %s %s", nick, email, l_ip, l_port, d_port));
 		else
 			nap_put("%s", cparse("| User    : $0", "%s", nick));
 		nap_put("%s", cparse("| Class   : $0", "%s", class));
-		nap_put("%s", cparse("³ Line    : $0-", "%s", n_speed(speed)));
-		nap_put("%s", cparse("³ Time    : $0-", "%s", convert_time(online)));
-		nap_put("%s", cparse("³ Channels: $0-", "%s", channels ? channels : empty_string));
-		nap_put("%s", cparse("³ Status  : $0-", "%s", status));
-		nap_put("%s", cparse("³ Shared  : $0", "%d", shared));
+		nap_put("%s", cparse("Â³ Line    : $0-", "%s", n_speed(speed)));
+		nap_put("%s", cparse("Â³ Time    : $0-", "%s", convert_time(online)));
+		nap_put("%s", cparse("Â³ Channels: $0-", "%s", channels ? channels : empty_string));
+		nap_put("%s", cparse("Â³ Status  : $0-", "%s", status));
+		nap_put("%s", cparse("Â³ Shared  : $0", "%d", shared));
 		nap_put("%s", cparse(": Client  : $0-", "%s", ver));
 		nap_put("%s", cparse(": Uploading : $0 Downloading : $1", "%d %d", upload, download));
 		if (t_down || t_up)
@@ -1571,8 +1571,8 @@ void print_file(FileStruct *f, int count)
 	{
 		if (do_hook(MODULE_LIST, "NAP PRINTFILE_HEADER"))
 		{
-			nap_put("Number ³ Song ³ Bitrate ³ Frequency ³ Length ³ Size ³ Computer ³ Speed");
-			nap_put("ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ");
+			nap_put("Number Â³ Song Â³ Bitrate Â³ Frequency Â³ Length Â³ Size Â³ Computer Â³ Speed");
+			nap_put("Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„");
 		}
 	}
 	if (do_hook(MODULE_LIST, "NAP PRINTFILE %d %s %u %u %lu %lu %s %d", 
@@ -1605,8 +1605,8 @@ int speed;
 	file = new_next_arg(args, &args);
 	checksum = next_arg(args, &args);
 	speed = my_atol(next_arg(args, &args));
-	nap_put("Number ³ Song ³ Speed");
-	nap_put("ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ");
+	nap_put("Number Â³ Song Â³ Speed");
+	nap_put("Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„");
 	nap_put("%.3d %s %d %d", 1, base_name(file), port, n_speed(speed));
 	return 0;
 }

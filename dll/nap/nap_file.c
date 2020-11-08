@@ -173,8 +173,8 @@ char	*dformat = "%W#$[3]0%n %Y$4%n $[14]1 $[-6]2$3 $5/$6 $7-";
 		double perc = 0.0;
 		if (count == 1)
 		{
-			nap_put("%s", cparse("ÚÄÄÄÄÄ%GD%gownloads", NULL));
-			nap_put("%s", cparse("%KÀÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ", NULL, NULL));
+			nap_put("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„%GD%gownloads", NULL));
+			nap_put("%s", cparse("%KÃ€Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„", NULL, NULL));
 		}
 		if (sg->starttime)
 			sprintf(buff, "%2.3f", sg->received / 1024.0 / (snow - sg->starttime));
@@ -201,8 +201,8 @@ char	*dformat = "%W#$[3]0%n %Y$4%n $[14]1 $[-6]2$3 $5/$6 $7-";
 		double perc = 0.0;
 		if (count == 1)
 		{
-			nap_put("%s", cparse("ÚÄÄÄÄÄ%GU%gploads", NULL));
-			nap_put("%s", cparse("%KÀÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ", NULL, NULL));
+			nap_put("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„%GU%gploads", NULL));
+			nap_put("%s", cparse("%KÃ€Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„%nÃ„%WÃ„%nÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„", NULL, NULL));
 		}
 		if (sg->starttime)
 			sprintf(buff, "%2.3f", sg->received / 1024.0 / (snow - sg->starttime));
