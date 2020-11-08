@@ -153,7 +153,7 @@ int to_chan = 0;
 					put_it("%s", convert_output_format("$[10]0 %C$1 $2%w  %B$[16]3  %R$[6]4  %M$[4]5 $[4]6 $[4]7 $[4]8$[-4]9  $[-4]10 $[-6]11",
 						"%s %c %c %s %u %u %u %u %u %u %u %u",
 						to_chan ? tmp->channel: user->nick, 
-						nick_isop(user)? '@':'ÿ',nick_isvoice(user)?'v':'ÿ',
+						nick_isop(user)? "@":"ÿ",nick_isvoice(user)?"v":"ÿ",
 #ifdef WANT_USERLIST
 						user->userlist?convert_flags(user->userlist->flags):"none", 
 						user->shitlist?user->shitlist->level: 0,
