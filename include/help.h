@@ -5,12 +5,11 @@
  *
  * See the copyright file, or do a help ircii copyright 
  *
- * @(#)$Id: help.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __help_h
-# define __help_h
+#ifndef HELP_H_
+#define HELP_H_
 
 	void	help (char *, char *, char *, char *);
 
-#endif /* __help_h */
+#endif /* HELP_H_ */

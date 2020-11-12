@@ -3,11 +3,10 @@
  * 
  * Generated from hook.h.proto automatically by the Makefile
  *
- * @(#)$Id: hook.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __hook_h_
-# define __hook_h_
+#ifndef HOOK_H_
+#define HOOK_H_
 
 enum HOOK_TYPES {
 	ACTION_LIST,
@@ -90,6 +89,7 @@ enum HOOK_TYPES {
 	NICKNAME_LIST,
 	NOTE_LIST,
 	NOTICE_LIST,
+	NOTICE_GROUP_LIST,
 	NOTIFY_LIST,
 	NOTIFY_HEADER_LIST,
 	NOTIFY_SIGNOFF_LIST,
@@ -181,4 +181,4 @@ enum HOOK_TYPES {
 	void	do_stack_on		(int, char *);
 extern	HookFunc hook_functions[];
 
-#endif /* __hook_h_ */
+#endif /* HOOK_H_ */

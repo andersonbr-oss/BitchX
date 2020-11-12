@@ -7,14 +7,10 @@
 
 #include "irc.h"
 #include "struct.h"
-
-#include "dcc.h"
 #include "parse.h"
-#include "ircterm.h"
 #include "server.h"
 #include "chelp.h"
 #include "commands.h"
-#include "encrypt.h"
 #include "vars.h"
 #include "ircaux.h"
 #include "lastlog.h"
@@ -34,7 +30,6 @@
 #include "output.h"
 #include "exec.h"
 #include "notify.h"
-#include "numbers.h"
 #include "status.h"
 #include "if.h"
 #include "help.h"
@@ -47,6 +42,7 @@
 #include "who.h"
 #include "whowas.h"
 #include "hash2.h"
+#include "tcl_bx.h"
 #define MAIN_SOURCE
 #include "modval.h"
 
@@ -54,8 +50,6 @@
 char tcl_versionstr[] = "Tcl 2.1";
 
 #ifdef WANT_TCL
-/*#define TCL_PLUS*/
-#include "tcl_bx.h"
 
 Tcl_HashTable *gethashtable (int, int *, char *);
 
@@ -149,7 +143,7 @@ int i;
 		{
 			DCC_int *n;
 			n = (DCC_int *)s->info;
-			sprintf(buff, "%d %s", n->dccnum, s->server);
+			snprintf(buff, sizeof buff, "%u %s", n->dccnum, s->server);
 			Tcl_AppendElement(irp, buff);
 			count++;
 		}
@@ -178,7 +172,7 @@ int count = 0;
 		if ((s->flags & DCC_TYPES) == DCC_CHAT)
 		{
 			n = (DCC_int *) s->info;
-			sprintf(buff, "%d %s", n->dccnum, s->server);
+			snprintf(buff, sizeof buff, "%u %s", n->dccnum, s->server);
 			Tcl_AppendElement(irp, buff);
 			count++;
 		}
@@ -425,7 +419,7 @@ int i;
 	}
 	for (i = 2; i < argc; i++)
 		m_s3cat(&buffer, space, argv[i]);
-	send_text(argv[1], buffer, !strcmp(argv[0], "notice")?"NOTICE":"PRIVMSG", 1, 1);
+	send_text(argv[1], buffer, (!strcmp(argv[0], "notice") ? STXT_NOTICE : 0) | STXT_LOG);
 	new_free(&buffer);
 	return TCL_OK;
 }
@@ -442,7 +436,7 @@ int i;
 	}
 	for (i = 1; i < argc; i++)
 		m_s3cat(&buffer, space, argv[i]);
-	send_text(get_current_channel_by_refnum(0), buffer, "PRIVMSG", 1, 1);
+	send_text(get_current_channel_by_refnum(0), buffer, STXT_LOG);
 	new_free(&buffer);
 	return TCL_OK;
 }
@@ -1087,7 +1081,7 @@ char logtext[BIG_BUFFER_SIZE+1];
 
 	
 	BADARGS(2,2," text");
-	strmcpy(logtext,argv[1],BIG_BUFFER_SIZE); 
+	strlcpy(logtext, argv[1], sizeof logtext);
 	putlog(LOG_CRAP,"*","%s",logtext);
 	return TCL_OK;
 }
@@ -1098,7 +1092,7 @@ char logtext[BIG_BUFFER_SIZE+1];
 
 	
 	BADARGS(2,2," text");
-	strmcpy(logtext,argv[1],BIG_BUFFER_SIZE); 
+	strlcpy(logtext, argv[1], sizeof logtext);
 	putlog(LOG_ALL,"*","%s",logtext);
 	return TCL_OK;
 }
@@ -1134,7 +1128,7 @@ char logtext[BIG_BUFFER_SIZE + 1];
 			lev=LOG_USER5; 
 			break;
 	}
-	strmcpy(logtext,argv[3],BIG_BUFFER_SIZE); 
+	strlcpy(logtext, argv[3], sizeof logtext);
 	putlog(lev,argv[2],"%s",logtext);
 	return TCL_OK;
 }
@@ -1145,7 +1139,7 @@ int tcl_unixtime STDVAR
 
 	
 	BADARGS(1,1,"");
-	sprintf(s,"%lu", now);
+	snprintf(s, sizeof s, "%lu", (unsigned long)now);
 	Tcl_AppendResult(irp,s,NULL);
 	return TCL_OK;
 }
@@ -1156,8 +1150,7 @@ char s[BIG_BUFFER_SIZE+1],*p;
 
 	
 	BADARGS(2,2," \"text\"");
-	strmcpy(s,argv[1],BIG_BUFFER_SIZE-1); 
-	s[BIG_BUFFER_SIZE-1]=0;
+	strlcpy(s, argv[1], sizeof s);
 	if ((p=strchr(s,'\n')))
 		*p = 0;
 	if ((p=strchr(s,'\r')))
@@ -1172,8 +1165,7 @@ char s[BIG_BUFFER_SIZE+1],*p;
 
 	
 	BADARGS(2,2," \"text\"");
-	strmcpy(s,argv[1],BIG_BUFFER_SIZE-1); 
-	s[BIG_BUFFER_SIZE-1]=0;
+	strlcpy(s, argv[1], sizeof s);
 	if ((p=strchr(s,'\n')))
 		*p = 0;
 	if ((p=strchr(s,'\r')))
@@ -1188,9 +1180,8 @@ char s[BIG_BUFFER_SIZE+1];
 int idx = 0;
 	BADARGS(3,3 ," hand idx text");
 
-	strmcpy(s,argv[2],BIG_BUFFER_SIZE-2); 
-	strncat(s,"\n",BIG_BUFFER_SIZE-1);
-	s[BIG_BUFFER_SIZE]=0;
+	strlcpy(s, argv[2], sizeof s - 1);
+	strlcat(s, "\n", sizeof s);
 	idx = atoi(argv[1]);
 	send(idx, s, strlen(s), 0);
 	return TCL_OK;
@@ -1375,10 +1366,12 @@ int stk;
 
 int trigger_bind(char *proc, char *param, char *(*func)(char *, char *))
 {
-char *result = NULL;
+	char *result = NULL;
+	int err;
 	
 	if (internal_debug & DEBUG_TCL)
 		debugyell("Tcl exec [%s] with [%s]", proc, param);
+
 	if (func)
 	{
 		result = (*func)(proc, param);
@@ -1388,16 +1381,18 @@ char *result = NULL;
 			debugyell("Tcl return from [%s] with [%s]", proc, result);
 		return BIND_EXECUTED;
 	}
-	if (Tcl_VarEval(tcl_interp,proc,param,NULL)==TCL_ERROR) 
+
+	err = Tcl_VarEval(tcl_interp, proc, param, NULL);
+	result = Tcl_GetStringResult(tcl_interp);
+
+	if (internal_debug & DEBUG_TCL)
+		debugyell("Tcl return from [%s] with [%s]", proc, result);
+	if (err == TCL_ERROR) 
 	{
-		if (internal_debug & DEBUG_TCL)
-			debugyell("Tcl return from [%s] with [%s]", proc, tcl_interp->result);
-		putlog(LOG_ALL,"*","Tcl error [%s]: %s",proc,tcl_interp->result);
+		putlog(LOG_ALL,"*","Tcl error [%s]: %s", proc, result);
 		return BIND_EXECUTED;
 	}
-	if (internal_debug & DEBUG_TCL)
-		debugyell("Tcl return from [%s] with [%s]", proc, tcl_interp->result);
-	return (atoi(tcl_interp->result)>0)?BIND_EXEC_LOG:BIND_EXECUTED;
+	return (atoi(result)>0)?BIND_EXEC_LOG:BIND_EXECUTED;
 }
 
 void init_builtins()
@@ -1575,7 +1570,7 @@ char *x; char s[80];
 	if (argv[2][0]!='#') 
 	{
 		x = tcl_add_timer(&tcl_Pending_timers, atol(argv[1])*60, argv[2], 0L);
-		sprintf(s,"timer%s",x); 
+		snprintf(s, sizeof s, "timer%s", x); 
 		Tcl_AppendResult(irp,s,NULL);
 	}
 	return TCL_OK;
@@ -1594,7 +1589,7 @@ char s[80];
 		return TCL_ERROR;
 	}
  	x = rand() % (strtoul(argv[1], NULL, 10));
-	sprintf(s,"%lu",x);
+	snprintf(s, sizeof s, "%lu", x);
 	Tcl_AppendResult(irp,s,NULL);
 	return TCL_OK;
 }
@@ -1612,7 +1607,7 @@ char s[80];
 	if (argv[2][0]!='#') 
 	{
 		x=tcl_add_timer(&tcl_Pending_utimers, atol(argv[1]), argv[2], 0L);
-		sprintf(s,"timer%s",x); 
+		snprintf(s, sizeof s, "timer%s", x); 
 		Tcl_AppendResult(irp,s,NULL);
 	}
 	return TCL_OK;
@@ -1621,7 +1616,7 @@ char s[80];
 int tcl_killtimer STDVAR
 {
 	BADARGS(2,2," timerID");
-	if (strncmp(argv[1],"timer",5)!=0) 
+	if (!strbegins(argv[1],"timer")) 
 	{
 		Tcl_AppendResult(irp,"argument is not a timerID",NULL);
 		return TCL_ERROR;
@@ -1635,7 +1630,7 @@ int tcl_killtimer STDVAR
 int tcl_killutimer STDVAR
 {
 	BADARGS(2,2," timerID");
-	if (strncmp(argv[1],"timer",5)!=0) 
+	if (!strbegins(argv[1],"timer")) 
 	{
 		Tcl_AppendResult(irp,"argument is not a timerID",NULL);
 		return TCL_ERROR;
@@ -1815,12 +1810,10 @@ UserList *n;
 
 int check_on_hook(int which, char *buffer)
 {
-int ret = 0;
-char name[BIG_BUFFER_SIZE+1];
+	char name[BIG_BUFFER_SIZE];
 
-	*name = 0;
 	if (!buffer || !*buffer)
-		return ret;
+		return 0;
 		
 	if (which > -1 && which < NUMBER_OF_LISTS)
 	{
@@ -1834,9 +1827,8 @@ char name[BIG_BUFFER_SIZE+1];
 	}
 	strcat(name, " ");
 	Tcl_SetVar(tcl_interp, "_aa", buffer, TCL_GLOBAL_ONLY);
-	strmcat(name, buffer, BIG_BUFFER_SIZE);
-	ret = check_tcl_bind(&H_hook, name, -1, " $_a $_aa", MATCH_MASK|BIND_STACKABLE|BIND_WANTRET,NULL);
-	return ret;
+	strlcat(name, buffer, sizeof name);
+	return check_tcl_bind(&H_hook, name, -1, " $_a $_aa", MATCH_MASK | BIND_STACKABLE | BIND_WANTRET, NULL);
 }
 
 void check_tcl_join(char *nick,char *uhost, char *hand, char *channel)
@@ -1848,7 +1840,7 @@ UserList *n;
 	
 	if ((n = lookup_userlevelc("*", uhost, channel, NULL)))
 		atr=n->flags;
-	snprintf(args, BIG_BUFFER_SIZE, "%s %s!%s", channel, nick, uhost);
+	snprintf(args, sizeof args, "%s %s!%s", channel, nick, uhost);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -1864,7 +1856,7 @@ char args[BIG_BUFFER_SIZE+1];
 UserList *n;
 int x;
 
-	snprintf(args,BIG_BUFFER_SIZE, "%s %s!%s",chname,nick,uhost);
+	snprintf(args, sizeof args, "%s %s!%s", chname, nick, uhost);
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
@@ -1883,7 +1875,7 @@ UserList *n;
 	
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
-	snprintf(args,BIG_BUFFER_SIZE, "%s %s!%s",chname,nick,uhost);
+	snprintf(args, sizeof args, "%s %s!%s", chname, nick, uhost);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -1899,7 +1891,7 @@ int atr = 0;
 char args[BIG_BUFFER_SIZE+1];
 UserList *n;
 
-	snprintf(args,BIG_BUFFER_SIZE, "%s %s",chname,topic);
+	snprintf(args, sizeof args, "%s %s", chname, topic);
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
@@ -1919,7 +1911,7 @@ UserList *n;
 	
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
-	snprintf(args, BIG_BUFFER_SIZE, "%s %s",chname,newnick);
+	snprintf(args, sizeof args, "%s %s", chname, newnick);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -1937,7 +1929,7 @@ UserList *n;
 	
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
-	sprintf(args,"%s %s",chname,dest);
+	snprintf(args, sizeof args, "%s %s", chname, dest);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -1964,7 +1956,7 @@ char *check_tcl_alias(char *command, char *args)
 	
 	Tcl_SetVar(tcl_interp, "_a", args?args:empty_string, TCL_GLOBAL_ONLY);
 	if (check_tcl_bind(&H_functions, command, -1, " $_a", MATCH_MASK|BIND_STACKABLE, NULL))
-		return m_strdup(tcl_interp->result?tcl_interp->result:empty_string);
+		return m_strdup(Tcl_GetStringResult(tcl_interp));
 	return NULL;
 }
 
@@ -2000,7 +1992,7 @@ char args[BIG_BUFFER_SIZE+1];
 UserList *n;
 
 	n = lookup_userlevelc("*",uhost, chname, NULL);
-	snprintf(args,BIG_BUFFER_SIZE, "%s %s",chname,mode);
+	snprintf(args, sizeof args, "%s %s", chname, mode);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -2068,7 +2060,7 @@ UserList *n;
 	
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
-	snprintf(args,BIG_BUFFER_SIZE, "%s %s!%s",chname,nick,uhost);
+	snprintf(args, sizeof args, "%s %s!%s", chname, nick, uhost);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -2086,7 +2078,7 @@ UserList *n;
 	
 	if ((n = lookup_userlevelc("*",uhost, chname, NULL)))
 		atr = n->flags;
-	sprintf(args,"%s %s!%s",chname,nick,uhost);
+	snprintf(args, sizeof args, "%s %s!%s", chname, nick, uhost);
 	Tcl_SetVar(tcl_interp,"_n",nick,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_uh",uhost,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_h",n?n->nick:hand,TCL_GLOBAL_ONLY);
@@ -2102,7 +2094,7 @@ int idx; char *text;
   char s[10]; int x,atr;
 
 	
-	atr=get_attr_handle(dcc[idx].nick); sprintf(s,"%d",dcc[idx].sock);
+	atr=get_attr_handle(dcc[idx].nick); snprintf(s, sizeof s, "%d", dcc[idx].sock);
 	Tcl_SetVar(tcl_interp,"_n",s,TCL_GLOBAL_ONLY);
 	Tcl_SetVar(tcl_interp,"_a",text,TCL_GLOBAL_ONLY);
 	x=check_tcl_bind(&H_filt,text,atr," $_n $_a",
@@ -2335,7 +2327,8 @@ BUILT_IN_COMMAND(tcl_version)
 
 BUILT_IN_COMMAND(tcl_command)
 {
-int result = 0;
+	int result = 0;
+	const char *tcl_result;
 	
 	tcl_init();
 	if (args && *args)
@@ -2348,10 +2341,12 @@ int result = 0;
 				bla = next_arg(args, &args);
 				if (get_string_var(LOAD_PATH_VAR))
 					bla = path_search(args, get_string_var(LOAD_PATH_VAR));
-				if ((result = Tcl_EvalFile(tcl_interp, bla ? bla : args)) != TCL_OK)
-					put_it("Tcl:  [%s]",tcl_interp->result);
-				else if (tcl_echo && *tcl_interp->result)
-					put_it("Tcl:  [%s]", tcl_interp->result);
+
+				result = Tcl_EvalFile(tcl_interp, bla ? bla : args);
+				tcl_result = Tcl_GetStringResult(tcl_interp);
+
+				if ((result != TCL_OK) || (tcl_echo && *tcl_result))
+					put_it("Tcl: [%s]", tcl_result);
 			} 
 			else if (!my_strnicmp(args+1, "xecho", 4)) 
 			{
@@ -2364,10 +2359,12 @@ int result = 0;
 				put_it("Tcl: unknown cmd [%s]", args);
 			return;					
 		}
-		if ((result = Tcl_Eval(tcl_interp, args)) != TCL_OK)
-			put_it("Tcl: %s %s", args, tcl_interp->result);
-		else if (tcl_echo && *tcl_interp->result)
-			put_it("Tcl: [%s] %s", args, tcl_interp->result);
+
+		result = Tcl_Eval(tcl_interp, args);
+		tcl_result = Tcl_GetStringResult(tcl_interp);
+
+		if ((result != TCL_OK) || (tcl_echo && *tcl_result))
+			put_it("Tcl: [%s] %s", args, tcl_result);
 	} 
 	else
 	{
@@ -2402,7 +2399,7 @@ char *com;
 	Tcl_ResetResult(irp);
 	lower(com);
 	if (internal_debug & DEBUG_TCL)
-		debugyell("Invoking tcl [%s] with [%s]", com, rest);
+		debugyell("Invoking Tcl [%s] with [%s]", com, rest);
 	if (Tcl_GetCommandInfo(irp, com, &info) && info.proc)
 	{
 		result = (*info.proc)(info.clientData, irp, argc, ArgList);
@@ -2410,7 +2407,11 @@ char *com;
 			debugyell("Tcl returning with [%d]", result);
 	}
 	else
-		Tcl_AppendResult(irp, "Unknown command \"", com, "\"", NULL);
+	{
+		if (internal_debug & DEBUG_TCL)
+			debugyell("Tcl could not find command [%s]", com);
+	}
+
 	return result;
 }
 

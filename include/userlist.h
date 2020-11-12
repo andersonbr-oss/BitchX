@@ -3,9 +3,8 @@
  * Copyright Colten Edwards 1996
  * 
  */
- 
-#ifndef _user_list_h
-#define _user_list_h
+#ifndef USERLIST_H_
+#define USERLIST_H_
 
 void add_shit (char *, char *, char *, char *);
 void add_user (char *, char *, char *, char *);
@@ -15,7 +14,7 @@ void savelists (char *, char *, char *, char *);
 
 void add_to_a_list (char *, int, char *, char *, char *, int);
 void showlist (NickList *, char *);
-UserList *lookup_userlevelc (char *, char *, char *, char *);
+UserList *lookup_userlevelc (const char *, const char *, const char *, const char *);
 
 UserList *nickinuser (char *, char *);
 ShitList *nickinshit (char *, char *);
@@ -27,7 +26,7 @@ NickList *check_auto (char *, NickList *, ChannelList *);
 int check_prot (char *, char *, ChannelList *, BanList *, NickList *);
 void check_shit (ChannelList *);
 void check_hack (char *, ChannelList *, NickList *, char *);
-int check_channel_match (char *, char *);
+int check_channel_match (const char *, const char *);
 int delay_check_auto (char *);
 
 
@@ -72,7 +71,7 @@ extern WordKickList *ban_words;
 #define SHIT_IGNORE	0x0010
 
 /* user.c functions for dealing with hashed userlist */
-UserList *find_bestmatch(char *, char *, char *, char *);
+UserList *find_bestmatch(const char *, const char *, const char *, const char *);
 char * convert_flags(unsigned long flags);
 UserList *find_userlist(char *, char *, int);
 void add_userlist(UserList *);
@@ -84,4 +83,3 @@ unsigned long convert_str_to_flags(char *);
 int change_pass(char *, char *);
 
 #endif
-

@@ -7,11 +7,10 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT
  *
- * @(#)$Id: hash2.h 52 2008-06-14 06:45:05Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef _HASH2_H_
-#define _HASH2_H_
+#ifndef HASH2_H_
+#define HASH2_H_
 
 #include "struct.h"
 #include "whowas.h"
@@ -19,7 +18,7 @@
 
 /* Generic List type hash list */
 void	BX_add_name_to_genericlist (char *, HashEntry *, unsigned int);
-List	*BX_find_name_in_genericlist (char *, HashEntry *, unsigned int, int);
+List	*BX_find_name_in_genericlist (const char *, HashEntry *, unsigned int, int);
 List	*BX_next_namelist(HashEntry *, List *, unsigned int);
 
 void	BX_add_nicklist_to_channellist(NickList *, ChannelList *);
@@ -32,7 +31,7 @@ int	BX_remove_oldest_whowas_hashlist (WhowasWrapList *, time_t, int);
 
 WhowasList *BX_next_userhost(WhowasWrapList *, WhowasList *);
 
-NickList *BX_find_nicklist_in_channellist(char *, ChannelList *, int);
+NickList *BX_find_nicklist_in_channellist(const char *, ChannelList *, int);
 NickList *BX_next_nicklist(ChannelList *, NickList *);
 
 void	clear_nicklist_hashtable(ChannelList *);
@@ -61,7 +60,7 @@ void BX_clear_sorted_nicklist(NickList **);
 Flooding *BX_find_name_in_floodlist(char *, char *, HashEntry *, unsigned int, int);
 Flooding *BX_add_name_to_floodlist(char *, char *, char *, HashEntry *, unsigned int);
 
-unsigned long hash_nickname(char *, unsigned int);
+unsigned long hash_nickname(const char *, unsigned int);
 
 
 #endif

@@ -173,8 +173,8 @@ char	*dformat = "%W#$[3]0%n %Y$4%n $[14]1 $[-6]2$3 $5/$6 $7-";
 		double perc = 0.0;
 		if (count == 1)
 		{
-			nap_put("%s", cparse("ÚÄÄÄÄÄ%GD%gownloads", NULL));
-			nap_put("%s", cparse("%KÀÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ", NULL, NULL));
+			nap_put("%s", cparse("┌─────%GD%gownloads", NULL));
+			nap_put("%s", cparse("%K└──%n─%W─%n─%K──────────────%n─%W─%n─%K──────%n─%W─%n─%K────────%n─%W─%n─%K─────%n─%W─%n─%K─────%n─%W─%n─%K──────────────────", NULL, NULL));
 		}
 		if (sg->starttime)
 			sprintf(buff, "%2.3f", sg->received / 1024.0 / (snow - sg->starttime));
@@ -201,8 +201,8 @@ char	*dformat = "%W#$[3]0%n %Y$4%n $[14]1 $[-6]2$3 $5/$6 $7-";
 		double perc = 0.0;
 		if (count == 1)
 		{
-			nap_put("%s", cparse("ÚÄÄÄÄÄ%GU%gploads", NULL));
-			nap_put("%s", cparse("%KÀÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄ%nÄ%WÄ%nÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ", NULL, NULL));
+			nap_put("%s", cparse("┌─────%GU%gploads", NULL));
+			nap_put("%s", cparse("%K└──%n─%W─%n─%K──────────────%n─%W─%n─%K──────%n─%W─%n─%K────────%n─%W─%n─%K─────%n─%W─%n─%K─────%n─%W─%n─%K──────────────────", NULL, NULL));
 		}
 		if (sg->starttime)
 			sprintf(buff, "%2.3f", sg->received / 1024.0 / (snow - sg->starttime));
@@ -482,12 +482,11 @@ unsigned long nbytes = 0;
 	if (gf && gf->count)
 	{
 		int flags = O_WRONLY;
-		memset(&indata, 0, 200);
 		if ((rc = read(snum, &indata, gf->count)) != gf->count)
 			return;
 		if (!isdigit(*indata) || !*(indata+1) || !isdigit(*(indata+1)))
 		{
-			rc += read(snum, &indata[gf->count], sizeof(indata)-1);
+			rc += read(snum, &indata[gf->count], sizeof indata - gf->count);
 			indata[rc] = 0;
 			nap_say("Request from %s is %s", gf->nick, indata);
 			gf = find_in_getfile(&getfile_struct, 1, gf->nick, gf->checksum, gf->filename, -1, NAP_DOWNLOAD);
@@ -525,7 +524,8 @@ unsigned long nbytes = 0;
 		send_ncommand(CMDS_UPDATE_GET, NULL);
 		return;
 	}
-        if ((rc = ioctl(snum, FIONREAD, &nbytes) != -1))
+    rc = ioctl(snum, FIONREAD, &nbytes);
+	if (rc != -1)
 	{
 		if (nbytes)
 		{
@@ -739,7 +739,6 @@ gato242 3068149784 6699 "d:\mp3\Hackers_-_07_-_Orbital_-_Halcyon_&_On_&_On.mp3"
 */
 unsigned short port;
 int getfd = -1;
-int speed;
 char *nick, *file, *checksum, *ip, *dir = NULL;
 char *realfile = NULL;
 char indata[2*NAP_BUFFER_SIZE+1];
@@ -752,7 +751,7 @@ struct stat st;
 	port = my_atol(next_arg(args, &args));
 	file = new_next_arg(args, &args);
 	checksum = next_arg(args, &args);
-	speed = my_atol(args);
+	/* Last argument (speed) ignored */
 
 	if (!(gf = find_in_getfile(&getfile_struct, 1, nick, checksum, file, -1, NAP_DOWNLOAD)))
 	{

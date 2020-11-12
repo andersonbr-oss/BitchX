@@ -224,7 +224,7 @@ int connectbynumber(char *hostn, unsigned short *portnum, int service, int proto
 
 	if (service == SERVICE_SERVER)
 	{
-		int length;
+		socklen_t length;
 #ifdef IP_PORTRANGE
 		int ports;
 #endif
@@ -273,10 +273,8 @@ int connectbynumber(char *hostn, unsigned short *portnum, int service, int proto
 	/* Inet domain client */
 	else if (service == SERVICE_CLIENT)
 	{
-		struct sockaddr_foobar server;
+		struct sockaddr_foobar server = { 0 };
 		struct hostent *hp;
-
-		memset(&server, 0, sizeof(struct sockaddr_in));
 
 		if (isdigit(hostn[strlen(hostn)-1]))
 			inet_aton(hostn, (struct in_addr *)&server.sf_addr);
@@ -313,15 +311,15 @@ int connectbynumber(char *hostn, unsigned short *portnum, int service, int proto
 	return fd;
 }
 
-
-
 char    *numeric_banner(int curr)
 {
-	static  char    thing[4];
+	static char thing[4];
+
 	if (!get_dllint_var("napster_show_numeric"))
-		return (nap_ansi?nap_ansi:empty_string);
-	sprintf(thing, "%3.3u", curr);
-	return (thing);
+		return nap_ansi ? nap_ansi : empty_string;
+
+	snprintf(thing, sizeof thing, "%3.3d", curr);
+	return thing;
 }
 
 static void set_numeric_string(Window *win, char *value, int unused)
@@ -755,12 +753,12 @@ NAP_COMM(cmd_whowas)
 		d_port = next_arg(args, &args);
 		email = next_arg(args, &args);
 		
-		nap_put("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -", NULL));
+		nap_put("%s", cparse("ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -", NULL));
 		if (l_ip)
 			nap_put("%s", cparse("| User    : $0($1) $2 l:$3 d:$4", "%s %s %s %s %s", nick, email, l_ip, l_port, d_port));
 		else
 			nap_put("%s", cparse("| User       : $0", "%s", nick));
-		nap_put("%s", cparse("Â³ Class      : $0", "%s", class));
+		nap_put("%s", cparse("³ Class      : $0", "%s", class));
 		nap_put("%s", cparse(": Last online: $0-", "%s", my_ctime(online)));
 		if (t_down || t_up)
 			nap_put("%s", cparse(": Total Uploads : $0 Downloading : $1", "%d %d", t_up, t_down));
@@ -794,17 +792,17 @@ NAP_COMM(cmd_whois)
 		d_port = next_arg(args, &args);		
 		email = next_arg(args, &args);
 		
-		nap_put("%s", cparse("ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -", NULL));
+		nap_put("%s", cparse("ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -", NULL));
 		if (l_ip)
 			nap_put("%s", cparse("| User    : $0($1) $2 l:$3 d:$4", "%s %s %s %s %s", nick, email, l_ip, l_port, d_port));
 		else
 			nap_put("%s", cparse("| User    : $0", "%s", nick));
 		nap_put("%s", cparse("| Class   : $0", "%s", class));
-		nap_put("%s", cparse("Â³ Line    : $0-", "%s", n_speed(speed)));
-		nap_put("%s", cparse("Â³ Time    : $0-", "%s", convert_time(online)));
-		nap_put("%s", cparse("Â³ Channels: $0-", "%s", channels ? channels : empty_string));
-		nap_put("%s", cparse("Â³ Status  : $0-", "%s", status));
-		nap_put("%s", cparse("Â³ Shared  : $0", "%d", shared));
+		nap_put("%s", cparse("³ Line    : $0-", "%s", n_speed(speed)));
+		nap_put("%s", cparse("³ Time    : $0-", "%s", convert_time(online)));
+		nap_put("%s", cparse("³ Channels: $0-", "%s", channels ? channels : empty_string));
+		nap_put("%s", cparse("³ Status  : $0-", "%s", status));
+		nap_put("%s", cparse("³ Shared  : $0", "%d", shared));
 		nap_put("%s", cparse(": Client  : $0-", "%s", ver));
 		nap_put("%s", cparse(": Uploading : $0 Downloading : $1", "%d %d", upload, download));
 		if (t_down || t_up)
@@ -823,7 +821,7 @@ NAP_COMM(cmd_error)
 			nap_error = 11;
 		}
 		else
-			nap_say("%s", cparse("Recieved error for [$0] $1-.", "%d %s", cmd, args ? args : empty_string));
+			nap_say("%s", cparse("Received error for [$0] $1-.", "%d %s", cmd, args ? args : empty_string));
 	}
 	if (nap_error > 10)
 	{
@@ -836,7 +834,7 @@ NAP_COMM(cmd_error)
 NAP_COMM(cmd_unknown)
 {
 	if (do_hook(MODULE_LIST, "NAP UNKNOWN %s", args))
-		nap_say("%s", cparse("Recieved unknown [$0] $1-.", "%d %s", cmd, args));
+		nap_say("%s", cparse("Received unknown [$0] $1-.", "%d %s", cmd, args));
 	return 0;	
 }
 
@@ -1015,11 +1013,13 @@ char *chan;
 	if (!(chan = next_arg(args, &args)))
 		return 0;
 	ch = (ChannelStruct *)find_in_list((List **)&nchannels, chan, 0);
+	if (!ch)
+		return 0;
+
 	ch->injoin = 0;
 	if (do_hook(MODULE_LIST, "NAP ENDNAMES %s", chan))
 	{
-		if (ch)
-			name_print(ch->nicks, 0);
+		name_print(ch->nicks, 0);
 	}
 	malloc_strcpy(&nap_current_channel, chan);
 	return 0;
@@ -1129,7 +1129,7 @@ SocketList *naplink_connect(char *host, u_short port)
 			set_lastlog_msg_level(lastlog_level);
 			return NULL;
 		}
-		bcopy(hp->h_addr, (char *)&address, sizeof(address));
+		memcpy(&address, hp->h_addr, sizeof(address));
 	}
 	nap_socket = connectbynumber(host, &port, SERVICE_CLIENT, PROTOCOL_TCP, 0);
 	if (nap_socket < 0)
@@ -1233,7 +1233,7 @@ void naplink_getserver(char *host, u_short port, int create)
 			set_lastlog_msg_level(lastlog_level);
 			return;
 		}
-		bcopy(hp->h_addr, (char *)&address, sizeof(address));
+		memcpy(&address, hp->h_addr, sizeof(address));
 	}
 	nap_socket = connectbynumber(host, &port, SERVICE_CLIENT, PROTOCOL_TCP, 1);
 	if (nap_socket < 0)
@@ -1331,7 +1331,6 @@ BUILT_IN_DLL(naphelp)
 
 BUILT_IN_DLL(napsave)
 {
-IrcVariableDll *newv = NULL;
 FILE *outf = NULL;
 char *expanded = NULL;
 char buffer[NAP_BUFFER_SIZE+1];
@@ -1348,21 +1347,32 @@ char *p = NULL;
 		new_free(&expanded);
 		return;
 	}
-	for (newv = dll_variable; newv; newv = newv->next)
-	{
-		if (!my_strnicmp(newv->name, "napster", 7))
-		{
-			if (newv->type == STR_TYPE_VAR)
-			{
-				if (newv->string)
-					fprintf(outf, "SET %s %s\n", newv->name, newv->string);
-			}
-			else if (newv->type == BOOL_TYPE_VAR)
-				fprintf(outf, "SET %s %s\n", newv->name, on_off(newv->integer));
-			else
-				fprintf(outf, "SET %s %d\n", newv->name, newv->integer);
-		}
-	}
+
+	save_dllvar(outf, "napster_prompt");
+	save_dllvar(outf, "napster_window");
+	save_dllvar(outf, "napster_host");
+	save_dllvar(outf, "napster_user");
+	save_dllvar(outf, "napster_pass");
+	save_dllvar(outf, "napster_email");
+	save_dllvar(outf, "napster_port");
+	save_dllvar(outf, "napster_dataport");
+	save_dllvar(outf, "napster_speed");
+	save_dllvar(outf, "napster_max_results");
+	save_dllvar(outf, "napster_numeric");
+	save_dllvar(outf, "napster_download_dir");
+	save_dllvar(outf, "napster_names_nickcolor");
+	save_dllvar(outf, "napster_hotlist_online");
+	save_dllvar(outf, "napster_hotlist_offline");
+	save_dllvar(outf, "napster_show_numeric");
+	save_dllvar(outf, "napster_window_hidden");
+	save_dllvar(outf, "napster_resume_download");
+	save_dllvar(outf, "napster_send_limit");
+	save_dllvar(outf, "napster_names_columns");
+	save_dllvar(outf, "napster_share");
+	save_dllvar(outf, "napster_max_send_nick");
+	save_dllvar(outf, "napster_format");
+	save_dllvar(outf, "napster_dir");
+
 	for (new = nap_hotlist; new; new = new->next)
 		m_s3cat(&p, " ", new->nick);
 	if (p)
@@ -1571,8 +1581,8 @@ void print_file(FileStruct *f, int count)
 	{
 		if (do_hook(MODULE_LIST, "NAP PRINTFILE_HEADER"))
 		{
-			nap_put("Number Â³ Song Â³ Bitrate Â³ Frequency Â³ Length Â³ Size Â³ Computer Â³ Speed");
-			nap_put("Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„");
+			nap_put("Number ³ Song ³ Bitrate ³ Frequency ³ Length ³ Size ³ Computer ³ Speed");
+			nap_put("ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ");
 		}
 	}
 	if (do_hook(MODULE_LIST, "NAP PRINTFILE %d %s %u %u %lu %lu %s %d", 
@@ -1593,20 +1603,17 @@ void print_file(FileStruct *f, int count)
 
 NAP_COMM(cmd_fileinfo)
 {
-char *nick;
-char *ip;
 int port;
 char *file;
-char *checksum;
 int speed;
-	nick = next_arg(args, &args);
-	ip = next_arg(args, &args);
+	next_arg(args, &args); /* nick, ignored */
+	next_arg(args, &args); /* ip, ignored */
 	port = my_atol(next_arg(args, &args));
 	file = new_next_arg(args, &args);
-	checksum = next_arg(args, &args);
+	next_arg(args, &args); /* checksum, ignored */
 	speed = my_atol(next_arg(args, &args));
-	nap_put("Number Â³ Song Â³ Speed");
-	nap_put("Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„");
+	nap_put("Number ³ Song ³ Speed");
+	nap_put("ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ");
 	nap_put("%.3d %s %d %d", 1, base_name(file), port, n_speed(speed));
 	return 0;
 }
@@ -1739,7 +1746,7 @@ char *type = NULL;
 		}
 		else if (strstr(cmd, "line"))
 		{
-			if (value < 0 || value > 10)
+			if (value > 10)
 			{
 				nap_say("%s", cparse("Allowed linespeed 0-10", NULL));
 				return;

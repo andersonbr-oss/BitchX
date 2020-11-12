@@ -11,11 +11,10 @@
  * use this version of IRCII!  Please read the INSTALL and New2.2 files
  * supplied with the distribution for details!
  *
- * @(#)$Id: config.h 160 2012-03-06 11:14:51Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __config_h_
-#define __config_h_
+#ifndef CONFIG_H_
+#define CONFIG_H_
 
 #include "defs.h"
 
@@ -35,71 +34,69 @@
  * on any servers you add into this list. also the very last server should not 
  * have a continuation char.
  *
- * List last updated: 15-Aug-2009 (caf).
+ * List last updated: 01-Nov-2014 (caf).
  */
-#define DEFAULT_SERVER  "[efnet] "\
+#define DEFAULT_SERVER  "[efnet US] "\
 				"irc.eversible.com "\
 				"irc.choopa.net "\
-				"irc.easynews.com "\
-				"irc.blessed.net "\
 				"irc.servercentral.net "\
 				"irc.umich.edu "\
-				"irc.he.net "\
 				"irc.mzima.net "\
 				"irc.paraphysics.net "\
-				"irc.shoutcast.com "\
-				"irc.vel.net "\
-				"irc.wh.verio.net "\
-			"[xsirc] "\
-				"irc.BitchX.org "\
-				"ircd.ircii.org "\
-				"irc.gibbed.net "\
+				"irc.colosolutions.net "\
+				"irc2.choopa.net "\
+			"[efnet CA] "\
+				"irc.teksavvy.ca "\
+				"irc.arcti.ca "\
+				"irc.shaw.ca "\
+			"[efnet EU] "\
+				"irc.inet.tele.dk "\
+				"irc.efnet.fr "\
+				"irc.du.se "\
+				"irc.homelien.no "\
+				"irc.efnet.pl "\
+				"irc.swepipe.se "\
+				"irc.underworld.no "\
+				"efnet.portlane.se "\
 			"[ircnet US] "\
 				"ircnet.eversible.com "\
-				"ircnet.choopa.net "\
-				"us.ircnet.org "\
+				"ircnet.blacklotus.net "\
+				"irc.ca.ircnet.net "\
 			"[ircnet EU] "\
 				"irc.dotsrc.org "\
-				"uk.ircnet.org "\
-				"irc.xs4all.nl "\
 				"irc.belwue.de "\
+				"irc.atw-inter.net "\
+				"irc.snt.utwente.nl "\
 				"ircnet.nerim.fr "\
-				"irc.eutelia.it "\
+				"irc1.tiscali.it "\
+				"irc.portlane.se "\
 				"krakow.irc.pl "\
-				"ircnet.netvision.net.il "\
+				"irc.fast.net.il "\
+				"irc.cs.hut.fi "\
+				"atw.irc.hu "\
 			"[dalnet] "\
 				"irc.dal.net "\
 			"[Undernet US] "\
-				"Dallas.TX.US.Undernet.org "\
-				"mesa.az.us.undernet.org "\
-				"newyork.ny.us.undernet.org "\
-				"SantaAna.CA.US.Undernet.org "\
-				"Tampa.FL.US.Undernet.org "\
-			"[Undernet CA] "\
-				"Vancouver.BC.CA.Undernet.org "\
+				"Chicago.IL.US.Undernet.org "\
+				"Denver.CO.US.Undernet.Org "\
+				"Mesa.AZ.US.Undernet.Org "\
 			"[Undernet EU] "\
-				"Diemen.NL.EU.Undernet.Org "\
-				"Helsinki.FI.EU.Undernet.org "\
-				"trondheim.no.eu.undernet.org "\
-				"graz.at.Eu.UnderNet.org "\
-				"Elsene.Be.Eu.undernet.org "\
-				"bucharest.ro.eu.undernet.org "\
-				"Ede.NL.EU.UnderNet.Org "\
-				"oslo.no.eu.undernet.org "\
-				"Zagreb.Hr.EU.UnderNet.org "\
-				"Lelystad.NL.EU.UnderNet.Org "\
+				"Bucharest.RO.EU.Undernet.Org "\
+				"Budapest.HU.EU.UnderNet.org "\
 			"[Anynet] "\
-				"irc.bluecherry.net "\
 				"irc.irule.net "\
+				"irc.plugh.us "\
+				"irc.ninjaneering.net "\
 			"[AfterNet] "\
 				"irc.afternet.org "\
 			"[oftc] "\
 				"irc.oftc.net "\
 			"[SlashNET] "\
-				"pinky.slashnet.org "\
-				"blago.slashnet.org "\
+				"abstract.slashnet.org "\
+				"bees.slashnet.org "\
+				"concrete.slashnet.org "\
 				"moo.slashnet.org "\
-				"coruscant.slashnet.org "
+				"spaniels.slashnet.org "
 #endif
 
 /*
@@ -180,12 +177,12 @@
 
 /*
  * Define this if you want the $glob() function to be in your client.
- * There is a case for having this functino and a case against having
+ * There is a case for having this function and a case against having
  * this function:
  *
  * Pro: makes it easier to write scripts like xdcc, since they can easily
  *      get at the filenames in your xdcc directory
- * ConS8 with $unlink(), $rmdir(), etc, it makes it that much easier for
+ * Con: with $unlink(), $rmdir(), etc, it makes it that much easier for
  *      a backdoor to do damage to your account.
  *
  * You will have to weigh the evidence and decide if you want to include it.
@@ -271,7 +268,7 @@
 /*
  * Normally BitchX uses only the IBMPC (cp437) charset.
  * Define LATIN1, if you want to see the standard Latin1 characters
- * (i.e. Ä Ö Ü ä ö ü ß <-> "A "O "U "a "o "u \qs ).
+ * (i.e. ─ ╓ ▄ Σ ÷ ⁿ ▀ <-> "A "O "U "a "o "u \qs ).
  *
  * You will still be able to see ansi graphics, but there will be some
  * smaller problems (i.e. after a PageUp).
@@ -325,9 +322,11 @@
  * Define the name of your ircrc file here.
  */
 #if defined(WINNT) || defined(__EMX__)
-#define IRCRC_NAME "/irc-rc"
+#define IRCRC_NAME "irc-rc"
+#define BITCHXRC_NAME "bx-rc"
 #else
-#define IRCRC_NAME "/.ircrc"
+#define IRCRC_NAME ".ircrc"
+#define BITCHXRC_NAME ".bitchxrc"
 #endif
 
 #define DEFAULT_PING_TYPE 1
@@ -358,7 +357,7 @@
 #define DEFAULT_DO_NOTIFY_IMMEDIATELY ON
 #define DEFAULT_EIGHT_BIT_CHARACTERS ON
 #define DEFAULT_EXEC_PROTECTION ON
-#define DEFAULT_FLOOD_AFTER 4
+#define DEFAULT_FLOOD_AFTER 50
 #define DEFAULT_FLOOD_RATE 5
 #define DEFAULT_FLOOD_USERS 10
 #define DEFAULT_FLOOD_WARNING OFF
@@ -374,7 +373,7 @@
 #define DEFAULT_INPUT_ALIASES OFF
 #define DEFAULT_INSERT_MODE ON
 #define DEFAULT_INVERSE_VIDEO ON
-#define DEFAULT_LASTLOG 1000
+#define DEFAULT_LASTLOG 5120
 #define DEFAULT_LOG OFF
 #define DEFAULT_MAIL 2
 #define DEFAULT_NO_CTCP_FLOOD ON
@@ -416,7 +415,7 @@
 #define DEFAULT_DCC_AUTORESUME OFF
 #define DEFAULT_DCC_AUTORENAME_ON_NICKNAME OFF
 #define DEFAULT_DCC_BAR_TYPE 0 /* 0 or 1 */
-#define DEFAULT_DOUBLE_STATUS_LINE ON
+#define DEFAULT_DOUBLE_STATUS_LINE 1 /* 0: never, 1: first window only, 2: always */
 #define DEFAULT_FTP_GRAB OFF
 #define DEFAULT_HTTP_GRAB OFF
 #define DEFAULT_HELP_WINDOW OFF
@@ -494,7 +493,7 @@
 #define DEFAULT_STATUS_NO_REPEAT ON
 #define DEFAULT_STATUS_DOES_EXPANDOS OFF
 #define DEFAULT_DISPATCH_UNKNOWN_COMMANDS OFF
-#define DEFAULT_SCROLLBACK_LINES 512
+#define DEFAULT_SCROLLBACK_LINES 5120
 #define DEFAULT_SCROLLBACK_RATIO 50
 #define DEFAULT_SCROLLERBARS ON
 #define DEFAULT_ND_SPACE_MAX 160
@@ -563,7 +562,7 @@
 #define DEFAULT_XTERM "rxvt"
 #define DEFAULT_XTERM_OPTIONS "-bg black -fg white"
 #define DEFAULT_DCC_DLDIR "~"
-
+#define DEFAULT_LAG_CHECK_INTERVAL 30	/* Time between lag check pings, in seconds */
 #define DEFAULT_PAD_CHAR ' '
 #define DEFAULT_USERMODE "+iw"  /* change this to the default usermode */
 #define DEFAULT_OPERMODE "swfck"
@@ -647,16 +646,7 @@
 #define DEFAULT_IDENT_HACK ".noident"
 #endif
 
-#if !defined(WANT_CHATNET)
-#undef WANT_CHATNET      /* define just for codelogic */
-#endif
-
-#if defined(_USE_LOCAL_CONFIG) && !defined(SHOULD_NOTIFY_BITCHX_COM)
-#undef WANT_NOTIFY_BITCHX_COM
-#endif
-
 #undef PARANOID		/* #define this if your paranoid about dcc hijacking */
-#undef WANT_CHAN_NICK_SERV	/* do we want to include some chan/nick/oper server commands */
 
 /* new epic stuff */
 #define OLD_STATUS_S_EXPANDO_BEHAVIOR
@@ -698,6 +688,4 @@
 #undef OFF
 #undef ON
 
-#include "color.h"		/* all color options here. */
-
-#endif /* __config_h_ */
+#endif /* CONFIG_H_ */

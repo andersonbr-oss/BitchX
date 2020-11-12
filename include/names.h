@@ -7,11 +7,10 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: names.h 134 2011-08-30 14:50:42Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __names_h_
-#define __names_h_
+#ifndef NAMES_H_
+#define NAMES_H_
 
 #include "window.h"
 #include "irc.h"
@@ -20,11 +19,13 @@
 #define	CHAN_NOUNLINK	1
 #define CHAN_UNLINK	2
 
+/* for got_mode */
 #define	GOTNAMES	0x01
 #define	GOTMODE		0x02
 #define GOTBANS		0x04
 #define GOTWHO		0x08
 #define	GOTEXEMPT	0x10
+#define GOTNEW		0x20	/* Indicates newly-created channel */
 
 /* Channel mode flags */
 #define MODE_ANONYMOUS	(1U << 0)	/* av2.9 */
@@ -52,14 +53,14 @@ int		is_channel_mode (char *, int, int);
 int		BX_is_chanop (char *, char *);
 int		BX_is_halfop (char *, char *);
 char		*is_chanoper (char *, char *);
-ChannelList	*BX_lookup_channel (char *, int, int);
+ChannelList	*BX_lookup_channel (const char *, int, int);
 char		*BX_get_channel_mode (char *, int);
 #ifdef	INCLUDE_UNUSED_FUNCTIONS
 void		set_channel_mode (char *, int, char *);
 #endif /* INCLUDE_UNUSED_FUNCTIONS */
 ChannelList *	BX_add_channel (char *, int, int);
 ChannelList *	BX_add_to_channel (char *, char *, int, int, int, char *, char *, char *, int, int);
-void		BX_remove_channel (char *, int);
+void BX_remove_channel (const char *);
 void		BX_remove_from_channel (char *, char *, int, int, char *);
 int		BX_is_on_channel (char *, int, char *);
 void		list_channels (void);
@@ -95,4 +96,4 @@ int		BX_got_ops(int, ChannelList *);
 void		BX_flush_channel_stats (void);
 char		*BX_get_channel_bans(char *, int, int);
 
-#endif /* __names_h_ */
+#endif /* NAMES_H_ */

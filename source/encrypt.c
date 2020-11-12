@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: encrypt.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(encrypt_c)
 #include "struct.h"
 
@@ -18,7 +18,6 @@ CVS_REVISION(encrypt_c)
 #include "vars.h"
 #include "ircaux.h"
 #include "list.h"
-#include "ctcp.h"
 #include "output.h"
 #include "newio.h"
 #define MAIN_SOURCE
@@ -26,11 +25,7 @@ CVS_REVISION(encrypt_c)
 
 static	void	add_to_crypt (char *, char *);
 static	int	remove_crypt (char *);
-static	char	*do_crypt (char *, char *, int);
 
-#define CRYPT_BUFFER_SIZE (IRCD_BUFFER_SIZE - 50)	/* Make this less than
-							 * the trasmittable
-							 * buffer */
 /*
  * Crypt: the crypt list structure,  consists of the nickname, and the
  * encryption key 
@@ -88,7 +83,7 @@ static	int remove_crypt(char *nick)
  * is_crypted: looks up nick in the crypt_list and returns the encryption key
  * if found in the list.  If not found in the crypt_list, null is returned. 
  */
-char	* is_crypted(char *nick)
+const char *is_crypted(char *nick)
 {
 	Crypt	*tmp;
 
@@ -138,7 +133,7 @@ BUILT_IN_COMMAND(encrypt_cmd)
 	}
 }
 
-extern	void BX_my_encrypt (char *str, int len, char *key)
+extern	void BX_my_encrypt (char *str, int len, const char *key)
 {
 	int	key_len,
 		key_pos,
@@ -162,7 +157,7 @@ extern	void BX_my_encrypt (char *str, int len, char *key)
 	str[i] = (char) 0;
 }
 
-extern	void BX_my_decrypt(char *str, int len, char *key)
+extern	void BX_my_decrypt(char *str, int len, const char *key)
 {
 	int	key_len,
 		key_pos,
@@ -187,74 +182,3 @@ extern	void BX_my_decrypt(char *str, int len, char *key)
 	str[i] = (char) 0;
 }
 
-static	char	*do_crypt(char *str, char *key, int flag)
-{
-	int	c;
-	char	*ptr = NULL;
-
-	c = strlen(str);
-	if (flag)
-	{
-		my_encrypt(str, c, key);
-		ptr = ctcp_quote_it(str, c);
-	}
-	else
-	{
-		ptr = ctcp_unquote_it(str, &c);
-		my_decrypt(ptr, c, key);
-	}
-	return (ptr);
-}
-
-/*
- * crypt_msg: Executes the encryption program on the given string with the
- * given key.  If flag is true, the string is encrypted and the returned
- * string is ready to be sent over irc.  If flag is false, the string is
- * decrypted and the returned string should be readable 
- */
-char	*crypt_msg(char *str, char *key)
-{
-	char	buffer[CRYPT_BUFFER_SIZE + 1];
-	char	thing[6] = "";
-	char	*ptr;
-
-	sprintf(thing, "%cSED ", CTCP_DELIM_CHAR);
-	*buffer = (char) 0;
-	if ((ptr = do_crypt(str, key, 1)))
-	{
-		strmcat(buffer, thing, CRYPT_BUFFER_SIZE);
-		strmcat(buffer, ptr, CRYPT_BUFFER_SIZE-1);
-		strmcat(buffer, CTCP_DELIM_STR, CRYPT_BUFFER_SIZE);
-		new_free(&ptr);
-	}
-	else
-		strmcat(buffer, str, CRYPT_BUFFER_SIZE);
-
-	return (m_strdup(buffer));
-}
-
-/*
- * Given a CTCP SED argument 'str', it attempts to unscramble the text
- * into something more sane.  If the 'key' is not the one used to scramble
- * the text, the results are unpredictable.  This is probably the point.
- *
- * Note that the retval MUST be at least 'BIG_BUFFER_SIZE + 1'.  This is
- * not an oversight -- the retval is passed is to do_ctcp() which requires
- * a big buffer to scratch around (The decrypted text could be a CTCP UTC
- * which could expand to a larger string of text.)
- */ 
-char 	*decrypt_msg (char *str, char *key)
-{
-	char	*buffer = (char *)new_malloc(BIG_BUFFER_SIZE + 1);
-	char	*ptr;
-
-	if ((ptr = do_crypt(str, key, 0)) != NULL)
-	{
-		strmcpy(buffer, ptr, CRYPT_BUFFER_SIZE);
-		new_free(&ptr);
-	}
-	else
-		strmcat(buffer, str, CRYPT_BUFFER_SIZE);
-
-	return buffer;
-}

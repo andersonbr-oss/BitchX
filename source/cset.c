@@ -27,7 +27,7 @@
 #endif                              
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: cset.c 108 2011-02-02 12:13:54Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(cset_c)
 #include "struct.h"
 #include "vars.h"    /* for do_boolean() and var_settings[] */
@@ -230,8 +230,7 @@ static int find_cset_variable(CSetArray *array, char *org_name, int *cnt)
 	char    *name = NULL;
 
 	len = strlen(org_name);
-	name = alloca(len + 1);
-	strcpy(name, org_name);
+	name = LOCAL_COPY(org_name);
 
 	upper(name);
 	var_index = 0;
@@ -326,156 +325,58 @@ static void set_cset_var_value(CSetList *tmp, int var_index, char *value)
 
 CSetList *check_cset_queue(char *channel, int add)
 {
-	CSetList *c = NULL;
-	int found = 0;
-	if (!strchr(channel, '*') && !(c = (CSetList *)find_in_list((List **)&cset_queue, channel, 0)))
+	CSetList *c = (CSetList *)find_in_list((List **)&cset_queue, channel, 0);
+
+	if (!c && add)
 	{
-		if (!add) 
-		{
-			for (c = cset_queue; c; c = c->next)
-				if (!my_stricmp(c->channel, channel) || wild_match(c->channel, channel))
-					return c;
-			return NULL;
-		}
 		c = create_csets_for_channel(channel);
 		add_to_list((List **)&cset_queue, (List *)c);
-		found++;
 	}
-	if (c)
-		return c;
-	if (add && !found)
-	{
-		for (c = cset_queue; c; c = c->next)
-			if (!my_stricmp(c->channel, channel))
-				return c;
-		c = create_csets_for_channel(channel);
-		c->next = cset_queue;
-		cset_queue = c;
-		return c;
-	}
-	return NULL;
+
+	return c;
 }
 
-static inline void cset_variable_case1(char *channel, int var_index, char *args)
-{
-	ChannelList *chan = NULL;
-	int tmp = 0;
-	int count = 0;
-	/* 
-	 * implement a queue for channels that don't exist... later...
-	 * go home if user doesn't have any channels.
-	 */
-	if (current_window->server != -1)
-	{
-		for (chan = get_server_channels(current_window->server); chan; chan = chan->next) 
-		{
-			tmp = var_index;
-			if (wild_match(channel, chan->channel))
-			{
-				set_cset_var_value(chan->csets, tmp, args);
-				count++;
-			}
-		}
-	}
-	/* no channel match. lets check the queue */
-/*	if (!count)*/
-	{
-		CSetList *c = NULL;
-		if (!count)
-			check_cset_queue(channel, 1);
-		for (c = cset_queue; c; c = c->next)
-		{
-			tmp = var_index;
-			if (!my_stricmp(channel, c->channel) || wild_match(channel, c->channel))
-			{
-				set_cset_var_value(c, tmp, args);
-				count++;
-			}
-		}
-		if (!count)
-			say("CSET_VARIABLE: No match in cset queue for %s", channel);
-	}
-}
-
-static inline void cset_variable_casedef(char *channel, int cnt, int var_index, char *args)
+static inline void cset_variable_range(char *channel, int cnt, int var_index, char *args)
 {
 	ChannelList *chan = NULL; 
-	int tmp, tmp2;
+	CSetList *c = NULL;
+	int i;
 	int count = 0;
 	
 	if (current_window->server != -1)
 	{
 		for (chan = get_server_channels(current_window->server); chan; chan = chan->next) 
 		{
-			tmp = var_index;
-			tmp2 = cnt;
 			if (wild_match(channel, chan->channel)) 
 			{
-				for (tmp2 += tmp; tmp < tmp2; tmp++)
-					set_cset_var_value(chan->csets, tmp, empty_string);
+				for (i = var_index; i < var_index + cnt; i++)
+					set_cset_var_value(chan->csets, i, args);
 				count++;
 			}
 		}
-	}
-/*	if (!count) */
-	{
-		CSetList *c = NULL;
-		if (!count)
-			check_cset_queue(channel, 1);
-		for (c = cset_queue; c; c = c->next)
-		{
-			tmp = var_index;
-			tmp2 = cnt;
-			if (!my_stricmp(channel, c->channel) || wild_match(channel, c->channel))
-			{
-				for (tmp2 +=tmp; tmp < tmp2; tmp++)
-					set_cset_var_value(c, tmp, empty_string);
-				count++;
-			}
-		}
-		if (!count)
-			say("CSET_VARIABLE: No match in cset queue for %s", channel);
-		return;
 	}
 
+	if (!count)
+		check_cset_queue(channel, 1);
+	for (c = cset_queue; c; c = c->next)
+	{
+		if (!my_stricmp(channel, c->channel) || wild_match(channel, c->channel))
+		{
+			for (i = var_index; i < var_index + cnt; i++)
+			{
+				set_cset_var_value(c, i, args);
+				count++;
+			}
+		}
+	}
+	if (!count)
+		say("CSET_VARIABLE: No match in cset queue for %s", channel);
 }
 
 static inline void cset_variable_noargs(char *channel)
 {
-	int var_index = 0;
-	ChannelList *chan = NULL; 
-	int count = 0;
-
-	if (current_window->server != -1)
-	{
-		for (chan = get_server_channels(current_window->server); chan; chan = chan->next) 
-		{
-			if (wild_match(channel, chan->channel)) 
-			{	
-				for (var_index = 0; var_index < NUMBER_OF_CSETS; var_index++)
-					set_cset_var_value(chan->csets, var_index, empty_string);
-				count++;
-			}
-		}
-	}
-/*	if (!count) */
-	{
-		CSetList *c = NULL;
-		if (!count)
-			check_cset_queue(channel, 1);
-		for (c = cset_queue; c; c = c->next)
-		{
-			if (!wild_match(channel, c->channel))
-				continue;
-			for (var_index = 0; var_index < NUMBER_OF_CSETS; var_index++)
-				set_cset_var_value(c, var_index, empty_string);
-			count++;
-		}
-		if (!count)
-			say("CSET_VARIABLE: No match in cset queue for %s", channel ? channel : empty_string);
-		return;
-	}
-
+	/* Show the current value of every cset */
+	cset_variable_range(channel, NUMBER_OF_CSETS, 0, "");
 }
 
 char *set_cset(char *var, ChannelList *chan, char *value)
@@ -561,57 +462,53 @@ int var_index, cnt = 0;
 				return t;
 			}
 		}		
-		return m_strdup(s && *s ? s : empty_string);
+		return m_strdup(*s ? s : empty_string);
 	}
 	return m_strdup(empty_string);
 }
 
 BUILT_IN_COMMAND(cset_variable)
 {
-	char    *var, *channel = NULL;
-	int     no_args = 1, cnt, var_index, hook = 1;
+	char *var, *channel = NULL;
+	int cnt, var_index;
 
-	if (from_server != -1 && current_window->server != -1)
-	{
-		if (args && *args && (is_channel(args) || *args == '*'))
-			channel = next_arg(args, &args);
-		else
-			channel = get_current_channel_by_refnum(0);
-	}
-	else if (args && *args && (is_channel(args) || *args == '*'))
+	if (args && *args && (is_channel(args) || *args == '*'))
 		channel = next_arg(args, &args);
-		
+	else
+		channel = get_current_channel_by_refnum(0);
+
 	if (!channel)
 		return;
 
-	if ((var = next_arg(args, &args)) != NULL) 
+	var = next_arg(args, &args);
+
+	if (!var)
 	{
-		if (*var == '-') 
-		{
-			var++;
-			args = NULL;
-		}
-		var_index = find_cset_variable(cset_array, var, &cnt);
-		
-		if (hook)
-		{
-			switch (cnt) 
-			{
-				case 0:
-					say("No such variable \"%s\"", var);
-					return;
-				case 1:
-					cset_variable_case1(channel, var_index, args);
-					return;
-				default:
-					say("%s is ambiguous", var);
-					cset_variable_casedef(channel, cnt, var_index, args);
-					return;
-			}
-		}
-	}
-	if (no_args)
 		cset_variable_noargs(channel);
+		return;
+	}
+
+	if (*var == '-')
+	{
+		var++;
+		args = NULL;
+	}
+
+	var_index = find_cset_variable(cset_array, var, &cnt);
+
+	if (cnt == 0)
+	{
+		say("No such variable \"%s\"", var);
+		return;
+	}
+
+	if (cnt > 1)
+	{
+		say("Variable \"%s\" is ambiguous", var);
+		args = "";
+	}
+
+	cset_variable_range(channel, cnt, var_index, args);
 }
 
 CSetList *create_csets_for_channel(char *channel)
@@ -625,14 +522,9 @@ CSetList *create_csets_for_channel(char *channel)
 			ircpanic("Variable [%d] (%s) is out of order.", i, cset_array[i].name);
 #endif
 
-	if (check_cset_queue(channel, 0))
-	{
-		if ((tmp = (CSetList *)find_in_list((List **)&cset_queue, channel, 0)))
-			return tmp;
-		for (tmp = cset_queue; tmp; tmp = tmp->next)
-			if (!my_stricmp(tmp->channel, channel) || wild_match(tmp->channel, channel))
-				return tmp;
-	}		
+	if ((tmp = (CSetList *)remove_from_list((List **)&cset_queue, channel)))
+		return tmp;
+
 	tmp = (CSetList *) new_malloc(sizeof(CSetList));
 	/* use default settings. */
 	tmp->set_aop = get_int_var(AOP_VAR);
@@ -708,8 +600,7 @@ static int find_wset_variable(WSetArray *array, char *org_name, int *cnt)
 	char    *name = NULL;
 
 	len = strlen(org_name);
-	name = alloca(len + 1);
-	strcpy(name, org_name);
+	name = LOCAL_COPY(org_name);
 
 	upper(name);
 	var_index = 0;
@@ -1202,19 +1093,15 @@ void log_channel(CSetArray *var, CSetList *cs)
 
 void set_msglog_channel_level(CSetArray *var, CSetList *cs)
 {
-	ChannelList *chan;
-	if ((chan = lookup_channel(cs->channel, from_server, 0)))
-	{
-		chan->log_level = parse_lastlog_level(cs->log_level, 1);
-		set_cset_str_var(cs, CHANNEL_LOG_LEVEL_CSET, bits_to_lastlog_level(chan->log_level));
-	}
+	cs->channel_log_level = parse_lastlog_level(cs->log_level, 1);
+	set_cset_str_var(cs, CHANNEL_LOG_LEVEL_CSET, bits_to_lastlog_level(cs->channel_log_level));
 }
 
 void do_logchannel(unsigned long level, ChannelList *chan, char *format, ...)
 {
 	if (!chan || !get_cset_int_var(chan->csets, CHANNEL_LOG_CSET))
 		return;
-	if ((chan->log_level & level) && format)
+	if ((chan->csets->channel_log_level & level) && format)
 	{
 		char s[BIG_BUFFER_SIZE+1];
 		va_list args;

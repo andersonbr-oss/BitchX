@@ -11,7 +11,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: history.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(history_c)
 #include "struct.h"
 
@@ -105,7 +105,7 @@ static	char *history_match (char *match)
 /* shove_to_history: a key binding that saves the current line into
  * the history and then deletes the whole line.  Useful for when you
  * are in the middle of a big line and need to "get out" to do something
- * else quick for just a second, and you dont want to have to retype
+ * else quick for just a second, and you don't want to have to retype
  * everything all over again
  */
 extern void	shove_to_history (char unused, char *not_used)
@@ -194,8 +194,8 @@ void add_to_history(char *line)
 	{
 		while (line && *line)
 		{
-			if ((ptr = sindex(line, "\n\r")) != NULL)
-				*(ptr++) = '\0';
+			if ((ptr = strpbrk(line, "\r\n")) != NULL)
+				*ptr++ = '\0';
 			add_to_history_list(hist_count, line);
 			last_dir = PREV;
 			hist_count++;
@@ -269,17 +269,16 @@ char	*get_from_history(int which)
 /* history: the /HISTORY command, shows the command history buffer. */
 BUILT_IN_COMMAND(history)
 {
-	int	cnt,
-		max = 0;
-	char	*value;
-	char	*match = NULL;
+	int	cnt;
+	int max = get_int_var(HISTORY_VAR);
+	char *value;
+	char *match = NULL;
 	
-	if (get_int_var(HISTORY_VAR))
+	if (max)
 	{
-		say("Command History:");
 		if ((value = next_arg(args, &args)) != NULL)
 		{
-			if (my_strnicmp(value, "-CLEAR", 3))
+			if (!my_stricmp(value, "-CLEAR"))
 			{
 				for (tmp = command_history_head; command_history_head; tmp = command_history_head)
 				{
@@ -295,19 +294,19 @@ BUILT_IN_COMMAND(history)
 			}
 			if (isdigit((unsigned char)*value))
 			{
-				max = my_atol(value);
-				if (max > get_int_var(HISTORY_VAR))
-					max = get_int_var(HISTORY_VAR);
+				int limit = my_atol(value);
+				if (limit < max)
+					max = limit;
 			} 
 			else
 				match = value;
 		}
-		else
-			max = get_int_var(HISTORY_VAR);
+
+		say("Command History:");
 		for (tmp = command_history_tail, cnt = 0; tmp && (match || (cnt < max));
 				tmp = tmp->prev, cnt++)
 		{
-			if (!match || (match && wild_match(match, tmp->stuff)))
+			if (!match || wild_match(match, tmp->stuff))
 				put_it("%d: %s", tmp->number, tmp->stuff);
 		}
 	}

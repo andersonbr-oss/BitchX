@@ -4,13 +4,13 @@
  * When Chelp is called the help file is loaded from 
  * BitchX.help and saved. This file is never loaded from disk after this.
  * Information from the help file is loaded into an array as 0-Topic.
- * $help() also calls the same routines except this information is loaded 
- * differantly as 1-Topic. this allows us to distingush between them 
+ * $help() also calls the same routines except this information is loaded
+ * differently as 1-Topic. This allows us to distinguish between them
  * internally. 
  */
  
 #include "irc.h"
-static char cvsrevision[] = "$Id: chelp.c 127 2011-05-02 11:43:38Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(chelp_c)
 #include "struct.h"
 #include "ircaux.h"

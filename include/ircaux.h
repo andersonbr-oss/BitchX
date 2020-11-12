@@ -7,25 +7,18 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT
  *
- * @(#)$Id: ircaux.h 80 2009-11-24 10:21:30Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef _IRCAUX_H_
-#define _IRCAUX_H_
+#ifndef IRCAUX_H_
+#define IRCAUX_H_
 
 #include "irc.h"
 #include "irc_std.h"
-#include <stdio.h>
-#ifdef WANT_TCL
-#undef USE_TCLALLOC
-#include <tcl.h>
-#endif
 
 typedef int comp_len_func (char *, char *, int);
 typedef int comp_func (char *, char *);
 
 extern unsigned char stricmp_table[];
-
 
 char *	BX_check_nickname 		(char *);
 char *	BX_next_arg 		(char *, char **);
@@ -35,11 +28,11 @@ char *	BX_last_arg 		(char **);
 char *	BX_expand_twiddle 		(char *);
 char *	BX_upper 			(char *);
 char *	BX_lower 			(char *);
-char *	BX_sindex			(register char *, char *);
-char *	BX_rsindex 		(register char *, char *, char *, int);
+char *inv_strpbrk(const char *s, const char *reject);
+char *	BX_sindex			(const char *, const char *);
+char *	BX_rsindex 		(const char *, const char *, const char *);
 char *	BX_path_search 		(char *, char *);
 char *	BX_double_quote 		(const char *, const char *, char *);
-char *	quote_it 		(const char *, const char *, char *);
 
 char *	n_malloc_strcpy		(char **, const char *, const char *, const char *, const int);
 char *	BX_malloc_str2cpy		(char **, const char *, const char *);
@@ -58,15 +51,10 @@ char *	BX_m_sprintf 		(const char *, ...);
 int	BX_is_number 		(const char *);
 char *	BX_my_ctime 		(time_t);
 
-#if 0
-#define my_stricmp(x, y) strcasecmp(x, y) /* unable to use these for reasons of case sensitivity and finish */
-#define my_strnicmp(x, y, n) strncasecmp(x, y, n)
-#else
 int	BX_my_stricmp 	(const char *, const char *);
 int	BX_my_strnicmp	(const char *, const char *, size_t);
-#endif
 
-int	BX_my_strnstr 		(const unsigned char *, const unsigned char *, size_t);
+int	BX_my_strnstr 		(const char *, const char *, size_t);
 int	BX_scanstr 		(char *, char *);
 void	really_free 		(int);
 char *	BX_chop 			(char *, int);
@@ -84,6 +72,10 @@ int	lw_strcmp 		(comp_func *, char *, char *);
 int	open_to 		(char *, int, off_t);
 struct timeval BX_get_time 	(struct timeval *);
 double 	BX_time_diff 		(struct timeval, struct timeval);
+double time_since(const struct timeval *tv_from);
+double time_until(const struct timeval *tv_to);
+int time_cmp(const struct timeval *a, const struct timeval *b);
+struct timeval *time_offset(struct timeval *tv, double offset);
 char *	BX_plural 			(int);
 int	BX_time_to_next_minute 	(void);
 char *	BX_remove_trailing_spaces 	(char *);
@@ -127,23 +119,26 @@ char *	BX_strpcat			(char *, const char *, ...);
 char *  BX_strmpcat		(char *, size_t, const char *, ...);
 char *	chomp			(char *);
 size_t	BX_ccspan			(const char *, int);
-u_char *BX_strcpy_nocolorcodes	(u_char *, const u_char *);
-
-u_long	BX_random_number		(u_long);
+char *BX_strcpy_nocolorcodes(char *, const char *);
+unsigned long randm(unsigned long);
+unsigned long randt(unsigned long);
+unsigned long randd(unsigned long);
+unsigned long BX_random_number(unsigned long);
 char *	get_userhost		(void);
 
 char *	urlencode		(const char *);
 char *	urldecode		(char *);
+char *	base64_encode	(const void *data, size_t size);
 
 /* From words.c */
 #define SOS -32767
 #define EOS 32767
-char	*BX_strsearch			(register char *, char *, char *, int);
-char	*BX_move_to_abs_word	(const register char *, char **, int);
-char	*BX_move_word_rel		(const register char *, char **, int);
-char	*BX_extract		(char *, int, int);
-char	*BX_extract2		(const char *, int, int);
-int	BX_wild_match		(const char *, const char *);
+char *BX_strsearch(const char *, const char *, int);
+char *BX_move_to_word(const char *, int);
+char *BX_move_word_rel(const char *, char **, int);
+char *BX_extract(char *, int, int);
+char *BX_extract2(const char *, int, int);
+int BX_wild_match(const char *, const char *);
 
 /* Used for connect_by_number */
 #define SERVICE_SERVER 0
@@ -159,7 +154,7 @@ char *			BX_ip_to_host (const char *);
 char *			BX_one_to_another (const char *);
 int			BX_set_blocking (int);
 int			BX_set_non_blocking (int);
-int			my_accept (int, struct sockaddr *, int *);
+int			my_accept (int, struct sockaddr *, socklen_t *);
 int			lame_resolv (const char *, struct sockaddr_foobar *);
 
 #define my_isspace(x) \
@@ -171,6 +166,7 @@ int			lame_resolv (const char *, struct sockaddr_foobar *);
 
 #define LOCAL_COPY(y) strcpy(alloca(strlen((y)) + 1), y)
 
+#define strbegins(a, b) (!strncmp((a), (b), strlen(b)))
 
 #define	_1KB	((double) 1000)
 #define _1MEG	(_1KB * _1KB)
@@ -251,47 +247,4 @@ char	*ulongcomma		(unsigned long);
 
 #define SAFE(x) (((x) && *(x)) ? (x) : empty_string)
 
-/* Used in compat.c */
-#ifndef HAVE_TPARM
-	char 	*tparm (const char *, ...);
-#endif
-
-	int	my_base64_encode (const void *, int, char **);
-
-#ifndef HAVE_STRTOUL
-	unsigned long 	strtoul (const char *, char **, int);
-#endif
-
-#ifndef HAVE_SETENV
-	char *	bsd_getenv (const char *);
-	int	bsd_putenv (const char *);
-	int	bsd_setenv (const char *, const char *, int);
-	void	bsd_unsetenv (const char *);
-#define setenv bsd_setenv
-#endif
-
-#ifndef HAVE_INET_ATON
-	int	inet_aton (const char *, struct in_addr *);
-#endif
-
-#ifndef HAVE_STRLCPY
-	size_t	strlcpy (char *, const char *, size_t);
-#endif
-
-#ifndef HAVE_STRLCAT
-	size_t	strlcat (char *, const char *, size_t);
-#endif
-
-#ifndef HAVE_VSNPRINTF
-	int	vsnprintf (char *, size_t, const char *, va_list);
-#endif
-
-#ifndef HAVE_SNPRINTF
-	int	snprintf (char *, size_t, const char *, ...);
-#endif
-
-#ifndef HAVE_SETSID
-	int	setsid (void);
-#endif
-
-#endif /* _IRCAUX_H_ */
+#endif /* IRCAUX_H_ */

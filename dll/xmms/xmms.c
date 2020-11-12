@@ -2,7 +2,7 @@
 /*
  * xmms.c: This file handles all the XMMS routines, in BitchX
  *
- * Written by AndrÃ© Camargo
+ * Written by André Camargo
  * based on the code of Tom Zickel a.k.a. IceBreak on the IRC
  * and Peter Alm, Mikael Alm, Olle Hallnas, Thomas Nilsson and 
  * 4Front Technologies
@@ -280,7 +280,7 @@ BUILT_IN_DLL(xmms_cmd)
 				sprintf(putbuf, "%cACTION %s%c", 
 					CTCP_DELIM_CHAR, message, 
 					CTCP_DELIM_CHAR);
-				send_text(target, putbuf, "PRIVMSG", 0, 0);
+				send_text(target, putbuf, STXT_QUIET);
 				
 				if (do_hook(SEND_ACTION_LIST, "%s %s", target, message))
 				{
@@ -311,7 +311,7 @@ int Xmms_Cleanup(IrcCommandDll **interp, Function_ptr *global_table)
 {
 	remove_module_proc(COMMAND_PROC, MODULE_NAME, NULL, NULL);
 	put_it("%s", convert_output_format(xmms_format, "%s",
-	       "by AndrÃ© Camargo, DavidW2 and caf unloaded."));
+	       "by André Camargo, DavidW2 and caf unloaded."));
 	return 2;
 }
 
@@ -320,7 +320,7 @@ int Xmms_Init(IrcCommandDll **interp, Function_ptr *global_table)
 	initialize_module(MODULE_NAME);
 	add_module_proc(COMMAND_PROC, "Xmms", "Xmms", NULL, 0, 0, xmms_cmd, empty_string);
 	put_it("%s", convert_output_format(xmms_format, "%s",
-	       "by AndrÃ© Camargo, DavidW2 and caf loaded.  "
+	       "by André Camargo, DavidW2 and caf loaded.  "
 	       "Type /XMMS for command help."));
 	return 0;
 }

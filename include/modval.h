@@ -1,4 +1,5 @@
-#ifndef _MODVAL_
+#ifndef MODVAL_H_
+#define MODVAL_H_
 
 /* include this so we have the enum table just in case someone forgets. */
 
@@ -23,7 +24,6 @@
  * Copyright Colten Edwards July 1998.
  */
 
-#define _MODVAL_
 #ifndef BUILT_IN_DLL
 #define BUILT_IN_DLL(x) \
 	void x (IrcCommandDll *intp, char *command, char *args, char *subargs, char *helparg)
@@ -39,11 +39,8 @@
 #define ip_to_host(x) BX_ip_to_host(x)
 #define host_to_ip(x) BX_host_to_ip(x)
 #define connect_by_number(a, b, c, d, e) BX_connect_by_number(a, b, c, d, e)
-#ifndef __vars_h_
-enum VAR_TYPES { unused };
-#endif
-int  get_int_var (enum VAR_TYPES);
-void ircpanic (char *, ...);
+#define get_int_var(v) BX_get_int_var(v)
+#define ircpanic BX_ircpanic
 char *my_ltoa (long);
 #else
 
@@ -130,7 +127,7 @@ extern Function_ptr *global;
 #define my_stricmp (*(int (*)(const char *, const char *))global[MY_STRICMP])
 #define my_strnicmp (*(int (*)(const char *, const char *, size_t))global[MY_STRNICMP])
 
-#define my_strnstr (*(int (*)(const unsigned char *, const unsigned char *, size_t))global[MY_STRNSTR])
+#define my_strnstr (*(int (*)(const char *, const char *, size_t))global[MY_STRNSTR])
 #define chop (*(char * (*)(char *, int))global[CHOP])
 #define strmcpy (*(char * (*)(char *, const char *, int))global[STRMCPY])
 #define strmcat (*(char * (*)(char *, const char *, int))global[STRMCAT])
@@ -148,8 +145,8 @@ extern Function_ptr *global;
 #define remove_trailing_spaces (*(char * (*)(char *))global[REMOVE_TRAILING_SPACES])
 #define expand_twiddle (*(char * (*)(char *))global[EXPAND_TWIDDLE])
 #define check_nickname (*(char * (*)(char *))global[CHECK_NICKNAME])
-#define sindex (*(char * (*)(char *, char *))global[SINDEX])
-#define rsindex (*(char * (*)(char *, char *, char *, int))global[RSINDEX])
+#define sindex (*(char * (*)(const char *, const char *))global[SINDEX])
+#define rsindex (*(char * (*)(const char *, const char *, const char *))global[RSINDEX])
 #define is_number (*(int (*)(const char *))global[ISNUMBER])
 #define rfgets (*(char * (*)(char *, int , FILE *))global[RFGETS])
 #define path_search (*(char * (*)(char *, char *))global[PATH_SEARCH])
@@ -164,12 +161,7 @@ extern Function_ptr *global;
 #define plural (*(char * (*)(int))global[PLURAL])
 #define my_ctime (*(char * (*)(time_t))global[MY_CTIME])
 #define ccspan (*(size_t (*)(const char *, int))global[CCSPAN])
-
-/* If we are in a module, undefine the previous define from ltoa to my_ltoa */
-#ifdef ltoa
-#undef ltoa
-#endif
-#define ltoa (*(char *(*)(long ))global[LTOA])
+#define my_ltoa (*(char *(*)(long ))global[LTOA])
 #define strformat (*(char *(*)(char *, const char *, int , char ))global[STRFORMAT])
 #define MatchingBracket (*(char *(*)(char *, char , char ))global[MATCHINGBRACKET])
 #define parse_number (*(int (*)(char **))global[PARSE_NUMBER])
@@ -189,7 +181,7 @@ extern Function_ptr *global;
 #define ccscpan (*(size_t (*)(const char *, int))global[CCSPAN])
 #define charcount (*(int (*)(const char *, char ))global[CHARCOUNT])
 #define strpcat (*(char *(*)(char *, const char *, ...))global[STRPCAT])
-#define strcpy_nocolorcodes (*(u_char *(*)(u_char *, const u_char *))global[STRCPY_NOCOLORCODES])
+#define strcpy_nocolorcodes (*(char *(*)(char *, const char *))global[STRCPY_NOCOLORCODES])
 #define cryptit (*(char *(*)(const char *))global[CRYPTIT])
 #define stripdev (*(char *(*)(char *))global[STRIPDEV])
 #define mangle_line (*(size_t (*)(char *, int, size_t))global[MANGLE_LINE])
@@ -207,8 +199,8 @@ extern Function_ptr *global;
 
 
 /* words.c reg.c */
-#define strsearch (*(char *(*)(char *, char *, char *, int ))global[STRSEARCH])
-#define move_to_abs_word (*(char *(*)(const char *, char **, int ))global[MOVE_TO_ABS_WORD])
+#define strsearch (*(char *(*)(const char *, const char *, int))global[STRSEARCH])
+#define move_to_word (*(char *(*)(const char *, int))global[MOVE_TO_WORD])
 #define move_word_rel (*(char *(*)(const char *, char **, int ))global[MOVE_WORD_REL])
 #define extract (*(char *(*)(char *, int , int ))global[EXTRACT])
 #define extract2 (*(char *(*)(const char *, int , int ))global[EXTRACT2])
@@ -245,25 +237,24 @@ extern Function_ptr *global;
 #define array_lookup (*(Array_item *(*)(Array *, char *, int, int ))global[ARRAY_LOOKUP])
 #define find_array_item (*(Array_item *(*)(Array *, char *, int *, int *))global[FIND_ARRAY_ITEM])
 
-#define find_fixed_array_item (*(void *(*)(void *, size_t, int, char *, int *, int *))global[FIND_FIXED_ARRAY_ITEM])
+#define find_fixed_array_item (*(void *(*)(void *, size_t, int, const char *, int *, int *))global[FIND_FIXED_ARRAY_ITEM])
 
 /* output.c */
 #define put_it (*(void (*)(const char *, ...))global[PUT_IT])
 #define bitchsay (*(void (*)(const char *, ...))global[BITCHSAY])
 #define yell (*(void (*)(const char *, ...))global[YELL])
-#define add_to_screen (*(void (*)(unsigned char *))global[ADD_TO_SCREEN])
 #define add_to_log (*(void (*)(FILE *, time_t, const char *, int ))global[ADD_TO_LOG])
 
 #define bsd_glob (*(int (*)(const char *, int, int (*)(const char *, int), glob_t *))global[BSD_GLOB])
 #define bsd_globfree (*(void (*)(glob_t *))global[BSD_GLOBFREE])
 
 /* misc commands */
-#define my_encrypt (*(void (*)(char *, int , char *))global[MY_ENCRYPT])
-#define my_decrypt (*(void (*)(char *, int , char *))global[MY_DECRYPT])
+#define my_encrypt (*(void (*)(char *, int , const char *))global[MY_ENCRYPT])
+#define my_decrypt (*(void (*)(char *, int , const char *))global[MY_DECRYPT])
 #define prepare_command (*(ChannelList *(*)(int *, char *, int))global[PREPARE_COMMAND])
 #define convert_output_format (*(char *(*)(const char *, const char *, ...))global[CONVERT_OUTPUT_FORMAT])
 #define userage (*(void (*)(char *, char *))global[USERAGE])
-#define send_text (*(void (*)(const char *, const char *, char *, int , int ))global[SEND_TEXT])
+#define send_text (*(void (*)(const char *, const char *, unsigned))global[SEND_TEXT])
 /* this needs to be worked out. it's passed in the IrcVariable * to _Init */
 #define load (*(void (*)(char *, char *, char *, char *))global[FUNC_LOAD])
 #define update_clock (*(char *(*)(int ))global[UPDATE_CLOCK])
@@ -276,13 +267,13 @@ extern Function_ptr *global;
 #define dcc_printf (*(int (*)(int, char *, ...))global[DCC_PRINTF])
 
 /* screen.c */
-#define prepare_display (*(unsigned char **(*)(const unsigned char *, int , int *, int ))global[PREPARE_DISPLAY])
-#define add_to_window (*(void (*)(Window *, const unsigned char *))global[ADD_TO_WINDOW])
-#define skip_incoming_mirc (*(unsigned char *(*)(unsigned char *))global[SKIP_INCOMING_MIRC])
-#define add_to_screen (*(void (*)(unsigned char *))global[ADD_TO_SCREEN])
-#define split_up_line (*(unsigned char **(*)(const unsigned char *, int ))global[SPLIT_UP_LINE])
-#define output_line (*(int (*)(const unsigned char *))global[OUTPUT_LINE])
-#define output_with_count (*(int (*)(const unsigned char *, int , int ))global[OUTPUT_WITH_COUNT])
+#define prepare_display (*(char **(*)(const char *, int , int *, int ))global[PREPARE_DISPLAY])
+#define add_to_window (*(void (*)(Window *, const char *))global[ADD_TO_WINDOW])
+#define skip_incoming_mirc (*(char *(*)(char *))global[SKIP_INCOMING_MIRC])
+#define add_to_screen (*(void (*)(char *))global[ADD_TO_SCREEN])
+#define split_up_line (*(char **(*)(const char *, int ))global[SPLIT_UP_LINE])
+#define output_line (*(int (*)(const char *))global[OUTPUT_LINE])
+#define output_with_count (*(int (*)(const char *, int , int ))global[OUTPUT_WITH_COUNT])
 #define scroll_window (*(void (*)(Window *))global[SCROLL_WINDOW])
 /* Previous broken definitions - yet it still seemed to work?
 #define cursor_not_in_display(x) ((void) (global[CURSOR_IN_DISPLAY]((Screen *)x)))
@@ -296,8 +287,8 @@ extern Function_ptr *global;
 #define kill_screen (*(void (*)(Screen *))global[KILL_SCREEN])
 #define xterm_settitle (*(void (*)(void))global[XTERM_SETTITLE])
 #define add_wait_prompt (*(void (*)(char *, void (*)(char *, char *), char *, int , int ))global[ADD_WAIT_PROMPT])
-#define skip_ctl_c_seq (*(const unsigned char *(*)(const unsigned char *, int *, int *, int ))global[SKIP_CTL_C_SEQ])
-#define strip_ansi (*(unsigned char *(*)(const unsigned char *))global[STRIP_ANSI])
+#define skip_ctl_c_seq (*(char *(*)(const char *, int *, int *, int ))global[SKIP_CTL_C_SEQ])
+#define strip_ansi (*(char *(*)(const char *))global[STRIP_ANSI])
 #define create_new_screen ((Screen * (*)(void))global[CREATE_NEW_SCREEN])
 #define create_additional_screen ((Window * (*)(void))global[CREATE_ADDITIONAL_SCREEN])
 
@@ -343,7 +334,7 @@ extern Function_ptr *global;
 #define get_target_by_refnum (*(char *(*)(unsigned ))global[GET_TARGET_BY_REFNUM])
 #define get_target_cmd_by_refnum (*(char *(*)(u_int))global[GET_TARGET_CMD_BY_REFNUM])
 #define get_window_target_by_desc (*(Window *(*)(char *))global[GET_WINDOW_TARGET_BY_DESC])
-#define is_current_channel (*(int (*)(char *, int , int ))global[IS_CURRENT_CHANNEL])
+#define is_current_channel (*(int (*)(const char *, int , int ))global[IS_CURRENT_CHANNEL])
 #define set_current_channel_by_refnum (*(const char *(*)(unsigned , char *))global[SET_CURRENT_CHANNEL_BY_REFNUM])
 #define get_current_channel_by_refnum (*(char *(*)(unsigned ))global[GET_CURRENT_CHANNEL_BY_REFNUM])
 #define get_refnum_by_window (*(char *(*)(const Window *))global[GET_REFNUM_BY_WINDOW])
@@ -413,7 +404,7 @@ extern Function_ptr *global;
 #define add_completion_type (*(int (*)(char *, int , enum completion ))global[ADD_COMPLETION_TYPE])
 
 /* names.c */
-#define is_channel (*(int (*)(char *))global[IS_CHANNEL])
+#define is_channel (*(int (*)(const char *))global[IS_CHANNEL])
 #define make_channel (*(char *(*)(char *))global[MAKE_CHANNEL])
 #define is_chanop (*(int (*)(char *, char *))global[IS_CHANOP])
 #define is_halfop (*(int (*)(char *, char *))global[IS_HALFOP])
@@ -428,7 +419,7 @@ extern Function_ptr *global;
 #define get_channel_bans (*(char *(*)(char *, int , int ))global[GET_CHANNEL_BANS])
 #define get_channel_mode (*(char *(*)(char *, int ))global[GET_CHANNEL_MODE])
 #define clear_bans (*(void (*)(ChannelList *))global[CLEAR_BANS])
-#define remove_channel (*(void (*)(char *, int ))global[REMOVE_CHANNEL])
+#define remove_channel (*(void (*)(const char *))global[REMOVE_CHANNEL])
 #define remove_from_channel (*(void (*)(char *, char *, int , int , char *))global[REMOVE_FROM_CHANNEL])
 #define rename_nick (*(void (*)(char *, char *, int ))global[RENAME_NICK])
 #define get_channel_oper (*(int (*)(char *, int ))global[GET_CHANNEL_OPER])
@@ -437,15 +428,15 @@ extern Function_ptr *global;
 #define fetch_userhost (*(char *(*)(int , char *))global[FETCH_USERHOST])
 #define create_channel_list (*(char *(*)(Window *))global[CREATE_CHANNEL_LIST])
 #define flush_channel_stats (*(void (*)(void ))global[FLUSH_CHANNEL_STATS])
-#define lookup_channel (*(ChannelList *(*)(char *, int, int))global[LOOKUP_CHANNEL])
+#define lookup_channel (*(ChannelList *(*)(const char *, int, int))global[LOOKUP_CHANNEL])
 
 /* hash.c */
-#define find_nicklist_in_channellist (*(NickList *(*)(char *, ChannelList *, int))global[FIND_NICKLIST_IN_CHANNELLIST])
+#define find_nicklist_in_channellist (*(NickList *(*)(const char *, ChannelList *, int))global[FIND_NICKLIST_IN_CHANNELLIST])
 #define add_nicklist_to_channellist (*(void (*)(NickList *, ChannelList *))global[ADD_NICKLIST_TO_CHANNELLIST])
 #define next_nicklist (*(NickList *(*)(ChannelList *, NickList *))global[NEXT_NICKLIST])
 #define next_namelist (*(List *(*)(HashEntry *, List *, unsigned int))global[NEXT_NAMELIST])
 #define add_name_to_genericlist (*(void (*)(char *, HashEntry *, unsigned int))global[ADD_NAME_TO_GENERICLIST])
-#define find_name_in_genericlist (*(List *(*)(char *, HashEntry *, unsigned int, int))global[FIND_NAME_IN_GENERICLIST])
+#define find_name_in_genericlist (*(List *(*)(const char *, HashEntry *, unsigned int, int))global[FIND_NAME_IN_GENERICLIST])
 #define add_whowas_userhost_channel (*(void (*)(WhowasList *, WhowasWrapList *))global[ADD_WHOWAS_USERHOST_CHANNEL])
 #define find_userhost_channel (*(WhowasList *(*)(char *, char *, int, WhowasWrapList *))global[FIND_USERHOST_CHANNEL])
 #define next_userhost (*(WhowasList *(*)(WhowasWrapList *, WhowasList *))global[NEXT_USERHOST])
@@ -472,6 +463,7 @@ extern Function_ptr *global;
 #define set_dllint_var (*(void (*)(char *, unsigned int ))global[SET_DLLINT_VAR])
 #define get_dllstring_var (*(char *(*)(char *))global[GET_DLLSTRING_VAR])
 #define set_dllstring_var (*(void (*)(char *, char *))global[SET_DLLSTRING_VAR])
+#define save_dllvar (*(void (*)(FILE *, char *))global[SAVE_DLLVAR])
 
 #define get_int_var (*(int (*)(enum VAR_TYPES ))global[GET_INT_VAR])
 #define set_int_var (*(void (*)(enum VAR_TYPES , unsigned int ))global[SET_INT_VAR])
@@ -505,11 +497,10 @@ extern Function_ptr *global;
 #define close_all_server (*(void (*)(void ))global[CLOSE_ALL_SERVER])
 
 #define read_server_file (*(int (*)(char *))global[READ_SERVER_FILE])
-#define add_to_server_list (*(void (*)(char *, int , char *, char *, char *, char *, char *, int , int ))global[ADD_TO_SERVER_LIST])
+#define add_to_server_list (*(void (*)(char *, int , char *, char *, char *, int , int ))global[ADD_TO_SERVER_LIST])
 #define build_server_list (*(int (*)(char *))global[BUILD_SERVER_LIST])
 #define display_server_list (*(void (*)(void ))global[DISPLAY_SERVER_LIST])
-#define create_server_list (*(char *(*)(char *))global[CREATE_SERVER_LIST])
-#define parse_server_info (*(void (*)(char *, char **, char **, char **, char **, char **, char **))global[PARSE_SERVER_INFO])
+#define parse_server_info (*(void (*)(char *, char **, char **, char **, char **))global[PARSE_SERVER_INFO])
 #define server_list_size (*(int (*)(void ))global[SERVER_LIST_SIZE])
 
 #define find_server_refnum (*(int (*)(char *, char **))global[FIND_SERVER_REFNUM])
@@ -519,11 +510,11 @@ extern Function_ptr *global;
 #define set_server_redirect (*(void (*)(int , const char *))global[SET_SERVER_REDIRECT])
 #define get_server_redirect (*(char *(*)(int ))global[GET_SERVER_REDIRECT])
 #define check_server_redirect (*(int (*)(char *))global[CHECK_SERVER_REDIRECT])
-#define fudge_nickname (*(void (*)(int , int ))global[FUDGE_NICKNAME])
+#define fudge_nickname (*(void (*)(int))global[FUDGE_NICKNAME])
 #define reset_nickname (*(void (*)(int ))global[RESET_NICKNAME])
 
 #define set_server_cookie (*(void (*)(int , char *))global[SET_SERVER_COOKIE])
-#define set_server_flag (*(void (*)(int , int , int ))global[SET_SERVER_FLAG])
+#define update_server_umode (*(void (*)(int , char , int ))global[UPDATE_SERVER_UMODE])
 #define set_server_motd (*(void (*)(int , int ))global[SET_SERVER_MOTD])
 #define set_server_operator (*(void (*)(int , int ))global[SET_SERVER_OPERATOR])
 #define set_server_itsname (*(void (*)(int , char *))global[SET_SERVER_ITSNAME])
@@ -541,8 +532,7 @@ extern Function_ptr *global;
 #define get_server_motd (*(int (*)(int ))global[GET_SERVER_MOTD])
 #define get_server_operator (*(int (*)(int ))global[GET_SERVER_OPERATOR])
 #define get_server_version (*(int (*)(int ))global[GET_SERVER_VERSION])
-#define get_server_flag (*(int (*)(int , int ))global[GET_SERVER_FLAG])
-#define get_possible_umodes (*(char *(*)(int ))global[GET_POSSIBLE_UMODES])
+#define get_server_umode (*(int (*)(int , char))global[GET_SERVER_UMODE])
 #define get_server_port (*(int (*)(int ))global[GET_SERVER_PORT])
 #define get_server_lag (*(int (*)(int ))global[GET_SERVER_LAG])
 #define get_server2_8 (*(int (*)(int ))global[GET_SERVER2_8])
@@ -570,7 +560,7 @@ extern Function_ptr *global;
 #define set_server_trace_kill (*(void (*)(int , int ))global[SET_SERVER_TRACE_KILL])
 #define add_server_channels (*(void (*)(int, ChannelList *))global[ADD_SERVER_CHANNELS])
 #define set_server_channels (*(void (*)(int, ChannelList *))global[SET_SERVER_CHANNELS])
-#define send_msg_to_channels (*(void (*)(ChannelList *, int, char *))global[SEND_MSG_TO_CHANNELS])
+#define send_msg_to_channels (*(void (*)(int, const char *))global[SEND_MSG_TO_CHANNELS])
 #define send_msg_to_nicks (*(void (*)(ChannelList *, int, char *))global[SEND_MSG_TO_NICKS])
 #define is_server_queue (*(int (*)(void ))global[IS_SERVER_QUEUE])
 
@@ -583,8 +573,8 @@ extern Function_ptr *global;
 #define set_socketflags (*(unsigned long (*)(int , unsigned long ))global[SET_SOCKETFLAGS])
 #define get_socketflags (*(unsigned long (*)(int ))global[GET_SOCKETFLAGS])
 #define check_socket (*(int (*)(int ))global[CHECK_SOCKET])
-#define read_sockets (*(int (*)(int , unsigned char *, int ))global[READ_SOCKETS])
-#define write_sockets (*(int (*)(int , unsigned char *, int , int ))global[WRITE_SOCKETS])
+#define read_sockets (*(int (*)(int , char *, int ))global[READ_SOCKETS])
+#define write_sockets (*(int (*)(int , char *, int , int ))global[WRITE_SOCKETS])
 #define get_max_fd (*(int (*)(void ))global[GET_MAX_FD])
 #define new_close (*(int (*)(int ))global[NEW_CLOSE])
 #define new_open (*(int (*)(int ))global[NEW_OPEN])
@@ -595,9 +585,9 @@ extern Function_ptr *global;
 
 
 /* flood.c */
-#define is_other_flood (*(int (*)(ChannelList *, NickList *, int, int *))global[IS_OTHER_FLOOD])
-#define check_flooding (*(int (*)(char *, int , char *, char *))global[CHECK_FLOODING])
-#define flood_prot (*(int (*)(char *, char *, char *, int , int , char *))global[FLOOD_PROT])
+#define is_other_flood (*(int (*)(ChannelList *, NickList *, enum flood_type, int *))global[IS_OTHER_FLOOD])
+#define check_flooding (*(int (*)(char *, enum flood_type, char *, char *))global[CHECK_FLOODING])
+#define flood_prot (*(int (*)(char *, char *, enum flood_type, int, char *))global[FLOOD_PROT])
 
 /* expr.c */
 #define next_unit (*(char *(*)(char *, const char *, int *, int ))global[NEXT_UNIT])
@@ -612,23 +602,25 @@ extern Function_ptr *global;
 
 /* dcc.c */
 #define dcc_create (*(DCC_int *(*)(char *, char *, char *, unsigned long, int, int, unsigned long, void (*)(int)))global[DCC_CREATE_FUNC])
-#define find_dcc (*(SocketList *(*)(char *, char *, char *, int, int, int, int))global[FIND_DCC_FUNC])
+#define find_dcc (*(SocketList *(*)(const char *, const char *, const char *, int, int, int, int))global[FIND_DCC_FUNC])
 #define erase_dcc_info (*(void (*)(int, int, char *, ...))global[ERASE_DCC_INFO])
-#define add_dcc_bind (*(int (*)(char *, char *, void *, void *, void *, void *, void *))global[ADD_DCC_BIND])
+#define add_dcc_bind (*(int (*)(char *, char *, const struct dcc_ops *))global[ADD_DCC_BIND])
 #define remove_dcc_bind (*(int (*)(char *, int ))global[REMOVE_DCC_BIND])
-#define remove_all_dcc_binds (*(int (*)(char *))global[REMOVE_ALL_DCC_BINDS])
+#define remove_all_dcc_binds (*(int (*)(const char *))global[REMOVE_ALL_DCC_BINDS])
 #define get_active_count (*(int (*)(void ))global[GET_ACTIVE_COUNT])
 #define get_num_queue (*(int (*)(void ))global[GET_NUM_QUEUE])
 #define add_to_queue (*(int (*)(char *, char *, pack *))global[ADD_TO_QUEUE])
 #define dcc_filesend (*(void (*)(char *, char *))global[DCC_FILESEND])
 #define dcc_resend (*(void (*)(char *, char *))global[DCC_RESEND])
+#define dcc_chat_socketread (*(void (*)(int))global[DCC_CHAT_SOCKETREAD])
+#define dcc_send_socketread (*(void (*)(int))global[DCC_SEND_SOCKETREAD])
 
 /* irc.c */
 #define irc_exit (*(void (*)(int, char *, char *, ...))global[IRC_EXIT_FUNC])
 #define io (*(void (*)(const char *))global[IRC_IO_FUNC])
 
 /* commands.c */
-#define find_command (*(IrcCommand *(*)(char *, int *))global[FIND_COMMAND_FUNC])
+#define find_command (*(const IrcCommand *(*)(const char *, int *))global[FIND_COMMAND_FUNC])
 
 #define lock_stack_frame (*(void (*)(void ))global[LOCK_STACK_FRAME])
 #define unlock_stack_frame (*(void (*)(void ))global[UNLOCK_STACK_FRAME])
@@ -666,12 +658,6 @@ extern Function_ptr *global;
 #define output_screen (*((Screen **)global[OUTPUT_SCREEN]))
 #define screen_list (*((Screen **)global[SCREEN_LIST]))
 #define irclog_fp (*((FILE **)global[IRCLOG_FP]))
-#define dll_functions (*((BuiltInDllFunctions **)global[DLL_FUNCTIONS]))
-#define dll_numeric (*((NumericFunction **)global[DLL_NUMERIC]))
-#define dll_commands (*((IrcCommandDll **)global[DLL_COMMANDS]))
-#define dll_variable (*((IrcVariableDll **)global[DLL_VARIABLE]))
-#define dll_ctcp (*((CtcpEntryDll **)global[DLL_CTCP]))
-#define dll_window (*((WindowDll **)global[DLL_WINDOW]))
 #define window_display ((int) *((int *)global[WINDOW_DISPLAY]))
 #define status_update_flag ((int) *((int *)global[STATUS_UPDATE_FLAG]))
 #define tabkey_array (*((NickTab **)global[TABKEY_ARRAY]))

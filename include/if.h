@@ -5,11 +5,10 @@
  *
  * See the copyright file, or do a help ircii copyright 
  *
- * @(#)$Id: if.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __if_h
-# define __if_h
+#ifndef IF_H_
+#define IF_H_
 
 	void	ifcmd (char *, char *, char *, char *);
 	void	whilecmd (char *, char *, char *, char *);
@@ -23,4 +22,4 @@
 extern	char *  next_expr       	(char **, char);
 extern	char *  next_expr_failok        (char **, char);
   		
-#endif /* __if_h */
+#endif /* IF_H_ */

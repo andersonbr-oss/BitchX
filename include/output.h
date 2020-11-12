@@ -7,14 +7,14 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: output.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __output_h_
-#define __output_h_
+#ifndef OUTPUT_H_
+#define OUTPUT_H_
 
 	void	put_echo (char *);
 	void	BX_put_it (const char *, ...);
+	void	log_put_it(const char *format, ...);
 
 	void	BX_send_to_server (const char *, ...);
 	void	BX_my_send_to_server (int, const char *, ...);
@@ -22,7 +22,7 @@
 
 	void	say (const char *, ...);
 	void	BX_bitchsay (const char *, ...);
-	void	serversay (int, int, const char *, ...);
+	void	serversay (const char *, const char *, ...);
 	void	BX_yell (const char *, ...);
 	void	error (const char *, ...);
 	
@@ -39,4 +39,4 @@
 	
 extern	FILE	*irclog_fp;
 
-#endif /* __output_h_ */
+#endif /* OUTPUT_H_ */

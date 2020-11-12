@@ -20,7 +20,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: translat.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(translat_c)
 #include "struct.h"
 
@@ -199,7 +199,7 @@ void set_translation(Window *win, char *tablename, int unused)
 	 * x) despite the 0x being defined as optionally existing on input,
 	 * and others zero out all the output variables if there is trailing
 	 * non white space in the format string which doesn't appear on the
-	 * input. Overall, the standard I/O libraries have a tendancy not
+	 * input. Overall, the standard I/O libraries have a tendency not
 	 * to be very standard.
 	 */
 
@@ -388,7 +388,7 @@ static	unsigned char my_getarg(char **args)
 	unsigned char *arg;
 
 	arg = (unsigned char *)next_arg(*args, args);
-	if (!args || !*args || !arg)
+	if (!*args || !arg)
 		return '\0';
 	/* Don't trust isdigit() with 8 bits. */
 	if ((*arg <= '9') && (*arg >= '0'))
@@ -407,23 +407,16 @@ void	save_digraphs(FILE *fp)
 {
 	if (digraph_changed)
 	{
+		int	i;
 
-		int	i = 0;
-		char	*command = "\nDIGRAPH -ADD ";
-
-		fprintf(fp, "DIGRAPH -CLEAR");
-		fprintf(fp, command);
-		while(1)
-		{
+		fputs("DIGRAPH -CLEAR", fp);
+		for (i = 0; dig_table_lo[i]; i++) {
+			if (!(i % 5))
+				fputs("\nDIGRAPH -ADD ", fp);
 			fprintf(fp, "%d %d %d  ", dig_table_lo[i],
 				dig_table_hi[i], dig_table_di[i]);
-			if (!dig_table_lo[++i])
-				break;
-			if (!(i % 5))
-				fprintf(fp, command);
 		}
 		fputc('\n', fp);
-
 	}
 }
 

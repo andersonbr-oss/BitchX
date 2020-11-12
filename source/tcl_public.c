@@ -1,6 +1,6 @@
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: tcl_public.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(tcl_public_c)
 #include "ircaux.h"
 #include "struct.h"
@@ -41,8 +41,6 @@ cmd_t C_dcc[] =
 };
 
 #ifdef WANT_TCL
-#include <tcl.h>
-
 /* 
  * I wish to thank vore!vore@domination.ml.org for pushing me 
  * todo something like this, although by-Tor requested 
@@ -234,16 +232,16 @@ static int CompareKeyListField (tcl_interp, fieldName, field, valuePtr, valueSiz
     int   fieldNameSize, elementSize;
 
     if (field [0] == '\0') {
-        tcl_interp->result =
-            "invalid keyed list format: list contains an empty field entry";
+        Tcl_AppendResult(tcl_interp,
+            "invalid keyed list format: list contains an empty field entry", NULL);
         return TCL_ERROR;
     }
     if (TclFindElement (tcl_interp, (char *) field, &elementPtr, &nextPtr, 
                         &elementSize, NULL) != TCL_OK)
         return TCL_ERROR;
     if (elementSize == 0) {
-        tcl_interp->result =
-            "invalid keyed list format: list contains an empty field name";
+        Tcl_AppendResult(tcl_interp,
+            "invalid keyed list format: list contains an empty field name", NULL);
         return TCL_ERROR;
     }
     if (nextPtr[0] == '\0') {
@@ -286,7 +284,7 @@ static int CompareKeyListField (tcl_interp, fieldName, field, valuePtr, valueSiz
  *   o tcl_interp (I/O) - Error message will be return in result if there is an
  *     error.
  *   o fieldName (I) - The name of the field to find.  Will validate that the
- *     name is not empty.  If the name has a sub-name (seperated by "."),
+ *     name is not empty.  If the name has a sub-name (separated by "."),
  *     search for the top level name.
  *   o fieldInfoPtr (O) - The following fields are filled in:
  *       o argc - The number of elements in the keyed list.
@@ -310,7 +308,7 @@ static int SplitAndFindField (tcl_interp, fieldName, keyedList, fieldInfoPtr)
     int  idx, result, braced;
 
     if (fieldName == '\0') {
-        tcl_interp->result = "null key not allowed";
+        Tcl_AppendResult(tcl_interp, "null key not allowed", NULL);
         return TCL_ERROR;
     }
 
@@ -370,7 +368,7 @@ errorExit:
  * Returns:
  *   TCL_OK - If the field was found.
  *   TCL_BREAK - If the field was not found.
- *   TCL_ERROR - If an error occured.
+ *   TCL_ERROR - If an error occurred.
  *-----------------------------------------------------------------------------
  */
 int
@@ -453,7 +451,7 @@ Tcl_GetKeyedListKeys (tcl_interp, subFieldName, keyedList, keysArgcPtr,
                         NULL);
         TclFindElement (tcl_interp, fieldPtr, &keyPtr, &dummyPtr, &keySize, NULL);
         keyArgv [idx++] = nextByte;
-        strmcpy (nextByte, keyPtr, keySize);
+        memcpy (nextByte, keyPtr, keySize);
         nextByte [keySize] = '\0';
         nextByte += keySize + 1; 
     }
@@ -482,7 +480,7 @@ Tcl_GetKeyedListKeys (tcl_interp, subFieldName, keyedList, keysArgcPtr,
  *   o tcl_interp (I/O) - Error message will be return in result if there is an
  *     error.
  *   o fieldName (I) - The name of the field to extract.  Will recusively
- *     process sub-field names seperated by `.'.
+ *     process sub-field names separated by `.'.
  *   o keyedList (I) - The list to search for the field.
  *   o fieldValuePtr (O) - If the field is found, a pointer to a dynamicly
  *     allocated string containing the value is returned here.  If NULL is
@@ -491,7 +489,7 @@ Tcl_GetKeyedListKeys (tcl_interp, subFieldName, keyedList, keysArgcPtr,
  * Returns:
  *   TCL_OK - If the field was found.
  *   TCL_BREAK - If the field was not found.
- *   TCL_ERROR - If an error occured.
+ *   TCL_ERROR - If an error occurred.
  *-----------------------------------------------------------------------------
  */
 int Tcl_GetKeyedListField (tcl_interp, fieldName, keyedList, fieldValuePtr)
@@ -505,7 +503,7 @@ int Tcl_GetKeyedListField (tcl_interp, fieldName, keyedList, fieldValuePtr)
 
 	if (fieldName == '\0') 
 	{
-		tcl_interp->result = "null key not allowed";
+		Tcl_AppendResult(tcl_interp, "null key not allowed", NULL);
 		return TCL_ERROR;
 	}
 
@@ -519,7 +517,7 @@ int Tcl_GetKeyedListField (tcl_interp, fieldName, keyedList, fieldValuePtr)
 			break;
 
     /*
-     * Check for sub-names, temporarly delimit the top name with a '\0'.
+     * Check for sub-names, temporarily delimit the top name with a '\0'.
      */
 	nameSeparPtr = strchr ((char *) fieldName, '.');
 	if (nameSeparPtr != NULL)
@@ -578,7 +576,7 @@ int Tcl_GetKeyedListField (tcl_interp, fieldName, keyedList, fieldValuePtr)
 			fieldValue = ckalloc (valueSize + 1);
 			if (braced) 
 			{
-	        		strmcpy (fieldValue, valuePtr, valueSize);
+	        		memcpy (fieldValue, valuePtr, valueSize);
 				fieldValue [valueSize] = 0;
 			}
 			else
@@ -602,13 +600,13 @@ exitPoint:
  *   o tcl_interp (I/O) - Error message will be return in result if there is an
  *     error.
  *   o fieldName (I) - The name of the field to extract.  Will recusively
- *     process sub-field names seperated by `.'.
+ *     process sub-field names separated by `.'.
  *   o fieldValue (I) - The value to set for the field.
  *   o keyedList (I) - The keyed list to set a field value in, may be an
  *     NULL or an empty list to create a new keyed list.
  * Returns:
  *   A pointer to a dynamically allocated string, or NULL if an error
- *   occured.
+ *   occurred.
  *-----------------------------------------------------------------------------
  */
 char * Tcl_SetKeyedListField (tcl_interp, fieldName, fieldValue, keyedList)
@@ -631,7 +629,7 @@ char * Tcl_SetKeyedListField (tcl_interp, fieldName, fieldValue, keyedList)
         keyedList = empty_string;
 
     /*
-     * Check for sub-names, temporarly delimit the top name with a '\0'.
+     * Check for sub-names, temporarily delimit the top name with a '\0'.
      */
     nameSeparPtr = strchr ((char *) fieldName, '.');
     if (nameSeparPtr != NULL)
@@ -704,12 +702,12 @@ errorExit:
  *   o tcl_interp (I/O) - Error message will be return in result if there is an
  *     error.
  *   o fieldName (I) - The name of the field to extract.  Will recusively
- *     process sub-field names seperated by `.'.
+ *     process sub-field names separated by `.'.
  *   o fieldValue (I) - The value to set for the field.
  *   o keyedList (I) - The keyed list to delete the field from.
  * Returns:
  *   A pointer to a dynamically allocated string containing the new list, or
- *   NULL if an error occured.
+ *   NULL if an error occurred.
  *-----------------------------------------------------------------------------
  */
 char *Tcl_DeleteKeyedListField (Tcl_Interp *tcl_interp, char *fieldName, char *keyedList)
@@ -721,7 +719,7 @@ char *Tcl_DeleteKeyedListField (Tcl_Interp *tcl_interp, char *fieldName, char *k
     char        *elemArgv [2];
     char        *newElement;
     /*
-     * Check for sub-names, temporarly delimit the top name with a '\0'.
+     * Check for sub-names, temporarily delimit the top name with a '\0'.
      */
     nameSeparPtr = strchr ((char *) fieldName, '.');
     if (nameSeparPtr != NULL)
@@ -862,7 +860,7 @@ int Tcl_KeylgetCmd (ClientData clientData, Tcl_Interp *tcl_interp, int argc, cha
      * Handle retrieving a value for a specified key.
      */
     if (argv [2] == '\0') {
-        tcl_interp->result = "null key not allowed";
+        Tcl_AppendResult(tcl_interp, "null key not allowed", NULL);
         return TCL_ERROR;
     }
     if ((argc == 4) && (argv [3][0] == '\0'))
@@ -884,7 +882,7 @@ int Tcl_KeylgetCmd (ClientData clientData, Tcl_Interp *tcl_interp, int argc, cha
                               "\" not found in keyed list", (char *) NULL);
             return TCL_ERROR;
         } else {
-            tcl_interp->result = zero;
+            Tcl_AppendResult(tcl_interp, zero, NULL);
             return TCL_OK;
         }
     }
@@ -901,7 +899,7 @@ int Tcl_KeylgetCmd (ClientData clientData, Tcl_Interp *tcl_interp, int argc, cha
      * Handle null return variable specified and key was found.
      */
     if (argv [3][0] == '\0') {
-        tcl_interp->result = one;
+        Tcl_AppendResult(tcl_interp, one, NULL);
         return TCL_OK;
     }
 
@@ -913,7 +911,7 @@ int Tcl_KeylgetCmd (ClientData clientData, Tcl_Interp *tcl_interp, int argc, cha
     else
         result = TCL_OK;
     ckfree (fieldValue);
-    tcl_interp->result = one;
+    Tcl_AppendResult(tcl_interp, one, NULL);
     return result;
 }
 
@@ -1089,7 +1087,7 @@ int Tcl_RelativeExpr (Tcl_Interp *tcl_interp, char *cstringExpr, long stringLen,
 	return Tcl_ExprLong (tcl_interp, cstringExpr, exprResultPtr);
     }
 
-    sprintf (staticBuf, "%ld",
+    snprintf (staticBuf, sizeof staticBuf, "%ld",
              stringLen - ((cstringExpr [0] == 'e') ? 1 : 0));
     exprLen = strlen (staticBuf) + strlen (cstringExpr) - 2;
 
@@ -1199,7 +1197,7 @@ int Tcl_LemptyCmd (ClientData clientData, Tcl_Interp *tcl_interp, int argc, char
 	scanPtr = argv [1];
 	while ((*scanPtr != '\0') && (ISSPACE (*scanPtr)))
 		scanPtr++;
-	sprintf (tcl_interp->result, "%d", (*scanPtr == '\0'));
+	Tcl_AppendResult(tcl_interp, (*scanPtr == '\0') ? "1" : "0", NULL);
 	return TCL_OK;
 }
 
@@ -1339,7 +1337,6 @@ TclVars tcl_vars[] =
 	{ NULL,		NULL,		0,		0}
 };
 
-extern char *ircii_rem_str(ClientData *, Tcl_Interp *, char *, char *, int);
 void init_public_var(Tcl_Interp *intp)
 {
 int i;
@@ -1430,17 +1427,17 @@ struct timeval now1;
 			int code;
 			Tcl_DStringInit(&ds);
 			if (Tcl_SplitList(tcl_interp,mark->command,&argc,&argv) != TCL_OK) 
-				putlog(LOG_CRAP,"*","(Timer) Error for '%s': %s", mark->command, tcl_interp->result);
+				putlog(LOG_CRAP,"*","(Timer) Error for '%s': %s", mark->command, Tcl_GetStringResult(tcl_interp));
 			else 
 			{
 				for (i=0; i<argc; i++) 
 					Tcl_DStringAppendElement(&ds,argv[i]);
-				free(argv);
+				ckfree((char *)argv);
 				code=Tcl_Eval(tcl_interp,Tcl_DStringValue(&ds));
 				/* code=Tcl_Eval(tcl_interp,mark->cmd); */
 				Tcl_DStringFree(&ds);
 				if (code!=TCL_OK)
-					putlog(LOG_CRAP,"*","(Timer) Error for '%s': %s", mark->command, tcl_interp->result);
+					putlog(LOG_CRAP,"*","(Timer) Error for '%s': %s", mark->command, Tcl_GetStringResult(tcl_interp));
 			}
 		}
 		else 
@@ -1480,46 +1477,24 @@ long time_left;
 	}
 }
 
-static struct timeval current;
-
-time_t tclTimerTimeout(time_t timeout)
+void tclTimerTimeout(struct timeval *wake_time)
 {
-	register TimerList	*stack = NULL;
-	long			this_timeout = 0;
+	TimerList *stack = NULL;
 
-	if (timeout == 0)
-		return 0;
-	get_time(&current);
-	if ((stack = tcl_Pending_timers))
-	{
-		/* this is in minutes */
-		for (; stack; stack = stack->next)
-			if ((this_timeout = (BX_time_diff(current, stack->time)) * 1000) < timeout)
-				timeout = this_timeout;
-	}
-	if ((stack = tcl_Pending_utimers))
-	{
-		/* this is in seconds */
-		for (; stack; stack = stack->next)
-			if ((this_timeout = (BX_time_diff(current, stack->time)) * 1000) < timeout)
-				timeout = this_timeout;
-	}
-#if defined(WINNT) || defined(__EMX__)
-	return (timeout == MAGIC_TIMEOUT) ? MAGIC_TIMEOUT : timeout;
-#else
-	return timeout;
-#endif
+	/* this is in minutes */
+	for (stack = tcl_Pending_timers; stack; stack = stack->next)
+		if (time_cmp(wake_time, &stack->time) > 0)
+			*wake_time = stack->time;
+	/* this is in seconds */
+	for (stack = tcl_Pending_utimers; stack; stack = stack->next)
+		if (time_cmp(wake_time, &stack->time) > 0)
+			*wake_time = stack->time;
 }
 
 #else /* WANT_TCL */
 
-time_t tclTimerTimeout(time_t timeout)
+void tclTimerTimeout(struct timeval *wake_time)
 {
-#if defined(WINNT) || defined(__EMX__)
-	return (timeout == MAGIC_TIMEOUT) ? MAGIC_TIMEOUT : timeout;
-#else
-	return timeout < MAGIC_TIMEOUT ? timeout : MAGIC_TIMEOUT;
-#endif
 }
 
 int check_tcl_dcc(char *cmd, char *nick, char *host, int idx)

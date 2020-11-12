@@ -39,7 +39,7 @@
  */
 
 /* from: static char sccsid[] = "@(#)glob.c	8.3 (Berkeley) 10/13/93"; */
-/* $Id: glob.c 3 2008-02-25 09:49:14Z keaston $ */
+/* $Id$ */
 
 /*
  * glob(3) -- a superset of the one defined in POSIX 1003.2.
@@ -655,7 +655,7 @@ static int glob3		(	Char *pathbuf,
 
 
 /*
- * Extend the gl_pathv member of a glob_t structure to accomodate a new item,
+ * Extend the gl_pathv member of a glob_t structure to accommodate a new item,
  * add the new item, and update gl_pathc.
  *
  * This assumes the BSD realloc, which only copies the block when its size

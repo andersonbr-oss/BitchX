@@ -72,9 +72,9 @@ typedef struct {
 /* srec -- linked list of scores */
 
 typedef struct _srec {
+	struct _srec *next;
 	char *nick;
 	unsigned long score;
-	struct _srec *next;
 } srec;
 
 struct settings {
@@ -98,18 +98,17 @@ BUILT_IN_DLL(put_scores);
 grec *init_acro(grec *);
 void make_acro(grec *);
 int valid_acro(grec *, char *);
-srec *read_scores(void);
+void read_scores(void);
 int write_scores(srec *);
 prec *take_acro(grec *, prec *, char *, char *, char *);
 vrec *take_vote(grec *, vrec *, prec *, char *, char *, char *);
 srec *end_vote(vrec *, prec *, srec *);
 srec *sort_scores(srec *);
-int comp_score(srec **one, srec **two);
 void show_scores(grec *, srec *, srec *, char *);
-void warn_acro(char *);
-void start_vote(char *);
-void warn_vote(char *);
-void end_voting(char *);
+int warn_acro(void *, char *);
+int start_vote(void *, char *);
+int warn_vote(void *, char *);
+int end_voting(void *, char *);
 void show_acros(prec *, char *);
 void free_round(prec **, vrec **);
 void free_score(srec **);

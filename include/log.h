@@ -7,11 +7,10 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: log.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __log_h_
-#define __log_h_
+#ifndef LOG_H_
+#define LOG_H_
 
 	void	do_log (int, char *, FILE **);
 	void	logger (Window *, char *, int);
@@ -19,4 +18,4 @@
 	void	BX_add_to_log (FILE *, time_t, const char *, int mangler);
 
 
-#endif /* __log_h_ */
+#endif /* LOG_H_ */

@@ -7,13 +7,12 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: mail.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __mail_h_
-#define __mail_h_
+#ifndef MAIL_H_
+#define MAIL_H_
 
 	char	*check_mail (void);
 	int	check_mail_status (void);
 
-#endif /* __mail_h_ */
+#endif /* MAIL_H_ */

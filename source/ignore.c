@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: ignore.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(ignore_c)
 #include "struct.h"
 
@@ -340,33 +340,6 @@ static	int remove_ignore(char *nick)
 	return count;
 }
 
-/*
- * is_ignored: checks to see if nick is being ignored (poor nick).  Checks
- * against type to see if ignoring is to take place.  If nick is marked as
- * IGNORE_ALL or ignorace types match, 1 is returned, otherwise 0 is
- * returned.  
- */
-int is_ignored(char *nick, long type)
-{
-	Ignore	*tmp;
-
-	if (ignored_nicks)
-	{
-		if ((tmp = (Ignore *) list_lookup((List **) &ignored_nicks, nick, USE_WILDCARDS, !REMOVE_FROM_LIST)) != NULL)
-		{
-			if (tmp->dont & type)
-				return (DONT_IGNORE);
-			if (tmp->type & type)
-				return (IGNORED);
-			if (tmp->high & type)
-				return (HIGHLIGHTED);
-			if (tmp->high & type)
-				return (CHANNEL_GREP);
-		}
-	}
-	return (0);
-}
-
 int check_is_ignored(char *nick)
 {
 	Ignore	*tmp;
@@ -408,159 +381,159 @@ static	void ignore_list(char *nick)
 			else
 			{
 	if (tmp->type & IGNORE_PUBLIC)
-		strmcat(buffer, " PUBLIC", BIG_BUFFER_SIZE);
+		strlcat(buffer, " PUBLIC", sizeof buffer);
 	else if (tmp->high & IGNORE_PUBLIC)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "PUBLIC", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_PUBLIC)
-		strmcat(buffer, " DONT-PUBLIC", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-PUBLIC", sizeof buffer);
 
 	if (tmp->type & IGNORE_MSGS)
-		strmcat(buffer, " MSGS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " MSGS", sizeof buffer);
 	else if (tmp->high & IGNORE_MSGS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "MSG", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_MSGS)
-		strmcat(buffer, " DONT-MSGS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-MSGS", sizeof buffer);
 
 	if (tmp->type & IGNORE_WALLS)
-		strmcat(buffer, " WALLS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " WALLS", sizeof buffer);
 	else if (tmp->high & IGNORE_WALLS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "WALL", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_WALLS)
-		strmcat(buffer, " DONT-WALLS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-WALLS", sizeof buffer);
 
 	if (tmp->type & IGNORE_WALLOPS)
-		strmcat(buffer, " WALLOPS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " WALLOPS", sizeof buffer);
 	else if (tmp->high & IGNORE_WALLOPS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "WALLOPS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_WALLOPS)
-		strmcat(buffer, " DONT-WALLOPS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-WALLOPS", sizeof buffer);
 
 	if (tmp->type & IGNORE_INVITES)
-		strmcat(buffer, " INVITES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " INVITES", sizeof buffer);
 	else if (tmp->high & IGNORE_INVITES)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "INVITES", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_INVITES)
-		strmcat(buffer, " DONT-INVITES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-INVITES", sizeof buffer);
 
 	if (tmp->type & IGNORE_NOTICES)
-		strmcat(buffer, " NOTICES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " NOTICES", sizeof buffer);
 	else if (tmp->high & IGNORE_NOTICES)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "NOTICES", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_NOTICES)
-		strmcat(buffer, " DONT-NOTICES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-NOTICES", sizeof buffer);
 
 	if (tmp->type & IGNORE_NOTES)
-		strmcat(buffer, " NOTES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " NOTES", sizeof buffer);
 	else if (tmp->high & IGNORE_NOTES)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "NOTES", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_NOTES)
-		strmcat(buffer, " DONT-NOTES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-NOTES", sizeof buffer);
 
 	if (tmp->type & IGNORE_CTCPS)
-		strmcat(buffer, " CTCPS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " CTCPS", sizeof buffer);
 	else if (tmp->high & IGNORE_CTCPS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "CTCPS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_CTCPS)
-		strmcat(buffer, " DONT-CTCPS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-CTCPS", sizeof buffer);
 
 	if (tmp->type & IGNORE_CDCC)
-		strmcat(buffer, " CDCC", BIG_BUFFER_SIZE);
+		strlcat(buffer, " CDCC", sizeof buffer);
 	else if (tmp->high & IGNORE_CDCC)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "CDCC", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_CDCC)
-		strmcat(buffer, " DONT-CDCC", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-CDCC", sizeof buffer);
 
 	if (tmp->type & IGNORE_KICKS)
-		strmcat(buffer, " KICKS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " KICKS", sizeof buffer);
 	else if (tmp->high & IGNORE_KICKS)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "KICKS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_KICKS)
-		strmcat(buffer, " DONT-KICKS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-KICKS", sizeof buffer);
 
 	if (tmp->type & IGNORE_MODES)
-		strmcat(buffer, " MODES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " MODES", sizeof buffer);
 	else if (tmp->high & IGNORE_MODES)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "MODES", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_MODES)
-		strmcat(buffer, " DONT-MODES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-MODES", sizeof buffer);
 
 	if (tmp->type & IGNORE_SMODES)
-		strmcat(buffer, " SMODES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " SMODES", sizeof buffer);
 	else if (tmp->high & IGNORE_SMODES)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "SMODES", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_SMODES)
-		strmcat(buffer, " DONT-SMODES", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-SMODES", sizeof buffer);
 
 	if (tmp->type & IGNORE_JOINS)
-		strmcat(buffer, " JOINS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " JOINS", sizeof buffer);
 	else if (tmp->high & IGNORE_JOINS)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "JOINS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_JOINS)
-		strmcat(buffer, " DONT-JOINS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-JOINS", sizeof buffer);
 
 	if (tmp->type & IGNORE_TOPICS)
-		strmcat(buffer, " TOPICS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " TOPICS", sizeof buffer);
 	else if (tmp->high & IGNORE_TOPICS)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "TOPICS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_TOPICS)
-		strmcat(buffer, " DONT-TOPICS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-TOPICS", sizeof buffer);
 
 	if (tmp->type & IGNORE_QUITS)
-		strmcat(buffer, " QUITS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " QUITS", sizeof buffer);
 	else if (tmp->high & IGNORE_QUITS)
 		strmopencat(buffer, BIG_BUFFER_SIZE,space, highlight_char, "QUITS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_QUITS)
-		strmcat(buffer, " DONT-QUITS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-QUITS", sizeof buffer);
 
 	if (tmp->type & IGNORE_PARTS)
-		strmcat(buffer, " PARTS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " PARTS", sizeof buffer);
 	else if (tmp->high & IGNORE_PARTS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "PARTS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_PARTS)
-		strmcat(buffer, " DONT-PARTS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-PARTS", sizeof buffer);
 
 	if (tmp->type & IGNORE_NICKS)
-		strmcat(buffer, " NICKS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " NICKS", sizeof buffer);
 	else if (tmp->high & IGNORE_NICKS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "NICKS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_NICKS)
-		strmcat(buffer, " DONT-NICKS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-NICKS", sizeof buffer);
 
 
 	if (tmp->type & IGNORE_PONGS)
-		strmcat(buffer, " PONGS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " PONGS", sizeof buffer);
 	else if (tmp->high & IGNORE_PONGS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "PONGS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_PONGS)
-		strmcat(buffer, " DONT-PONGS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-PONGS", sizeof buffer);
 
 
 	if (tmp->type & IGNORE_SPLITS)
-		strmcat(buffer, " SPLITS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " SPLITS", sizeof buffer);
 	else if (tmp->high & IGNORE_SPLITS)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "SPLITS", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_SPLITS)
-		strmcat(buffer, " DONT-SPLITS", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-SPLITS", sizeof buffer);
 
 	if (tmp->type & IGNORE_CRAP)
-		strmcat(buffer, " CRAP", BIG_BUFFER_SIZE);
+		strlcat(buffer, " CRAP", sizeof buffer);
 	else if (tmp->high & IGNORE_CRAP)
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, highlight_char, "CRAP", highlight_char, NULL);
 	else if (tmp->dont & IGNORE_CRAP)
-		strmcat(buffer, " DONT-CRAP", BIG_BUFFER_SIZE);
+		strlcat(buffer, " DONT-CRAP", sizeof buffer);
 
 			}
 			if (tmp->except)
 			{
 				Ignore *new;
-				strmcat(buffer, " EXCEPT ", BIG_BUFFER_SIZE);
+				strlcat(buffer, " EXCEPT ", sizeof buffer);
 				for (new = tmp->except; new; new = new->next)
 					strmopencat(buffer, BIG_BUFFER_SIZE, new->nick, space, NULL);
 			}
 			if (tmp->looking && tmp->cgrep)
 			{
 				Ignore *new;
-				strmcat(buffer, " CGREP ", BIG_BUFFER_SIZE);
+				strlcat(buffer, " CGREP ", sizeof buffer);
 				for (new = tmp->looking; new; new = new->next)
 					strmopencat(buffer, BIG_BUFFER_SIZE, "[", new->nick, "] ", NULL);
 			}
@@ -571,11 +544,13 @@ static	void ignore_list(char *nick)
 		bitchsay("There are no nicknames or channels being ignored");
 }
 
-long ignore_type (char *type, int len)
+long ignore_type(const char *type, size_t len)
 {
-long ret = -1;
+	long ret = -1;
+
 	if (!type || !*type)
 		return -1;
+
 	if (!strncmp(type, "ALL", len))
 		ret = IGNORE_ALL;
 	else if (!strncmp(type, "MSGS", len))
@@ -625,9 +600,9 @@ long ret = -1;
 
 #define HANDLE_TYPE(x, y)						\
 	     if ((tmp->dont & x) == x)					\
-		strmcat(buffer, " DONT-" y, BIG_BUFFER_SIZE);		\
+		strlcat(buffer, " DONT-" y, sizeof buffer);		\
 	else if ((tmp->type & x) == x)					\
-		strmcat(buffer, " " y, BIG_BUFFER_SIZE);		\
+		strlcat(buffer, " " y, sizeof buffer);			\
 	else if ((tmp->high & x) == x)					\
 		strmopencat(buffer, BIG_BUFFER_SIZE, space, high, y, high, NULL);
 
@@ -778,10 +753,10 @@ void set_highlight_char(Window *win, char *s, int unused)
 }
 
 /* check_ignore -- replaces the old double_ignore
- *   Why did i change the name?
- *      * double_ignore isnt really applicable any more becuase it doesnt
+ *   Why did I change the name?
+ *      * double_ignore isn't really applicable any more because it doesn't
  *        do two ignore lookups, it only does one.
- *      * This function doesnt look anything like the old double_ignore
+ *      * This function doesn't look anything like the old double_ignore
  *      * This function works for the new *!*@* patterns stored by
  *        ignore instead of the old nick and userhost patterns.
  * (jfn may 1995)
@@ -857,11 +832,11 @@ static char *cut_n_fix_glob ( char *nickuserhost )
 		/* doh! */
 		user = userhost;
 
-		if ((host = sindex(userhost, "@")))
+		if ((host = strchr(userhost, '@')))
 			/* USER IS CORRECT HERE */
 			*host++ = 0;
 
-		else if (sindex(userhost, "."))
+		else if (strchr(userhost, '.'))
 		{
 			user = "*";
 			host = userhost;
@@ -875,14 +850,14 @@ static char *cut_n_fix_glob ( char *nickuserhost )
 	else
 	{
 		user = copy;
-		if ((host = sindex(user, "@")))
+		if ((host = strchr(user, '@')))
 		{
 			nick = "*";
 			*host++ = 0;
 		}
 		else
 		{
-			if (sindex(user, "."))
+			if (strchr(user, '.'))
 			{
 				nick = "*";
 				host = user;
@@ -1054,7 +1029,7 @@ char	*get_ignore_patterns_by_type (char *ctype)
 
 	/*
 	 * Convert the user's input into something we can use.
-	 * If the user doesnt specify anything useful, then we
+	 * If the user doesn't specify anything useful, then we
 	 * just punt right here.
 	 */
 	upper(ctype);

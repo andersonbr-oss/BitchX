@@ -7,11 +7,10 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: ctcp.h 40 2008-05-07 11:07:31Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef _CTCP_H_
-#define _CTCP_H_
+#ifndef CTCP_H_
+#define CTCP_H_
 
 #include "irc.h"
 #include "irc_std.h"
@@ -56,7 +55,6 @@
 extern CtcpEntryDll *dll_ctcp;
 
 
-extern		int	sed;
 extern		int	in_ctcp_flag;
 
 #define CTCP_DELIM_CHAR '\001'
@@ -66,14 +64,16 @@ extern		int	in_ctcp_flag;
 #define CTCP_QUOTE_EM 	"\r\n\001\\"
 
 
-extern	char *	ctcp_quote_it (char *, int);
-extern	char *	ctcp_unquote_it (char *, int *);
+extern char *ctcp_quote_it(const char *, size_t);
+extern char *ctcp_unquote_it(const char *, size_t *);
 extern	char *	do_ctcp (char *, char *, char *);
 extern	char *	do_notice_ctcp (char *, char *, char *);
 extern	int	in_ctcp (void);
 extern	void	send_ctcp (int, char *, int, char *, ...);
 extern	int	get_ctcp_val (char *);
+extern char *sed_encrypt_msg(const char *, const char *);
+extern char *sed_decrypt_msg(const char *, const char *);
 
 void 	BX_split_CTCP (char *, char *, char *);
 
-#endif /* _CTCP_H_ */
+#endif /* CTCP_H_ */

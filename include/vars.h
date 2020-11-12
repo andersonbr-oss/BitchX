@@ -3,11 +3,10 @@
  *
  * Generated from vars.h.proto automatically by the Makefile
  *
- * @(#)$Id: vars.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __vars_h_
-#define __vars_h_
+#ifndef VARS_H_
+#define VARS_H_
 
 /* indexes for the irc_variable array */
 
@@ -163,6 +162,7 @@ enum VAR_TYPES {
 	KICK_ON_NICKFLOOD_VAR ,
 	KICK_ON_PUBFLOOD_VAR ,
 	KICK_OPS_VAR ,
+	LAG_CHECK_INTERVAL_VAR,
 	LAMEIDENT_VAR,
 	LAMELIST_VAR,
 	LASTLOG_VAR ,
@@ -380,15 +380,12 @@ NUMBER_OF_VARIABLES
 	void	set_highlight_char (Window *, char *, int);
 	int	charset_size (void);
 	void	save_variables (FILE *, int);
-	void	set_var_value (int, char *, IrcVariableDll *);
 	void    save_set (FILE *);
 
 extern	char	*var_settings[];
 extern	int	loading_global;
 	void	savebitchx_variables (FILE *);
 	void	reinit_autoresponse (Window *, char *, int);
-	void	clear_sets (void);
-	void	clear_bindings (void);
 	int	window_set_var (Window *, char *);
 	void	init_window_variables (Window *);
 
@@ -406,12 +403,12 @@ extern	int	loading_global;
 #define STR_TYPE_VAR	3
 #define SET_TYPE_VAR	4
 
-#define	VF_NODAEMON	0x0001
-#define VF_EXPAND_PATH	0x0002
+#define VF_NO_SAVE     0x0001U
+#define VF_EXPAND_PATH 0x0002U
+#define VF_BITCHX      0x0004U
 
 #define VIF_CHANGED	0x01
 #define VIF_GLOBAL	0x02
-#define VIF_BITCHX	0x04
 #define VIF_PENDING	0x08
 
 #define	DEBUG_COMMANDS		0x0001
@@ -425,4 +422,4 @@ extern	int	loading_global;
 
 int	parse_mangle	(char *, int, char **);
 
-#endif /* __vars_h_ */
+#endif /* VARS_H_ */

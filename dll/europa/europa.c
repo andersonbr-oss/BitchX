@@ -357,7 +357,7 @@ int Europa_Init(IrcCommandDll **intp, Function_ptr *global_table) {
   put_it("** Europa v%s connecting to database backend...", MOD_VERSION);
 
   /* connect to the database server */
-  if(!(mysql_real_connect(&mysql, DBHOST, DBUSER, DBPASSWD, NULL, 0, NULL, 0))) {
+  if(!(mysql_connect(&mysql, DBHOST, DBUSER, DBPASSWD))) {
     put_it("** Server refused login/password.");
     return 0;
   }

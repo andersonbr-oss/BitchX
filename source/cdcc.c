@@ -16,13 +16,12 @@
 #define CDCC_FLUD
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: cdcc.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(cdcc_c)
 #include "ircaux.h"
 #include "struct.h"
 #include "commands.h"
 #include "ignore.h"
-#include "ctcp.h"
 #include "hook.h"
 #include "dcc.h"
 #include "flood.h"
@@ -241,16 +240,17 @@ BUILT_IN_COMMAND(cdcc)
 			
 static int l_help(char *cmd, char *args)
 {
-int i;
-char buffer[BIG_BUFFER_SIZE+1];
+	int i;
+	char buffer[BIG_BUFFER_SIZE];
+
 	if (!cmd)
 	{
 		int c = 0;
 		*buffer = 0;
 		for (i = 0; *local[i].name; i++)
 		{
-			strmcat(buffer, local[i].name, BIG_BUFFER_SIZE);
-			strmcat(buffer, space, BIG_BUFFER_SIZE);
+			strlcat(buffer, local[i].name, sizeof buffer);
+			strlcat(buffer, space, sizeof buffer);
 			if (++c == 5)
 			{
 				put_it("%s", convert_output_format("$G $[13]0 $[13]1 $[13]2 $[13]3 $[13]4", "%s", buffer));
@@ -269,7 +269,8 @@ char buffer[BIG_BUFFER_SIZE+1];
 		{
 			if (my_stricmp(local[i].name, cmd))
 				continue;
-			sprintf(buffer, "CDCC %s", cmd);
+			strlcpy(buffer, "CDCC ", sizeof buffer);
+			strlcat(buffer, cmd, sizeof buffer);
 			userage(buffer, local[i].help?local[i].help:" - No help available");
 			done++;
 		}
@@ -354,7 +355,10 @@ static int r_info(char *args, char *rest)
 			if (matchmcommand(q, ptr->num))
 				break;
 		if (ptr)
-			queue_send_to_server(from_server, "NOTICE %s :%d file%s %d gets %ld size %2.4f minspeed %ld time added",args, ptr->numfiles, plural(ptr->numfiles), ptr->gets, ptr->size, ptr->minspeed, ptr->timeadded); 
+			queue_send_to_server(from_server, 
+				"NOTICE %s :%d file%s %d gets %ld size %2.4f minspeed %ld time added",
+				args, ptr->numfiles, plural(ptr->numfiles), ptr->gets, 
+				ptr->size, ptr->minspeed, (long)ptr->timeadded); 
 		else
 			queue_send_to_server(from_server, "NOTICE %s :Invalid info request", args);
 	}
@@ -395,12 +399,9 @@ static int do_local_send(char *command, char *args, char *rest)
 	pack *ptr = NULL;
 	char *temp = NULL, *file = NULL, *dccinfo = NULL, *q = NULL, *p;
 	int maxdcc, maxqueue;
-	int tdcc = 0;
 	int queued_files =  0;
 	int count = 0;
 				
-	if (*command == 'T')
-		tdcc = 1;	
 	if (!args || !*args)
 		return 0;
 
@@ -543,7 +544,7 @@ static int do_dcc_sends(char *command, char *from, char *args)
 				break;
 		if (ptr)
 		{
-			if (ptr->password && (!password || (password && strcmp(ptr->password, password))))
+			if (ptr->password && (!password || strcmp(ptr->password, password)))
 			{
 				put_it("%s: Attempted get of secure pack %d from %s failed. [%s]", cparse(get_string_var(CDCC_PROMPT_VAR)), ptr->num, from, !password? "No Password": "Invalid Password");
 				queue_send_to_server(from_server, "NOTICE %s :\002CDCC\002: Failed attempt to get secure pack %d", from, ptr->num);
@@ -654,7 +655,6 @@ static int r_list(char *from, char *args)
 	char bytes_out[30];
 	char bytes_in[30];
 	char speed_out[30];
-	char *type_msg;
 	int once = 0;
 
 	sprintf(mrate_out, "%1.3g", dcc_max_rate_out);
@@ -663,11 +663,9 @@ static int r_list(char *from, char *args)
 	sprintf(bytes_in, "%1.3g", dcc_bytes_in);
 	sprintf(speed_out, "%1.3g", cdcc_minspeed);
 
-	type_msg = (do_notice_list)? "NOTICE":"PRIVMSG";
-
 	for (ptr = offerlist; ptr; ptr = ptr->next) 
 	{
-		if (!once && do_hook(CDCC_PREPACK_LIST, "%s %s %s %d %d %d %d %d %s %s %s %s %lu %s", 
+		if (!once && do_hook(CDCC_PREPACK_LIST, "%s %s %s %u %d %d %d %d %s %s %s %s %lu %s", 
 			"NOTICE", from, get_server_nickname(from_server), 
 			cdcc_numpacks, 
 			get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), 
@@ -678,10 +676,10 @@ static int r_list(char *from, char *args)
 		{
 			queue_send_to_server(from_server,"NOTICE %s :Files Offered: /ctcp %s CDCC send #N for pack N", from, get_server_nickname(from_server));
 			if (get_int_var(DCC_SEND_LIMIT_VAR))
-				queue_send_to_server(from_server, "NOTICE %s :    [%d pack%s %d/%d slots open]", from, 
+				queue_send_to_server(from_server, "NOTICE %s :    [%u pack%s %d/%d slots open]", from, 
 					cdcc_numpacks, plural(cdcc_numpacks), get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), get_int_var(DCC_SEND_LIMIT_VAR));
 			else
-				queue_send_to_server(from_server, "NOTICE %s :    [%d pack%s]", from, cdcc_numpacks,plural(cdcc_numpacks));
+				queue_send_to_server(from_server, "NOTICE %s :    [%u pack%s]", from, cdcc_numpacks,plural(cdcc_numpacks));
 		}
 	 	if (ptr->size / 1024 > 999)
 			sprintf(size, "\002%4.1f\002mb",
@@ -701,7 +699,7 @@ static int r_list(char *from, char *args)
 		once++;
 	}
 	if (once)
-		do_hook(CDCC_POSTPACK_LIST, "%s %s %s %d %d %d %d %d %s %s %s %s %lu %s", 
+		do_hook(CDCC_POSTPACK_LIST, "%s %s %s %u %d %d %d %d %s %s %s %s %lu %s", 
 			"NOTICE", from, get_server_nickname(from_server), 
 			cdcc_numpacks, get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), 
 			get_int_var(DCC_SEND_LIMIT_VAR), numqueue, get_int_var(DCC_QUEUE_LIMIT_VAR), 
@@ -835,7 +833,7 @@ char *tmp = NULL;
 	}
 	else
 	{
-		malloc_sprintf(&tmp, "Add file(s) to pack%s #%d : ", plural(cdcc_numpacks), cdcc_numpacks+1);
+		malloc_sprintf(&tmp, "Add file(s) to pack%s #%u : ", plural(cdcc_numpacks), cdcc_numpacks+1);
 		add_wait_prompt(tmp, add_files, empty_string, WAIT_PROMPT_LINE, 1);
 	}
 	new_free(&tmp);
@@ -845,15 +843,16 @@ char *tmp = NULL;
 /* display the offerlist to current channel */
 int l_plist(char *args, char *rest)
 {
+	const unsigned stxt_flags = (do_notice_list ? STXT_NOTICE : 0) | (do_cdcc_echo ? 0 : STXT_QUIET);
+	const char * const type_msg = do_notice_list ? "NOTICE" : "PRIVMSG";
 	pack *ptr;
-	char *chan = NULL, *string = NULL;
+	char *chan = NULL;
 	char size[20];
 	char mrate_out[30];
 	char mrate_in[30];
 	char bytes_out[30];
 	char bytes_in[30];
 	char speed_out[30];
-	char *type_msg;
 	int maxdccs, blocksize, maxqueue;
 	
 	if (!get_current_channel_by_refnum(0) || !cdcc_numpacks || (args && *args && !is_channel(args))) {
@@ -862,7 +861,6 @@ int l_plist(char *args, char *rest)
 				   "have no packs offered!");
 		return 0;
 	}
-	type_msg = (do_notice_list)? "NOTICE":"PRIVMSG";
 	
 	if (args && *args)
 		chan = LOCAL_COPY(args);
@@ -878,30 +876,29 @@ int l_plist(char *args, char *rest)
 	sprintf(bytes_out, "%1.3g", dcc_bytes_out);
 	sprintf(bytes_in, "%1.3g", dcc_bytes_in);
 	sprintf(speed_out, "%1.3g", cdcc_minspeed);
-	if (do_hook(CDCC_PREPACK_LIST, "%s %s %s %d %d %d %d %d %s %s %s %s %lu %s", type_msg, chan, get_server_nickname(from_server), cdcc_numpacks, get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), get_int_var(DCC_SEND_LIMIT_VAR), numqueue, get_int_var(DCC_QUEUE_LIMIT_VAR), mrate_out, bytes_out, mrate_in, bytes_in, total_size_of_packs, speed_out))
+	if (do_hook(CDCC_PREPACK_LIST, "%s %s %s %u %d %d %d %d %s %s %s %s %lu %s", type_msg, chan, get_server_nickname(from_server), cdcc_numpacks, get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), get_int_var(DCC_SEND_LIMIT_VAR), numqueue, get_int_var(DCC_QUEUE_LIMIT_VAR), mrate_out, bytes_out, mrate_in, bytes_in, total_size_of_packs, speed_out))
 	{
-		if (get_int_var(QUEUE_SENDS_VAR))
-		{
-			malloc_sprintf(&string, "\037[\037cdcc\037]\037 \002%d\002 file%s offered\037-\037 /ctcp \002%s\002 cdcc send #x for pack #x",
+		char *msg1 = 
+			m_sprintf("\037[\037cdcc\037]\037 \002%u\002 file%s offered\037-\037 /ctcp \002%s\002 cdcc send #x for pack #x",
 				cdcc_numpacks, plural(cdcc_numpacks), get_server_nickname(from_server));
-			queue_send_to_server(from_server, "%s %s :%s", 
-				do_notice_list?"NOTICE":"PRIVMSG", chan, string);
-			malloc_sprintf(&string, "\037[\037cdcc\037]\037 dcc block size\037:\037 \002%d\002, slots open\037:\037 \002%2d\002/\002%2d\002, dcc queue\037:\037 \002%2d\002/\002%2d\002",
+		char *msg2 = 
+			m_sprintf("\037[\037cdcc\037]\037 dcc block size\037:\037 \002%d\002, slots open\037:\037 \002%2d\002/\002%2d\002, dcc queue\037:\037 \002%2d\002/\002%2d\002",
 				(blocksize) ? blocksize : 1024, maxdccs - get_active_count(),
 				maxdccs, maxqueue - numqueue, maxqueue);
+		if (get_int_var(QUEUE_SENDS_VAR))
+		{
 			queue_send_to_server(from_server, "%s %s :%s", 
-				do_notice_list?"NOTICE":"PRIVMSG", chan, string);
+				type_msg, chan, msg1);
+			queue_send_to_server(from_server, "%s %s :%s", 
+				type_msg, chan, msg2);
 		}
 		else
 		{
-			malloc_sprintf(&string, "\037[\037cdcc\037]\037 \002%d\002 file%s offered\037-\037 /ctcp \002%s\002 cdcc send #x for pack #x",
-				cdcc_numpacks, plural(cdcc_numpacks), get_server_nickname(from_server));
-			send_text(chan, string, do_notice_list?"NOTICE":NULL, do_cdcc_echo, 0);
-			malloc_sprintf(&string, "\037[\037cdcc\037]\037 dcc block size\037:\037 \002%d\002, slots open\037:\037 \002%2d\002/\002%2d\002, dcc queue\037:\037 \002%2d\002/\002%2d\002",
-				(blocksize) ? blocksize : 1024, maxdccs - get_active_count(),
-				maxdccs, maxqueue - numqueue, maxqueue);
-			send_text(chan, string, do_notice_list?"NOTICE":NULL, do_cdcc_echo, 0);
+			send_text(chan, msg1, stxt_flags);
+			send_text(chan, msg2, stxt_flags);
 		}
+		new_free(&msg1);
+		new_free(&msg2);
 	}
 	for (ptr = offerlist; ptr; ptr = ptr->next) 
 	{
@@ -914,33 +911,32 @@ int l_plist(char *args, char *rest)
 		if (do_hook(CDCC_PACK_LIST, "%s %s %d %d %lu %d %s", 
 			type_msg, chan, ptr->num, ptr->numfiles, ptr->size, ptr->gets, ptr->desc))
 		{
+			char *msg = m_sprintf("\037%%\037 #%-2d \037(\037%10s\037:\037\002%4d\002 get%s\037)\037 %s",
+				ptr->num, size, ptr->gets, plural(ptr->gets), 
+				ptr->desc ? ptr->desc : "no description");
 			if (get_int_var(QUEUE_SENDS_VAR))
 			{
-				malloc_sprintf(&string, "\037%%\037 #%-2d \037(\037%10s\037:\037\002%4d\002 get%s\037)\037 %s",
-					ptr->num, size, ptr->gets, plural(ptr->gets), 
-					ptr->desc ? ptr->desc : "no description");
 				queue_send_to_server(from_server, "%s %s :%s", 
-					do_notice_list?"NOTICE":"PRIVMSG", chan, string);
+					type_msg, chan, msg);
 			}
 			else
 			{
-				malloc_sprintf(&string, "\037%%\037 #%-2d \037(\037%10s\037:\037\002%4d\002 get%s\037)\037 %s",
-					ptr->num, size, ptr->gets, plural(ptr->gets), 
-					ptr->desc ? ptr->desc : "no description");
-				send_text(chan, string, do_notice_list?"NOTICE":NULL, do_cdcc_echo, 0);
+				send_text(chan, msg, stxt_flags);
 			}
+			new_free(&msg);
 		}
 		if (ptr->notes && do_hook(CDCC_NOTE_LIST, "%s %s %s", type_msg, chan, ptr->notes))
 		{
-			malloc_sprintf(&string, "\t%s", ptr->notes);
+			char *msg = m_sprintf("\t%s", ptr->notes);
 			if (get_int_var(QUEUE_SENDS_VAR))
 				queue_send_to_server(from_server, "%s %s :%s", 
-					do_notice_list?"NOTICE":"PRIVMSG", chan, string);
+					type_msg, chan, msg);
 			else
-				send_text(chan, string, do_notice_list?"NOTICE":NULL, do_cdcc_echo, 0);
+				send_text(chan, msg, stxt_flags);
+			new_free(&msg);
 		}
 	}
-	do_hook(CDCC_POSTPACK_LIST, "%s %s %s %d %d %d %d %d %s %s %s %s %lu %s", 
+	do_hook(CDCC_POSTPACK_LIST, "%s %s %s %u %d %d %d %d %s %s %s %s %lu %s", 
 		type_msg, chan, get_server_nickname(from_server), cdcc_numpacks, 
 		get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), 
 		get_int_var(DCC_SEND_LIMIT_VAR), numqueue, 
@@ -953,7 +949,7 @@ int l_plist(char *args, char *rest)
 /* notify the current channel that packs are offered */
 static int l_notice(char *args, char *rest)
 {
-	char *string = NULL, *chan = NULL;
+	char *chan = NULL;
 	char mrate_out[30];
 	char mrate_in[30];
 	char bytes_out[30];
@@ -978,18 +974,18 @@ static int l_notice(char *args, char *rest)
 	sprintf(bytes_out, "%1.3g", dcc_bytes_out);
 	sprintf(bytes_in, "%1.3g", dcc_bytes_in);
 	sprintf(speed_out, "%1.3g", cdcc_minspeed);
-	if (do_hook(CDCC_PREPACK_LIST, "%s %s %s %d %d %d %d %d %s %s %s %s %lu %s", "NOTICE", chan, get_server_nickname(from_server), cdcc_numpacks, get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), get_int_var(DCC_SEND_LIMIT_VAR), numqueue, get_int_var(DCC_QUEUE_LIMIT_VAR), mrate_out, bytes_out, mrate_in, bytes_in, total_size_of_packs, speed_out))
+	if (do_hook(CDCC_PREPACK_LIST, "%s %s %s %u %d %d %d %d %s %s %s %s %lu %s", "NOTICE", chan, get_server_nickname(from_server), cdcc_numpacks, get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), get_int_var(DCC_SEND_LIMIT_VAR), numqueue, get_int_var(DCC_QUEUE_LIMIT_VAR), mrate_out, bytes_out, mrate_in, bytes_in, total_size_of_packs, speed_out))
 	{
-		malloc_sprintf(&string, "\037[\037cdcc\037]\037 \002%d\002 file%s offered\037-\037 \037\"\037/ctcp \002%s\002 cdcc list\037\"\037 for pack list",   
+		char *msg = m_sprintf("\037[\037cdcc\037]\037 \002%u\002 file%s offered\037-\037 \037\"\037/ctcp \002%s\002 cdcc list\037\"\037 for pack list",   
 			cdcc_numpacks, plural(cdcc_numpacks), get_server_nickname(from_server));
 		if (get_int_var(QUEUE_SENDS_VAR))
-			queue_send_to_server(from_server, "NOTICE %s :%s", chan, string);
+			queue_send_to_server(from_server, "NOTICE %s :%s", chan, msg);
 		else
-			send_text(chan, string, "NOTICE", do_cdcc_echo, 0);
-	
+			send_text(chan, msg, STXT_NOTICE | (do_cdcc_echo ? 0 : STXT_QUIET));
+		new_free(&msg);	
 	}
 
-	do_hook(CDCC_POSTPACK_LIST, "%s %s %s %d %d %d %d %d %s %s %s %s %lu %s", 
+	do_hook(CDCC_POSTPACK_LIST, "%s %s %s %u %d %d %d %d %s %s %s %s %lu %s", 
 		"NOTICE", chan, get_server_nickname(from_server), cdcc_numpacks, 
 		get_int_var(DCC_SEND_LIMIT_VAR)-get_active_count(), 
 		get_int_var(DCC_SEND_LIMIT_VAR), numqueue, 
@@ -997,7 +993,6 @@ static int l_notice(char *args, char *rest)
 		bytes_in, total_size_of_packs, speed_out);
 	reset_display_target();
 	new_free(&chan);
-	new_free(&string);
 	return 0;		
 }
 		
@@ -1182,11 +1177,11 @@ static int l_load(char *args, char *rest)
 		chop(buffer, 1);
 
 		temp = strrchr(buffer, ' ');
-		*temp = '\0';
-		temp++;
+		if (temp)
+			*temp++ = '\0';
 		malloc_strcpy(&ptr->desc, buffer);
 
-		if (*temp && !isdigit((unsigned char)*temp))
+		if (!temp || !isdigit((unsigned char)*temp))
 		{
 			put_it("%s: not a cdcc pack aborting",  cparse(get_string_var(CDCC_PROMPT_VAR)));
 			new_free(&ptr->file);
@@ -1259,8 +1254,7 @@ static void add_files(char *args, char *rest)
 	struct dirent *dir;
 	struct stat statbuf;
 
-	path = alloca(strlen(rest)+1);
-	strcpy(path, rest);
+	path = LOCAL_COPY(rest);
 	
 	temp = alloca(BIG_BUFFER_SIZE + 1);
 	*temp = 0;
@@ -1327,7 +1321,7 @@ static void add_files(char *args, char *rest)
 	set_int_var(_CDCC_PACKS_OFFERED_VAR, cdcc_numpacks);
 	malloc_strcpy(&newpack->file, filebuf);
 
-	sprintf(temp, "Description of pack #%d : ", cdcc_numpacks);
+	sprintf(temp, "Description of pack #%u : ", cdcc_numpacks);
 	add_wait_prompt(temp, add_desc, empty_string, WAIT_PROMPT_LINE, 1);
 
 	new_free(&expand);
@@ -1371,7 +1365,7 @@ static void add_desc(char *args, char *rest)
 	put_it("%s: added pack #\002%d\002, \002%d\002 file%s (%s)", cparse(get_string_var(CDCC_PROMPT_VAR)),
 		newpack->num, newpack->numfiles,
 		plural(newpack->numfiles == 1), size);
-	malloc_sprintf(&temp, "Notes for pack #%d : ", cdcc_numpacks);
+	malloc_sprintf(&temp, "Notes for pack #%u : ", cdcc_numpacks);
 	add_wait_prompt(temp, add_note, empty_string, WAIT_PROMPT_LINE, 1);
 	new_free(&temp);
 	return;
@@ -1460,7 +1454,7 @@ int BX_add_to_queue(char *nick, char *command, pack *sendpack)
 		
 	if (!sendpack || !sendpack->file)
 	{
-		put_it("%s: ERROR occured in cdcc add to queue", cparse(get_string_var(CDCC_PROMPT_VAR)));
+		put_it("%s: ERROR occurred in cdcc add to queue", cparse(get_string_var(CDCC_PROMPT_VAR)));
 		return 0;
 	}
 	if (queuelist) 
@@ -1496,8 +1490,8 @@ int BX_add_to_queue(char *nick, char *command, pack *sendpack)
 		queuelist = new;
 	numqueue++;
 	put_it("%s: Queue position %d queuing %d files for %s", cparse(get_string_var(CDCC_PROMPT_VAR)), numqueue, sendpack->numfiles, nick);
-	if (!lastnick || (lastnick && my_stricmp(lastnick, nick)))
-		malloc_strcpy(&lastnick, nick);
+
+	malloc_strcpy(&lastnick, nick);
 	return 1;
 }
 	
@@ -1808,17 +1802,17 @@ static int l_stats(char *args, char *rest)
 {
 	char cdcc_minspeed_s[80];
 	sprintf(cdcc_minspeed_s, "%1.3f", cdcc_minspeed);
-	put_it("%s",convert_output_format("       %GÕÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ%K[%C    cdcc stat     %K]%GÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¸", NULL));
-	put_it("%s",convert_output_format("       %G³                                                                 ³", NULL));
-	put_it("%s",convert_output_format("       %G³%gÖÄ%K[%Cp%ctimer  %K]%gÄÖ-%K[%Ct%cype     %K]%gÄ·Ä%K[%Ct%cotal %Cp%cacks%K]%gÄÖÄ%K[%Cs%cent  %K]%gÄ·Ä[%Cq%cueue%K]%gÄ·%G³", NULL));
-	put_it("%s",convert_output_format("       %G³%gº %W$[-10]0 %gº  %W$[-10]1 %gº    %W$[-10]2 %gº %W$[-8]3 %gº %W$[-7]4 %gº%G³", "%d %s %d %d %d", ptimer, do_notice_list ?"notice":"privmsg", cdcc_numpacks, send_numpacks, numqueue));
-	put_it("%s",convert_output_format("       %G³%gÓÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄ½%G³", NULL));
-	put_it("%s",convert_output_format("       %G³ CDCC channel                                                    ³", NULL));
-	put_it("%s",convert_output_format("       %G³ %W$[63]0-%G ³", "%s", !public_channel ? "current channel": public_channel));
-	put_it("%s",convert_output_format("       %gÖÄÄÄÄ%K[%C %c  %C %c    %K]%gÄÄÄÖÄÄÄ%K[%C %c   %C %c    %K]%gÄÄÄ·ÄÄÄÄÄÄÄÄÄÄ%K[%Ct%coggles%K]%gÄÄÄÄÄÄÄÄÄÄ·", NULL));
-	put_it("%s",convert_output_format("       %gº %C %n    %W$[-6]0%n%R     %gº %C %n    %W$[-6]1%n%R     %gº   %Ct%nimer:   %W$[-3]2%n   %Ce%ncho:  %W$[-3]3 %gº", "1 1 %s %s", on_off(ptimer), on_off(do_cdcc_echo)));
-	put_it("%s",convert_output_format("       %gº %C %n    %W$[-6]0%n%R     %gº %C %n    %W$[-6]1%n%R     %gº %Cm%ninspeed:  %W$[-3]2%n   %Cs%necure:%W$[-3]3 %gº", "1 1 %s %s", cdcc_minspeed == 0.0 ? "off":cdcc_minspeed_s, on_off(get_string_var(CDCC_SECURITY_VAR) ? 1 : 0)));
-	put_it("%s",convert_output_format("       %gÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½", NULL));
+	put_it("%s",convert_output_format("       %G╒═══════════════════════%K[%C    cdcc stat     %K]%G══════════════════════╕", NULL));
+	put_it("%s",convert_output_format("       %G│                                                                 │", NULL));
+	put_it("%s",convert_output_format("       %G│%g╓─%K[%Cp%ctimer  %K]%g─╓-%K[%Ct%cype     %K]%g─╖─%K[%Ct%cotal %Cp%cacks%K]%g─╓─%K[%Cs%cent  %K]%g─╖─[%Cq%cueue%K]%g─╖%G│", NULL));
+	put_it("%s",convert_output_format("       %G│%g║ %W$[-10]0 %g║  %W$[-10]1 %g║    %W$[-10]2 %g║ %W$[-8]3 %g║ %W$[-7]4 %g║%G│", "%d %s %d %d %d", ptimer, do_notice_list ?"notice":"privmsg", cdcc_numpacks, send_numpacks, numqueue));
+	put_it("%s",convert_output_format("       %G│%g╙────────────╜─────────────╙───────────────╜──────────╙─────────╜%G│", NULL));
+	put_it("%s",convert_output_format("       %G│ CDCC channel                                                    │", NULL));
+	put_it("%s",convert_output_format("       %G│ %W$[63]0-%G │", "%s", !public_channel ? "current channel": public_channel));
+	put_it("%s",convert_output_format("       %g╓────%K[%C %c  %C %c    %K]%g───╓───%K[%C %c   %C %c    %K]%g───╖──────────%K[%Ct%coggles%K]%g──────────╖", NULL));
+	put_it("%s",convert_output_format("       %g║ %C %n    %W$[-6]0%n%R     %g║ %C %n    %W$[-6]1%n%R     %g║   %Ct%nimer:   %W$[-3]2%n   %Ce%ncho:  %W$[-3]3 %g║", "1 1 %s %s", on_off(ptimer), on_off(do_cdcc_echo)));
+	put_it("%s",convert_output_format("       %g║ %C %n    %W$[-6]0%n%R     %g║ %C %n    %W$[-6]1%n%R     %g║ %Cm%ninspeed:  %W$[-3]2%n   %Cs%necure:%W$[-3]3 %g║", "1 1 %s %s", cdcc_minspeed == 0.0 ? "off":cdcc_minspeed_s, on_off(get_string_var(CDCC_SECURITY_VAR) ? 1 : 0)));
+	put_it("%s",convert_output_format("       %g╙─────────────────╜─────────────────╙─────────────────────────────╜", NULL));
 	return 0;
 }
 
@@ -1838,7 +1832,7 @@ int it = 0;
 	if (!(p = next_arg(input, &input)))
 		return m_strdup(empty_string);
 	if (!(it = my_atol(p)))
-		return m_sprintf("%d", cdcc_numpacks);
+		return m_sprintf("%u", cdcc_numpacks);
 
 	for (ptr = offerlist; ptr; ptr= ptr->next)
 	{
@@ -1937,7 +1931,7 @@ int BX_get_num_queue(void)
 
 /* this is required for functions.c to compile properly */
 
-BUILD_IN_FUNCTION(function_cdcc)
+BUILT_IN_FUNCTION(function_cdcc)
 {
 	return m_strdup(empty_string);
 }
@@ -1947,7 +1941,7 @@ BUILT_IN_FUNCTION(function_sendcdcc)
 	return m_strdup(empty_string);
 }
 
-int get_num_queue(void)
+int BX_get_num_queue(void)
 {
 	return 0;
 }

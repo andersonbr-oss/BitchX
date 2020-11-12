@@ -11,7 +11,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: keys.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(keys_c)
 #include "struct.h"
 #include "config.h"
@@ -29,14 +29,13 @@ CVS_REVISION(keys_c)
 #define MAIN_SOURCE
 #include "modval.h"
 
-#define KEY(meta, ch) (*keys[meta])[ch]
+#define KEY(meta, ch) (*keys[meta])[(unsigned char)(ch)]
 
-typedef unsigned char uc;
-static 	void 	new_key 	(int, unsigned, int, int, char *);
-static 	void	snew_key 	(int meta, unsigned chr, char *what);
-static	uc *	display_key 	(uc c);
-static	int 	lookup_function (const uc *name, int *lf_index);
-static int	parse_key (const uc *sequence, uc *term);
+static void new_key(int, unsigned char, int, int, char *);
+static void	snew_key(int meta, unsigned chr, char *what);
+static char *display_key(char c);
+static int lookup_function(const char *name, int *lf_index);
+static int parse_key(const char *sequence, char *term);
 
 #ifdef GUI
 char *mouse_actions[] =
@@ -66,7 +65,7 @@ char *mouse_actions[] =
 
 /*
  * Yet again we've changed how the key maps are held.  This time, hopefully
- * its the second to last time, as we've made the entire things independant
+ * it's the second to last time, as we've made the entire things independent
  * of the number of meta keymaps that are available (it can change.)  The
  * only thing i see left to be done is to encapsulate all this data inside
  * a class so that different contexts can have different bindings sets.  
@@ -96,7 +95,7 @@ char *mouse_actions[] =
  * not strictly sorted.  The first two bindings are special and are hardcoded,
  * and you must not change them.  Entry 0 must always be "NOTHING", and 
  * entry 1 must always be "SELF_INSERT".  The enum that was in keys.h
- * is now totaly obsolete -- we no longer use the symbolic names, but instead
+ * is now totally obsolete -- we no longer use the symbolic names, but instead
  * always use the full string name for the binding.  This makes it much 
  * easier to add new key bindings, as there is only one place to manage.
  *
@@ -121,17 +120,17 @@ char *mouse_actions[] =
  *
  *	typedef MetaMap KeyTable[MAX_META];
  *
- * but then again, many of those MetaMaps are going to be totaly empty.
- * Why should we allocate 1k to something that isnt going to be used? 
+ * but then again, many of those MetaMaps are going to be totally empty.
+ * Why should we allocate 1k to something that isn't going to be used? 
  * So instead we should keep pointers to the maps and allocate them as
- * neccesary at runtime...
+ * necessary at runtime...
  *
  *	typedef	MetaMap	*KeyTable[MAX_META];	(better)
  *
  * Which is what we had before.  This works out fine, except, that the
  * number of meta maps is hardcoded into the client at compile time.  
  * Wouldn't it be nice to be able to determine at runtime how many maps
- * we want and be able to change them as neccesary?  We can do this by
+ * we want and be able to change them as necessary?  We can do this by
  * having a pointer to the set of pointers of MetaMaps...
  *
  *	typedef MetaMap **KeyTable;		(dyanmic now)
@@ -191,7 +190,7 @@ static KeyMapNames 	key_names[] =
 #ifdef WANT_CHELP
 	{ "CHELP",			do_chelp },
 #endif
-	{ "CLEAR_SCREEN",		clear_screen 			},
+	{ "CLEAR_SCREEN",		input_clear_screen 			},
 	{ "COMMAND_COMPLETION",		command_completion 		},
 	{ "CPU_SAVER",			cpu_saver_on 			},
 	{ "DCC_PLIST",			dcc_plist },
@@ -330,7 +329,7 @@ void	resize_metamap (int new_size)
 	if (old_size < new_size)
 	{
 		/*
-		 * Realloc and copy if neccesary
+		 * Realloc and copy if necessary
 		 */
 		if (new_size > max_keys_size)
 		{
@@ -350,7 +349,7 @@ void	resize_metamap (int new_size)
 
 	/*
 	 * If we're shrinking the meta table, just garbage collect all
-	 * the old bindings, dont actually bother resizing the table.
+	 * the old bindings, don't actually bother resizing the table.
 	 */
 	else
 	{
@@ -365,7 +364,7 @@ void	resize_metamap (int new_size)
 		 * to either meaningless, or bogus data, and either cause
 		 * undefined behavior or a total program crash.  So we walk
 		 * all of the remaining states and garbage collect any 
-		 * meta transisions that are out of bounds.
+		 * meta transitions that are out of bounds.
 		 */
 		for (i = 0; i < new_size; i++)
 		{
@@ -434,12 +433,12 @@ static void	snew_key (int meta, unsigned chr, char *what)
 #endif
 }
 
-static	void	snew_key_from_str (uc *string, char *what)
+static void snew_key_from_str(const char *string, char *what)
 {
 	int	i;
 	int	meta;
 	int	old_display;
-	uc	chr;
+	char chr;
 
 	old_display = window_display;
 	window_display = 0;
@@ -454,7 +453,7 @@ static	void	snew_key_from_str (uc *string, char *what)
 }
 
 
-static void 	new_key (int meta, unsigned chr, int type, int change, char *stuff)
+static void new_key(int meta, unsigned char chr, int type, int change, char *stuff)
 {
 	/*
 	 * Create a map first time we bind into it.  We have to do this
@@ -494,7 +493,7 @@ static void 	new_key (int meta, unsigned chr, int type, int change, char *stuff)
  * function will display to the screen the status of that bindings in a 
  * human-readable way.
  */
-static void 	show_binding (int meta, uc c)
+static void show_binding(int meta, unsigned char c)
 {
 	char	meta_str[8];
 
@@ -502,7 +501,7 @@ static void 	show_binding (int meta, uc c)
 	if (meta < 1 || meta > MAX_META)
 		meta = 0;
 	else
-		sprintf(meta_str, "META%d-", meta);
+		snprintf(meta_str, sizeof meta_str, "META%d-", meta);
 
 	if (keys[meta] && KEY(meta, c))
 	{
@@ -560,7 +559,7 @@ void 	save_bindings (FILE *fp, int do_all)
 	for (meta = 0; meta <= MAX_META; meta++)
 	{
 		if (meta != 0)
-			sprintf(meta_str, "META%d-", meta);
+			snprintf(meta_str, sizeof meta_str, "META%d-", meta);
 
 		for (j = 0; j < charsize; j++)
 		{
@@ -583,10 +582,10 @@ void 	save_bindings (FILE *fp, int do_all)
 }
 
 /*
- * This is a function used by edit_char to retreive the details for a
+ * This is a function used by edit_char to retrieve the details for a
  * specific key binding.  This function provides the only external access
  * to the key bindings.  The arguments are the meta state and the character
- * whose information you want to retreive.  That information is stored into
+ * whose information you want to retrieve.  That information is stored into
  * the 'func' and 'name' pointers you pass in.
  *
  * The function will return 0 if the binding you request is a "normal" one.
@@ -597,7 +596,7 @@ void 	save_bindings (FILE *fp, int do_all)
  * a "meta" character.
  *	The value of 'func' will be NULL but you should not depend on that.
  */
-int	get_binding (int meta, uc c, KeyBinding *func, char **name)
+int get_binding(int meta, unsigned char c, KeyBinding *func, char **name)
 {
 	*func = NULL;
 	*name = NULL;
@@ -741,10 +740,10 @@ BUILT_IN_COMMAND(rbindcmd)
 
 
 /* * * * * * * * * * * * * * BIND  * * * * * * * * * * * * * */
-static int	grok_meta (const uc *ptr, const uc **end)
+static int grok_meta(const char *ptr, char **end)
 {
-	int		meta = -1;
-	const uc *	str;
+	int meta = -1;
+	const char *str;
 
 	/*
 	 * Well, if it is going to be anywhere, META has to be out front,
@@ -753,7 +752,7 @@ static int	grok_meta (const uc *ptr, const uc **end)
 	if (!my_strnicmp(ptr, "META", 4))
 	{
 		str = ptr = ptr + 4;
-		while (isdigit(*ptr))
+		while (isdigit((unsigned char)*ptr))
 			ptr++;
 		if (*ptr == '_' && !my_strnicmp(ptr, "_CHARACTER", 10))
 			ptr = ptr + 10;
@@ -762,7 +761,8 @@ static int	grok_meta (const uc *ptr, const uc **end)
 		meta = atol(str);
 	}
 
-	*end = ptr;
+	if (end)
+		*end = (char *)ptr;
 	return meta;
 }
 
@@ -772,13 +772,14 @@ static int	grok_meta (const uc *ptr, const uc **end)
  * work with, including the redux of ^X into X-64.
  * You can then work with the sequence after processing.
  */
-void	copy_redux (const uc *orig, uc *result)
+void copy_redux(const char *orig, char *result)
 {
-	const  uc	*ptr;
-	*result = 0;
+	const char *ptr;
 	
 	for (ptr = orig; ptr && *ptr; ptr++, result++)
 	{
+		int c;
+
 		if (*ptr != '^')
 		{
 			*result = *ptr;
@@ -786,25 +787,27 @@ void	copy_redux (const uc *orig, uc *result)
 		}
 
 		ptr++;
-		switch (toupper(*ptr))
+		c = toupper((unsigned char)*ptr);
+		switch (c)
 		{
 			case 0:			/* ^<nul> is ^ */
-				*result = '^';
-				return;
+				*result++ = '^';
+				goto out;
 			case '?':		/* ^? is DEL */
 				*result = 0177;
 				break;
 			default:
-				if (toupper(*ptr) < 64)
+				if (c < 64 || c > 127)
 				{
 					say("Illegal key sequence: ^%c", *ptr);
-					*result = 0;
-					return;
+					goto out;
 				}
-				*result = toupper(*ptr) - 64;
+				*result = c - 64;
 				break;
 		}
 	}
+
+out:
 	*result = 0;
 	return;
 }
@@ -813,7 +816,7 @@ void	copy_redux (const uc *orig, uc *result)
  * find_meta_map: Finds a meta map that does not already contain a 
  * binding to the specified character.
  */
-int	find_meta_map	(uc key)
+int	find_meta_map(char key)
 {
 	int	curr = MAX_META;
 
@@ -870,14 +873,13 @@ int	find_meta_map	(uc key)
  *	/BIND ^[[11~	BIND-ACTION	(Force us to make suer ^[[11 is bound
  *					 to a meta map before returning.)
  */
-static int	parse_key (const uc *sequence, uc *term)
+static int parse_key(const char *sequence, char *term)
 {
-	uc	*copy;
-	uc	*end;
+	char *copy, *end;
 	int	return_meta = 0;
 	int	meta;
-	uc	last_character;
-	uc	terminal_character;
+	char last_character;
+	char terminal_character;
 	int	last;
 	int	somethingN;
 #ifdef GUI
@@ -908,7 +910,7 @@ static int	parse_key (const uc *sequence, uc *term)
 	/*
 	 * Remove any leading META description
 	 */
-	if ((meta = grok_meta(copy, (const uc **)&copy)) == -1)
+	if ((meta = grok_meta(copy, &copy)) == -1)
 		meta = 0;
 
 	if (x_debug & DEBUG_AUTOKEY)
@@ -1041,7 +1043,7 @@ static int	parse_key (const uc *sequence, uc *term)
 	return return_meta;
 
 #if 0
-	/* The rest of this isnt finished, hense is unsupported */
+	/* The rest of this isn't finished, hence is unsupported */
 	say("The bind cannot occur because the character sequence to bind contains a leading substring that is bound to something else.");
 	return -1;
 #endif
@@ -1070,11 +1072,11 @@ static int	parse_key (const uc *sequence, uc *term)
  */
 BUILT_IN_COMMAND(bindcmd)
 {
-	uc	*key,
-		*function;
-	uc	*newkey;
+	char *key;
+	char *function;
+	char *newkey;
 	int	meta;
-	uc	dakey;
+	char dakey;
 	int	bi_index;
 	int	cnt,
 		i;
@@ -1105,7 +1107,7 @@ BUILT_IN_COMMAND(bindcmd)
 
 	/*
 	 * Grok the key argument and see what we can make of it
-	 * If there is an error at this point, dont continue.
+	 * If there is an error at this point, don't continue.
 	 * Most of the work is done here.
 	 */
 	
@@ -1163,7 +1165,7 @@ BUILT_IN_COMMAND(bindcmd)
 /*
  * lookup_function:  When you want to convert a "binding" name (such as
  * BACKSPACE or SELF_INSERT) over to its offset in the binding lookup table,
- * you must call this function to retreive that offset.  The first argument
+ * you must call this function to retrieve that offset.  The first argument
  * is the name you want to look up, and the second argument is where the
  * offset is to be stored.  
  *
@@ -1179,12 +1181,11 @@ BUILT_IN_COMMAND(bindcmd)
  * set to the first item that matches the 'name'.  For all other return
  * values, "lf_index" will have the value -1.
  */
-static int 	lookup_function (const uc *orig_name, int *lf_index)
+static int lookup_function(const char *orig_name, int *lf_index)
 {
-	int	len,
-		cnt,
-		i;
-	uc	*name, *breakage;
+	size_t len;
+	int cnt, i;
+	char *name;
 
 	if (!orig_name)
 	{
@@ -1192,25 +1193,22 @@ static int 	lookup_function (const uc *orig_name, int *lf_index)
 		return 1;
 	}
 
-	breakage = name = LOCAL_COPY(orig_name);
+	name = LOCAL_COPY(orig_name);
 	upper(name);
 	len = strlen(name);
 
 	*lf_index = -1;
 
 	/* Handle "META" descriptions especially. */
-	if (!strncmp(name, "META", 4))
+	if (strbegins(name, "META"))
 	{
-		const uc *	endp;
-		int		meta;
+		int meta = grok_meta(name, NULL);
 
-		if ((meta = grok_meta(name, &endp)) < 0)
+		if (meta < 0)
 			return meta;
-		else
-		{
-			*lf_index = -meta;
-			return 1;
-		}
+
+		*lf_index = -meta;
+		return 1;
 	}
 
 	for (cnt = 0, i = 0; i < NUMBER_OF_FUNCTIONS; i++)
@@ -1231,20 +1229,20 @@ static int 	lookup_function (const uc *orig_name, int *lf_index)
 }
 
 
-/* I dont know where this belongs. */
+/* I don't know where this belongs. */
 /*
  * display_key: Given a (possibly unprintable) unsigned character 'c', 
  * convert that character into a printable string.  For characters less
  * than 32, and the character 127, they will be converted into the "control"
  * sequence by having a prepended caret ('^').  Other characters will be
- * left alone.  The return value belongs to the function -- dont mangle it.
+ * left alone.  The return value belongs to the function -- don't mangle it.
  */
-static uc *	display_key (uc c)
+static char *display_key(char c)
 {
-	static	uc key[3];
+	static char key[3];
 
-	key[2] = (char) 0;
-	if (c < 32)
+	key[2] = 0;
+	if (c >= 0 && c < 32)
 	{
 		key[0] = '^';
 		key[1] = c + 64;
@@ -1257,9 +1255,9 @@ static uc *	display_key (uc c)
 	else
 	{
 		key[0] = c;
-		key[1] = (char) 0;
+		key[1] = 0;
 	}
-	return (key);
+	return key;
 }
 
 char *convert_to_keystr(char *key)
@@ -1283,8 +1281,8 @@ static char keyloc[80];
 				if (KEY(i, j) && KEY(i, j)->key_index == loc)
 				{
 					if (i > 0)
-						sprintf(meta_str, "META%d-", i);
-					sprintf(keyloc, "%s%s", meta_str, display_key(j));
+						snprintf(meta_str, sizeof meta_str, "META%d-", i);
+					snprintf(keyloc, sizeof keyloc, "%s%s", meta_str, display_key(j));
 					return keyloc;  
 				}
 		}
@@ -1295,7 +1293,7 @@ static char keyloc[80];
 /* * * * * * * * * * * * * * * * * * INITIALIZATION * * * * * * * * * * * */
 /* 
  * This is where you put all the default key bindings.  This is a lot
- * simpler, just defining those you need, instead of all of them, isnt
+ * simpler, just defining those you need, instead of all of them, isn't
  * it?  And it takes up so much less memory, too...
  */
 void 	init_keys (void)
@@ -1354,7 +1352,7 @@ void 	init_keys (void)
 	snew_key(0, 127, "BACKSPACE");			/* ^? (delete) */
 
 	/* 
-	 * european keyboards (and probably others) use the eigth bit
+	 * european keyboards (and probably others) use the eighth bit
 	 * for extended characters.  Having these keys bound by default
 	 * causes them lots of grief, so unless you really want to use
 	 * these, they are commented out.

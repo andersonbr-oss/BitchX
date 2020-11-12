@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: ctcp.c 137 2011-09-06 06:48:57Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(ctcp_c)
 #include "struct.h"
 
@@ -45,10 +45,7 @@ CVS_REVISION(ctcp_c)
 #include "misc.h"
 #include "userlist.h"
 #include "hash2.h"
-
-#ifdef WANT_TCL
 #include "tcl_bx.h"
-#endif
 
 #define MAIN_SOURCE
 #include "modval.h"
@@ -61,36 +58,38 @@ CVS_REVISION(ctcp_c)
  * that will be inserted into the oringal message at the point of the ctcp.
  * if null is returned, nothing is added to the original message
  */
+#define CTCP_HANDLER(x) \
+	static char * x (CtcpEntry *ctcp, char *from, char *to, char *cmd)
 
 /* forward declarations for the built in CTCP functions */
-static	char	*do_sed 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_version 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_clientinfo 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_ping 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_echo 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_userinfo 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_finger 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_time 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_atmosphere 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_dcc 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_utc 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_dcc_reply 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_ping_reply 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_bdcc 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_cinvite 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_whoami 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_ctcpops 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_ctcpunban 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_botlink 	(CtcpEntry *, char *, char *, char *);
-static	char	*do_botlink_rep	(CtcpEntry *, char *, char *, char *);
-static	char	*do_ctcp_uptime	(CtcpEntry *, char *, char *, char *);
-static	char	*do_ctcpident	(CtcpEntry *, char *, char *, char *);
+CTCP_HANDLER(do_sed);
+CTCP_HANDLER(do_sed_reply);
+CTCP_HANDLER(do_version);
+CTCP_HANDLER(do_clientinfo);
+CTCP_HANDLER(do_ping);
+CTCP_HANDLER(do_echo);
+CTCP_HANDLER(do_userinfo);
+CTCP_HANDLER(do_finger);
+CTCP_HANDLER(do_time);
+CTCP_HANDLER(do_atmosphere);
+CTCP_HANDLER(do_dcc);
+CTCP_HANDLER(do_utc);
+CTCP_HANDLER(do_dcc_reply);
+CTCP_HANDLER(do_ping_reply);
+CTCP_HANDLER(do_bdcc);
+CTCP_HANDLER(do_cinvite);
+CTCP_HANDLER(do_whoami);
+CTCP_HANDLER(do_ctcpops);
+CTCP_HANDLER(do_ctcpunban);
+CTCP_HANDLER(do_botlink);
+CTCP_HANDLER(do_ctcp_uptime);
+CTCP_HANDLER(do_ctcpident);
 
 static CtcpEntry ctcp_cmd[] =
 {
 	{ "SED",	CTCP_SED, 	CTCP_INLINE | CTCP_NOLIMIT,
 		"contains simple_encrypted_data",
-		do_sed, 	do_sed },
+		do_sed, 	do_sed_reply },
 	{ "UTC",	CTCP_UTC, 	CTCP_INLINE | CTCP_NOLIMIT,
 		"substitutes the local timezone",
 		do_utc, 	do_utc },
@@ -158,7 +157,7 @@ static CtcpEntry ctcp_cmd[] =
 		do_ctcpident,	NULL },
 	{ "XLINK",	CTCP_BOTLINK,	CTCP_SPECIAL,
 		"x-filez rule",
-		do_botlink,	do_botlink_rep },
+		do_botlink,	NULL },
 
 	{ "UPTIME",	CTCP_UPTIME,	CTCP_SPECIAL,
 		"my uptime",
@@ -182,18 +181,12 @@ static char	*ctcp_type[] =
 	"NOTICE"
 };
 
-/* This is set to one if we parsed an SED */
-int     sed = 0;
-
 /*
  * in_ctcp_flag is set to true when IRCII is handling a CTCP request.  This
  * is used by the ctcp() sending function to force NOTICEs to be used in any
  * CTCP REPLY 
  */
 int	in_ctcp_flag = 0;
-
-#define CTCP_HANDLER(x) \
-	static char * x (CtcpEntry *ctcp, char *from, char *to, char *cmd)
 
 /**************************** CTCP PARSERS ****************************/
 
@@ -365,29 +358,6 @@ char *nick = NULL, *password = NULL, *port = NULL;
 
 	return NULL;
 }
-
-CTCP_HANDLER(do_botlink_rep)
-{
-#ifndef BITCHX_LITE
-char *type, *description, *inetaddr, *port, *extra_flags;
-	if (my_stricmp(to, get_server_nickname(from_server)))
-		return NULL;
-
-	if     (!(type = next_arg(cmd, &cmd)) ||
-		!(description = next_arg(cmd, &cmd)) ||
-		!(inetaddr = next_arg(cmd, &cmd)) ||
-		!(port = next_arg(cmd, &cmd)))
-			return NULL;
-
-	extra_flags = next_arg(cmd, &cmd);
-	set_int_var(BOT_MODE_VAR, 1);
-	register_dcc_type(from, type, description, inetaddr, port, NULL, extra_flags, FromUserHost, NULL);
-#endif
-	return NULL;
-}
-
-
-
 
 CTCP_HANDLER(do_cinvite)
 {
@@ -630,7 +600,81 @@ int server;
 	return NULL;
 }
 
+/* Make this less than the trasmittable buffer */
+#define CRYPT_BUFFER_SIZE (IRCD_BUFFER_SIZE - 50)
 
+/*
+ * sed_encrypt_msg()
+ *
+ * Encrypts a message with my_encrypt() under the given key, and encapsulates it
+ * as a CTCP SED message ready to transmit.
+ */
+char *sed_encrypt_msg(const char *str, const char *key)
+{
+	static const char sed_prefix[] = { CTCP_DELIM_CHAR, 'S', 'E', 'D', ' ', 0 };
+	const size_t len = strlen(str);
+	char *str_encrypted = m_strdup(str);
+	char *buffer = new_malloc(CRYPT_BUFFER_SIZE);
+	char *ptr;
+
+	my_encrypt(str_encrypted, len, key);
+	ptr = ctcp_quote_it(str_encrypted, len);
+	new_free(&str_encrypted);
+
+	/* The - 1 terms here are to ensure that the trailing CTCP_DELIM_CHAR
+	 * always gets added. */
+	strlcpy(buffer, sed_prefix, CRYPT_BUFFER_SIZE - 1);
+	strlcat(buffer, ptr, CRYPT_BUFFER_SIZE - 1);
+	strlcat(buffer, CTCP_DELIM_STR, CRYPT_BUFFER_SIZE);
+	new_free(&ptr);
+
+	return buffer;
+}
+
+/*
+ * sed_decrypt_msg()
+ *
+ * Given a CTCP SED argument 'str', it attempts to unscramble the text
+ * into something more sane.  If the 'key' is not the one used to scramble
+ * the text, the results are unpredictable.  This is probably the point.
+ *
+ * Note that the retval MUST be at least 'BIG_BUFFER_SIZE + 1'.  This is
+ * not an oversight -- the retval is passed is to do_ctcp() which requires
+ * a big buffer to scratch around (The decrypted text could be a CTCP UTC
+ * which could expand to a larger string of text.)
+ */ 
+char *sed_decrypt_msg(const char *str, const char *key)
+{
+	char *buffer = new_malloc(BIG_BUFFER_SIZE + 1);
+	char *ptr;
+	size_t len;
+
+	ptr = ctcp_unquote_it(str, &len);
+	my_decrypt(ptr, len, key);
+
+	strlcpy(buffer, ptr, CRYPT_BUFFER_SIZE);
+	new_free(&ptr);
+
+	return buffer;
+}
+
+static char *try_decrypt(char *from, char *to, const char *msg)
+{
+	const char *key;
+	char *crypt_who;
+
+	if (*from == '=' || !my_stricmp(to, get_server_nickname(from_server)))
+		crypt_who = from;
+	else
+		crypt_who = to;
+
+	key = is_crypted(crypt_who);
+
+	if (!key)
+		return NULL;
+
+	return sed_decrypt_msg(msg, key);
+}
 
 /*
  * do_sed: Performs the Simple Encrypted Data trasfer for ctcp.  Returns in a
@@ -639,34 +683,64 @@ int server;
  */
 CTCP_HANDLER(do_sed)
 {
-	char	*key = NULL,
-		*crypt_who;
-	char	*ret = NULL, *ret2 = NULL;
+	char *ret;
 
-	if (*from == '=')
-		crypt_who = from;
-	if (my_stricmp(to, get_server_nickname(from_server)))
-		crypt_who = to;
-	else
-		crypt_who = from;
+	ret = try_decrypt(from, to, cmd);
 
-	if ((key = is_crypted(crypt_who)))
-		ret = decrypt_msg(cmd, key);
-
-	if (!key || !ret)
-		malloc_strcpy(&ret2, "[ENCRYPTED MESSAGE]");
-	else
+	if (ret)
 	{
 		/* 
 		 * There might be a CTCP message in there,
 		 * so we see if we can find it.
 		 */
-		ret2 = m_strdup(do_ctcp(from, to, ret));
-		sed = 1;
+		char *ptr = do_ctcp(from, to, ret);
+		if (*ptr && do_hook(ENCRYPTED_PRIVMSG_LIST, "%s %s %s", from, to, ptr))
+		{
+			if (is_channel(to))
+				put_it("%s",convert_output_format(fget_string_var(FORMAT_ENCRYPTED_PUBLIC_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, FromUserHost, to, ptr));
+			else
+				put_it("%s",convert_output_format(fget_string_var(FORMAT_ENCRYPTED_PRIVMSG_FSET), "%s %s %s %s", update_clock(GET_TIME), from, FromUserHost, ptr));
+		}
+		*ret = 0;
+	}
+	else
+	{
+		ret = m_strdup("[ENCRYPTED MESSAGE]");
 	}
 
-	new_free(&ret);
-	return ret2;
+	return ret;
+}
+
+/* do_sed_reply: Same as do_sed, but CTCPs within the SED are handled as
+ * CTCP replies. */
+CTCP_HANDLER(do_sed_reply)
+{
+	char *ret;
+
+	ret = try_decrypt(from, to, cmd);
+
+	if (ret)
+	{
+		/* 
+		 * There might be a CTCP reply in there,
+		 * so we see if we can find it.
+		 */
+		char *ptr = do_notice_ctcp(from, to, ret);
+		if (*ptr && do_hook(ENCRYPTED_NOTICE_LIST, "%s %s %s", from, to, ptr))
+		{
+			if (is_channel(to))
+				put_it("%s",convert_output_format(fget_string_var(FORMAT_ENCRYPTED_PUBLIC_NOTICE_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, FromUserHost, to, ptr));
+			else
+				put_it("%s",convert_output_format(fget_string_var(FORMAT_ENCRYPTED_NOTICE_FSET), "%s %s %s %s", update_clock(GET_TIME), from, FromUserHost, ptr));
+		}
+		*ret = 0;
+	}
+	else
+	{
+		ret = m_strdup("[ENCRYPTED MESSAGE]");
+	}
+
+	return ret;
 }
 
 CTCP_HANDLER(do_utc)
@@ -747,33 +821,23 @@ CTCP_HANDLER(do_atmosphere)
  */
 CTCP_HANDLER(do_dcc)
 {
-	char	*type;
-	char	*description = NULL;
-	char	*inetaddr = NULL;
-	char	*port = NULL;
-	char	*size = NULL;
-	char	*extra_flags = NULL;
+	struct dcc_offer offer;
+
 	if (my_stricmp(to, get_server_nickname(from_server)))
 		return NULL;
-	if (!(type = next_arg(cmd, &cmd)))
-		return NULL;
-#if 1
-	if (!(description = new_next_arg(cmd, &cmd)) || !*description)
-		return NULL;
-	if     (!(inetaddr = next_arg(cmd, &cmd)) ||
-		!(port = next_arg(cmd, &cmd)))
-			return NULL;
 
-	size = next_arg(cmd, &cmd);
-	extra_flags = next_arg(cmd, &cmd);
-#else
-	size = last_arg(&cmd);
-	port = last_arg(&cmd);
-	inetaddr = last_arg(&cmd);
-	if (!size || !port || !inetaddr || !description)
-		return NULL;
-#endif
-	register_dcc_type(from, type, description, inetaddr, port, size, extra_flags, FromUserHost, NULL);
+	offer.nick = from;
+	offer.userhost = FromUserHost;
+	offer.type = next_arg(cmd, &cmd);
+	offer.description = new_next_arg(cmd, &cmd);
+	offer.address = next_arg(cmd, &cmd);
+	offer.port = next_arg(cmd, &cmd);
+	offer.size = next_arg(cmd, &cmd);
+	offer.extra = next_arg(cmd, &cmd);
+
+	if (offer.type && offer.description && *offer.description && offer.address && offer.port)
+		handle_dcc_offer(&offer);
+
 	return NULL;
 }
 
@@ -824,19 +888,19 @@ CTCP_HANDLER(do_clientinfo)
 	}
 	else
 	{
-		char buffer[BIG_BUFFER_SIZE + 1];
-		*buffer = '\0';
+		char buffer[BIG_BUFFER_SIZE];
 
+		*buffer = '\0';
 		for (i = 0; i < NUMBER_OF_CTCPS; i++)
 		{
-			strmcat(buffer, ctcp_cmd[i].name, BIG_BUFFER_SIZE);
-			strmcat(buffer, space, BIG_BUFFER_SIZE);
+			strlcat(buffer, ctcp_cmd[i].name, sizeof buffer);
+			strlcat(buffer, space, sizeof buffer);
 		}
 #ifdef WANT_DLL
 		for (dll = dll_ctcp; dll; dll = dll->next)
 		{
-			strmcat(buffer, dll->name, BIG_BUFFER_SIZE);
-			strmcat(buffer, space, BIG_BUFFER_SIZE);
+			strlcat(buffer, dll->name, sizeof buffer);
+			strlcat(buffer, space, sizeof buffer);
 		}
 #endif
 		send_ctcp(CTCP_NOTICE, from, CTCP_CLIENTINFO,
@@ -913,7 +977,7 @@ extern	char	tcl_versionstr[];
 	}
 	if (get_int_var(CLOAK_VAR))
 		return NULL;
-	malloc_strcpy(&version_reply, stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, "*IX", "ÿ", tcl_versionstr)));
+	malloc_strcpy(&version_reply, stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, "*IX", " ", tcl_versionstr)));
 	send_ctcp(CTCP_NOTICE, from, CTCP_VERSION, "%s :%s", version_reply, 
 #endif
 		(tmp = get_string_var(CLIENTINFO_VAR)) ?  tmp : IRCII_COMMENT);
@@ -1025,20 +1089,20 @@ const	char	*my_host;
 	 * latter because it invokes less suspicion in the long run
 	 *				-- Jake [WinterHawk] Khuon
 	 */
-	if ((ctcpuser = getenv("IRCUSER"))) 
-		strmcpy(pwd->pw_name, ctcpuser, NAME_LEN);
-	if ((ctcpfinger = getenv("IRCFINGER"))) 
-		strmcpy(pwd->pw_gecos, ctcpfinger, NAME_LEN);
+	if (!(ctcpuser = getenv("IRCUSER"))) 
+		ctcpuser = pwd->pw_name;
+	if (!(ctcpfinger = getenv("IRCFINGER")))
+		ctcpfinger = pwd->pw_gecos;
 
 	send_ctcp(CTCP_NOTICE, from, CTCP_FINGER, 
 		"%s (%s@%s) Idle %ld second%s", 
-		pwd->pw_gecos, pwd->pw_name, my_host, diff, plural(diff));
+		ctcpfinger, ctcpuser, my_host, diff, plural(diff));
 	return NULL;
 }
 
 
 /* 
- * If we recieve a CTCP DCC REJECT in a notice, then we want to remove
+ * If we receive a CTCP DCC REJECT in a notice, then we want to remove
  * the offending DCC request
  */
 CTCP_HANDLER(do_dcc_reply)
@@ -1071,7 +1135,7 @@ CTCP_HANDLER(do_ping_reply)
 	time_t tsec = 0, tusec = 0, orig;
 
 	if (!cmd || !*cmd)
-		return NULL;		/* This is a fake -- cant happen. */
+		return NULL;		/* This is a fake -- can't happen. */
 
 	orig = my_atol(cmd);
 	
@@ -1133,9 +1197,9 @@ extern 	char *do_ctcp (char *from, char *to, char *str)
 	flag = check_ignore(from, FromUserHost, to, IGNORE_CTCPS, NULL);
 
 	in_ctcp_flag++;
-	strmcpy(local_ctcp_buffer, str, IRCD_BUFFER_SIZE-2);
+	strlcpy(local_ctcp_buffer, str, sizeof local_ctcp_buffer - 2);
 
-	for (;;strmcat(local_ctcp_buffer, last, IRCD_BUFFER_SIZE-2))
+	for (;;strlcat(local_ctcp_buffer, last, sizeof local_ctcp_buffer - 2))
 	{
 		split_CTCP(local_ctcp_buffer, the_ctcp, last);
 
@@ -1152,9 +1216,9 @@ extern 	char *do_ctcp (char *from, char *to, char *str)
 		/*
 		 * Yes, this intentionally ignores "unlimited" CTCPs like
 		 * UTC and SED.  Ultimately, we have to make sure that
-		 * CTCP expansions dont overrun any buffers that might
+		 * CTCP expansions don't overrun any buffers that might
 		 * contain this string down the road.  So by allowing up to
-		 * 4 CTCPs, we know we cant overflow -- but if we have more
+		 * 4 CTCPs, we know we can't overflow -- but if we have more
 		 * than 40, it might overflow, and its probably a spam, so
 		 * no need to shed tears over ignoring them.  Also makes
 		 * the sanity checking much simpler.
@@ -1295,10 +1359,10 @@ extern 	char *do_ctcp (char *from, char *to, char *str)
 		/* If its an inline CTCP paste it back in */
 #ifdef WANT_DLL
 		if ((ctcp_cmd[i].flag & CTCP_INLINE) || (dll && (dll->flag & CTCP_INLINE)))
-			strmcat(local_ctcp_buffer, ptr, BIG_BUFFER_SIZE);
+			strlcat(local_ctcp_buffer, ptr, sizeof local_ctcp_buffer);
 #else
 		if ((ctcp_cmd[i].flag & CTCP_INLINE))
-			strmcat(local_ctcp_buffer, ptr, BIG_BUFFER_SIZE);
+			strlcat(local_ctcp_buffer, ptr, sizeof local_ctcp_buffer);
 #endif
 		/* If its interesting, tell the user. */
 #ifdef WANT_DLL
@@ -1328,10 +1392,8 @@ extern 	char *do_ctcp (char *from, char *to, char *str)
 	reset_display_target();
 
 	in_ctcp_flag--;
-	if (*local_ctcp_buffer)
-		return strcpy(str, local_ctcp_buffer);
-	else
-		return empty_string;
+	strlcpy(str, local_ctcp_buffer, BIG_BUFFER_SIZE);
+	return str;
 }
 
 
@@ -1349,7 +1411,6 @@ extern 	char *do_notice_ctcp (char *from, char *to, char *str)
 		*ctcp_argument;
 	int	i;
 	char	*ptr;
-	char	*tbuf = NULL;
 	int	allow_ctcp_reply = 1;
 
 #ifdef WANT_DLL
@@ -1367,11 +1428,9 @@ extern 	char *do_notice_ctcp (char *from, char *to, char *str)
 	if (!in_ctcp_flag)
 		in_ctcp_flag = -1;
 
-	tbuf = stripansi(str);
-	strmcpy(local_ctcp_buffer, tbuf, IRCD_BUFFER_SIZE-2);
-	new_free(&tbuf);
+	strlcpy(local_ctcp_buffer, stripansicodes(str), sizeof local_ctcp_buffer - 2);
 		
-	for (;;strmcat(local_ctcp_buffer, last, IRCD_BUFFER_SIZE-2))
+	for (;;strlcat(local_ctcp_buffer, last, sizeof local_ctcp_buffer - 2))
 	{
 		split_CTCP(local_ctcp_buffer, the_ctcp, last);
 		if (!*the_ctcp)
@@ -1423,7 +1482,7 @@ extern 	char *do_notice_ctcp (char *from, char *to, char *str)
 		{
 			if ((ptr = ctcp_cmd[i].repl(ctcp_cmd + i, from, to, ctcp_argument)))
 			{
-				strmcat(local_ctcp_buffer, ptr, BIG_BUFFER_SIZE);
+				strlcat(local_ctcp_buffer, ptr, sizeof local_ctcp_buffer);
 				new_free(&ptr);
 				continue;
 			}
@@ -1433,7 +1492,7 @@ extern 	char *do_notice_ctcp (char *from, char *to, char *str)
 		{
 			if ((ptr = dll->repl(dll, from, to, ctcp_argument)))
 			{
-				strmcat(local_ctcp_buffer, ptr, BIG_BUFFER_SIZE);
+				strlcat(local_ctcp_buffer, ptr, sizeof local_ctcp_buffer);
 				new_free(&ptr);
 				continue;
 			}
@@ -1459,7 +1518,8 @@ extern 	char *do_notice_ctcp (char *from, char *to, char *str)
 	/* Reset the window level/logging */
 	reset_display_target();
 
-	return strcpy(str, local_ctcp_buffer);
+	strlcpy(str, local_ctcp_buffer, BIG_BUFFER_SIZE);
+	return str;
 }
 
 
@@ -1521,7 +1581,7 @@ extern	void	send_ctcp (int type, char *to, int datatag, char *format, ...)
 
 	putbuf2[len - 2] = CTCP_DELIM_CHAR;
 	putbuf2[len - 1] = 0;
-	send_text(to, putbuf2, ctcp_type[type], 0, 0);
+	send_text(to, putbuf2, (type == CTCP_NOTICE ? STXT_NOTICE : 0) | STXT_QUIET);
 }
 
 
@@ -1531,13 +1591,12 @@ extern	void	send_ctcp (int type, char *to, int datatag, char *format, ...)
  * null terminated (it can contain nulls).  Returned is a malloced, null
  * terminated string.   
  */
-extern 	char	*ctcp_quote_it (char *str, int len)
+extern char *ctcp_quote_it(const char *str, size_t len)
 {
-	char	buffer[BIG_BUFFER_SIZE + 1];
-	char	*ptr;
-	int	i;
+	char *buffer = new_malloc(2 * len + 1);
+	char *ptr = buffer;
+	size_t i;
 
-	ptr = buffer;
 	for (i = 0; i < len; i++)
 	{
 		switch (str[i])
@@ -1562,7 +1621,8 @@ extern 	char	*ctcp_quote_it (char *str, int len)
 		}
 	}
 	*ptr = '\0';
-	return m_strdup(buffer);
+
+	return buffer;
 }
 
 /*
@@ -1572,50 +1632,46 @@ extern 	char	*ctcp_quote_it (char *str, int len)
  * convenied, but the returned data may contain nulls!.  The len is modified
  * to contain the size of the data returned. 
  */
-extern	char	*ctcp_unquote_it (char *str, int *len)
+extern char *ctcp_unquote_it(const char *str, size_t *output_len)
 {
-	char	*buffer;
-	char	*ptr;
-	char	c;
-	int	i,
-		new_size = 0;
+	char *buffer = new_malloc(strlen(str) + 1);
+	char *output_ptr = buffer;
+	char c;
 
-	buffer = (char *) new_malloc((sizeof(char) * *len) + 1);
-	ptr = buffer;
-	i = 0;
-	while (i < *len)
+	while ((c = *str++))
 	{
-		if ((c = str[i++]) == CTCP_QUOTE_CHAR)
+		if (c == CTCP_QUOTE_CHAR)
 		{
-			switch (c = str[i++])
+			if (!(c = *str++))
+				break;
+
+			switch (c)
 			{
-				case CTCP_QUOTE_CHAR:
-					*ptr++ = CTCP_QUOTE_CHAR;
-					break;
 				case 'a':
-					*ptr++ = CTCP_DELIM_CHAR;
+					c = CTCP_DELIM_CHAR;
 					break;
 				case 'n':
-					*ptr++ = '\n';
+					c = '\n';
 					break;
 				case 'r':
-					*ptr++ = '\r';
+					c = '\r';
 					break;
 				case '0':
-					*ptr++ = '\0';
+					c = '\0';
 					break;
+				case CTCP_QUOTE_CHAR:
 				default:
-					*ptr++ = c;
 					break;
 			}
 		}
-		else
-			*ptr++ = c;
-		new_size++;
+
+		*output_ptr++ = c;
 	}
-	*ptr = '\0';
-	*len = new_size;
-	return (buffer);
+
+	*output_ptr = '\0';
+	*output_len = output_ptr - buffer;
+
+	return buffer;
 }
 
 int get_ctcp_val (char *str)
@@ -1631,8 +1687,8 @@ int get_ctcp_val (char *str)
 	 * calls this function is edit.c:ctcp(), and it immediately
 	 * calls send_ctcp().  So the pointer that is being passed
 	 * to us is globally allocated at a level higher then ctcp().
-	 * so it wont be bogus until some time after ctcp() returns,
-	 * but at that point, we dont care any more.
+	 * so it won't be bogus until some time after ctcp() returns,
+	 * but at that point, we don't care any more.
 	 */
 	ctcp_cmd[CTCP_CUSTOM].name = str;
 	return CTCP_CUSTOM;
@@ -1658,12 +1714,12 @@ void BX_split_CTCP(char *raw_message, char *ctcp_dest, char *after_ctcp)
 	if (!ctcp_end)
 	{
 		*--ctcp_start = CTCP_DELIM_CHAR;
-		return;		/* Thats _not_ a CTCP. */
+		return;		/* That's _not_ a CTCP. */
 	}
 
 	*ctcp_end++ = 0;
-	strmcpy(ctcp_dest, ctcp_start, IRCD_BUFFER_SIZE-2);
-	strmcpy(after_ctcp, ctcp_end, IRCD_BUFFER_SIZE-2);
+	strlcpy(ctcp_dest, ctcp_start, IRCD_BUFFER_SIZE - 2);
+	strlcpy(after_ctcp, ctcp_end, IRCD_BUFFER_SIZE - 2);
 
 	return;		/* All done! */
 }

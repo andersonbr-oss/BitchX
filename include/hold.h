@@ -7,11 +7,10 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: hold.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __hold_h_
-#define __hold_h_
+#ifndef HOLD_H_
+#define HOLD_H_
 
 	void	remove_from_hold_list (Window *);
 	void	add_to_hold_list (Window *, char *, int);
@@ -22,4 +21,4 @@
 	int	hold_queue_logged (Window *);
 	void	toggle_stop_screen (char, char *);
 
-#endif /* __hold_h_ */
+#endif /* HOLD_H_ */

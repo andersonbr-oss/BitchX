@@ -1,5 +1,5 @@
 /*
- * debug.c -- controll the values of x_debug.
+ * debug.c -- control the values of x_debug.
  *
  * Written by Jeremy Nelson
  * Copyright 1997 EPIC Software Labs
@@ -7,7 +7,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: debug.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(debug_c)
 #include "struct.h"
 
@@ -24,6 +24,7 @@ CVS_REVISION(debug_c)
 #include "vars.h"
 #define MAIN_SOURCE
 #include "modval.h"
+#include "color.h"
 
 unsigned long x_debug = 0;
 unsigned long internal_debug = 0;
@@ -74,19 +75,18 @@ BUILT_IN_COMMAND(xdebugcmd)
 
 	if (!args || !*args)
 	{
-		char buffer[540];
-		char *q;
+		char buffer[512];
 		int i = 0;
 
 		buffer[0] = 0;
-		strmcat(buffer, "[-][+][option(s)] ", 511);
-		q = &buffer[strlen(buffer)];
 		for (i = 0; opts[i].command; i++)
 		{
-			if (q)
-				strmcat(q, ", ", 511);
-			strmcat(q, opts[i].command, 511);
+			if (i)
+				strlcat(buffer, ", ", sizeof buffer);
+			strlcat(buffer, opts[i].command, sizeof buffer);
 		}
+
+		say("Usage: XDEBUG [-][+]%s", buffer);
 		return;
 	}
 
@@ -152,8 +152,7 @@ int parse_debug(char *value, int nvalue, char **rv)
 	if  (!value)
 		return 0;
 
-	copy = alloca(strlen(value) + 1);
-	strcpy(copy, value);
+	copy = LOCAL_COPY(value);
 	
 	while ((str1 = new_next_arg(copy, &copy)))
 	{

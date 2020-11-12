@@ -7,9 +7,8 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  */
-
-#ifndef __ignore_h_
-#define __ignore_h_
+#ifndef IGNORE_H_
+#define IGNORE_H_
 
 /* Type of ignored nicks */
 #define IGNORE_MSGS	0x0001
@@ -57,7 +56,7 @@ int	check_ignore (char *, char *, char *, long, char *);
 void	ignore (char *, char *, char *, char *);
 void	tignore (char *, char *, char *, char *);
 void	ignore_nickname (char *, long, int);
-long	ignore_type (char *, int);
+long ignore_type(const char *, size_t);
 int	check_is_ignored(char *);
 char 	*get_ignores_by_pattern (char *patterns, int covered);
 int	get_type_by_desc (char *type, int *do_mask, int *dont_mask);
@@ -65,4 +64,4 @@ char	*get_ignore_types (Ignore *tmp);
 char	*get_ignore_types_by_pattern (char *pattern);
 char	*get_ignore_patterns_by_type (char *ctype);
 
-#endif /* __ignore_h_ */
+#endif /* IGNORE_H_ */

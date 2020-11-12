@@ -7,11 +7,11 @@
  *
  * See the copyright file, or do a help ircii copyright 
  *
- * @(#)$Id: irc_std.h 171 2012-05-10 12:31:04Z keaston $
+ * @(#)$Id$
  */
+#ifndef IRC_STD_H_
+#define IRC_STD_H_
 
-#ifndef __irc_std_h
-#define __irc_std_h
 #include "defs.h"
 
 /*
@@ -37,7 +37,9 @@
 /*
  * Everybody needs these INET headers...
  */
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
@@ -62,11 +64,11 @@
 /*
  * Deal with brokenness in <fcntl.h> and <sys/fcntl.h>
  */
-#ifdef HAVE_SYS_FCNTL_H
-# include <sys/fcntl.h>
+#ifdef HAVE_FCNTL_H
+# include <fcntl.h>
 #else
-# ifdef HAVE_FCNTL_H
-#  include <fcntl.h>
+# ifdef HAVE_SYS_FCNTL_H
+#  include <sys/fcntl.h>
 # endif
 #endif
 
@@ -94,18 +96,15 @@
  * First try to figure out if we can use GNU CC special features...
  */
 #ifndef __GNUC__
-# define __inline		/* delete gcc keyword */
-# define __A(x)
-# define __N
-# define __inline__
+# define _printf_(x)
+# define _noreturn_
 #else
 # if (__GNUC__ > 2) || ((__GNUC__ == 2) && (__GNUC_MINOR__ >= 7))
-#  define __A(x) __attribute__ ((format (printf, x, x + 1)))
-#  define __N    __attribute__ ((noreturn))
+#  define _printf_(x) __attribute__ ((format (printf, x, x + 1)))
+#  define _noreturn_  __attribute__ ((noreturn))
 # else
-#  define __A(x)
-#  define __N
-#  define __inline
+#  define _printf_(x)
+#  define _noreturn_
 # endif
 #endif
 
@@ -136,6 +135,10 @@ char *alloca();
 extern	int	errno;
 #endif
 
+#ifndef HAVE_SOCKLEN_T
+typedef int socklen_t;
+#endif
+
 #ifndef NBBY
 # define NBBY		8			/* number of bits in a byte */
 #endif /* NBBY */
@@ -154,11 +157,11 @@ extern	int	errno;
 
 #include <limits.h>
    
-typedef RETSIGTYPE sigfunc (int);
-sigfunc *my_signal (int, sigfunc *, int);
-
 #define SIGNAL_HANDLER(x) \
 	RETSIGTYPE x (int unused)
+
+typedef SIGNAL_HANDLER(sigfunc);
+sigfunc *my_signal (int, sigfunc *, int);
 
 #include <stdlib.h>
 #define index strchr
@@ -201,10 +204,6 @@ int	killpg (int pgrp, int sig);
 char *	getpass (const char * prompt);
 #endif
 
-#ifndef BCOPY_DECLARED
-void	bcopy (const void *src, void *dest, size_t n);
-#endif
-
 #define BUILT_IN_COMMAND(x) \
 	void x (char *command, char *args, char *subargs, char *helparg)
 
@@ -232,6 +231,8 @@ int ioctl (int, int, ...);
 #define strncasecmp strnicmp
 #endif
 
+/* We provide our own ltoa() rather than rely on the various non-standard ones
+ * that some platforms provide. */
 #define ltoa(a) my_ltoa(a)
 
 /*
@@ -251,4 +252,46 @@ int ioctl (int, int, ...);
 #if !HAVE_DECL_SYS_SIGLIST && HAVE_DECL__SYS_SIGLIST
 #define sys_siglist _sys_siglist
 #endif
-#endif /* __irc_std_h */
+
+/* Used in compat.c */
+#ifndef HAVE_TPARM
+	char 	*tparm (const char *, ...);
+#endif
+
+#ifndef HAVE_STRTOUL
+	unsigned long 	strtoul (const char *, char **, int);
+#endif
+
+#ifndef HAVE_SETENV
+	char *	bsd_getenv (const char *);
+	int	bsd_putenv (const char *);
+	int	bsd_setenv (const char *, const char *, int);
+	void	bsd_unsetenv (const char *);
+#define setenv bsd_setenv
+#endif
+
+#ifndef HAVE_INET_ATON
+	int	inet_aton (const char *, struct in_addr *);
+#endif
+
+#ifndef HAVE_STRLCPY
+	size_t	strlcpy (char *, const char *, size_t);
+#endif
+
+#ifndef HAVE_STRLCAT
+	size_t	strlcat (char *, const char *, size_t);
+#endif
+
+#ifndef HAVE_VSNPRINTF
+	int	vsnprintf (char *, size_t, const char *, va_list);
+#endif
+
+#ifndef HAVE_SNPRINTF
+	int	snprintf (char *, size_t, const char *, ...);
+#endif
+
+#ifndef HAVE_SETSID
+	int	setsid (void);
+#endif
+
+#endif /* IRC_STD_H_ */

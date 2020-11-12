@@ -3,9 +3,8 @@
  * CopyRight Colten Edwards Oct 96
  *
  */
-
-#ifndef _IRCTCL_H
-#define _IRCTCL_H
+#ifndef TCL_BX_H_
+#define TCL_BX_H_
 
 int handle_dcc_bot (int, char *);
 int handle_tcl_chan (int, char *, char *, char *);
@@ -19,6 +18,7 @@ typedef struct {
 
 extern cmd_t C_msg[];
 extern cmd_t C_dcc[];
+void tclTimerTimeout(struct timeval *wake_time);
 int check_tcl_dcc (char *, char *, char *, int);
 
 void tcl_command (char *, char *, char *, char *);
@@ -26,8 +26,13 @@ void tcl_load (char *, char *, char *, char *);
 
 #ifdef WANT_TCL
 
-
+#define USE_NON_CONST
 #include <tcl.h>
+
+#if (TCL_MAJOR_VERSION < 8)
+#define Tcl_GetStringResult(interp) ((interp)->result)
+#endif
+
 extern Tcl_Interp *tcl_interp;
 void check_tcl_tand (char *, char *, char *);
 void check_tcl_msgm (char *, char *, char *, char *, char *);

@@ -3,7 +3,7 @@
  */
  
 #include "irc.h"
-static char cvsrevision[] = "$Id: bot_link.c 62 2009-09-02 14:14:21Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(botlink_c)
 #include <stdarg.h>
 
@@ -106,25 +106,29 @@ int i;
 
 void chanout_but(int idx, char *format, ...)
 {
-va_list args;
-char putbuf[BIG_BUFFER_SIZE+1];
-SocketList *s;
-int i;
+	va_list args;
+	char putbuf[BIG_BUFFER_SIZE+1];
+	SocketList *s;
+	int i;
+
 	va_start(args, format);
 	vsnprintf(putbuf, BIG_BUFFER_SIZE, format, args);
 	va_end(args);
 
 	for (i = 0; i < get_max_fd()+1; i++)
 	{
-		DCC_int *n;
-		if (!check_dcc_socket(i) || (idx == i)) continue;
+		if (!check_dcc_socket(i))
+			continue;
+
 		s = get_socket(i);
-		if (!(s->flags & DCC_ACTIVE)) continue;
-		n = get_socketinfo(i);
-		
-		if (idx != i && (s->flags & DCC_BOTCHAT))
+		if (!(s->flags & DCC_ACTIVE))
+			continue;
+		if (!(s->flags & DCC_BOTCHAT))
+			continue;
+			
+		if (idx != i)
 			send(i, putbuf, strlen(putbuf), 0);
-		else if (idx == i && (s->flags & DCC_ECHO))
+		else if (s->flags & DCC_ECHO)
 			send(i, putbuf, strlen(putbuf), 0);
 	}
 }
@@ -237,7 +241,7 @@ int i;
 
 void userhost_clink(UserhostItem *stuff, char *nick, char *args)
 {
-	if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
 	{
 		bitchsay("No information for %s found", nick);
 		return;
@@ -479,14 +483,12 @@ char buffer[IRCD_BUFFER_SIZE+1];
 int tell_who(int idx, char *arg)
 {
 SocketList *s;
-DCC_int *n;
 int i;
 int found = 0;
 	for (i = 0; i < get_max_fd()+1; i++)
 	{
 		if (!check_dcc_socket(i)) continue;
 		s = get_socket(i);
-		n = get_socketinfo(i);
 		if ((s->flags & DCC_TYPES) == DCC_CHAT && (s->flags & DCC_BOTCHAT))
 		{
 			if (!found++)
@@ -501,7 +503,6 @@ int found = 0;
 	{
 		if (!check_dcc_socket(i)) continue;
 		s = get_socket(i);
-		n = get_socketinfo(i);
 		if ((s->flags & DCC_TYPES) == DCC_BOTMODE)
 		{
 			if (!found++)
@@ -571,26 +572,21 @@ SocketList *s;
 
 int send_whom(int idx, char *arg)
 {
-int found = 0;
-int i;
-int j;
-SocketList *s, *s1 = NULL;
+	int i;
+	SocketList *s, *s1;
+
 	tell_whom(idx, NULL);
+
+	s1 = get_socket(idx);
+
 	for (i = 0; i < get_max_fd()+1; i++)
 	{
 		if (!check_dcc_socket(i)) continue;
-		if (idx == i) { s1 = get_socketinfo(i); break; }
-	}
-	if (!s1) return 0;
-	for (j = 0; j < get_max_fd()+1; j++)
-	{
-		if (!check_dcc_socket(j)) continue;
-		s = get_socketinfo(j);
+		s = get_socket(i);
 		if ((s->flags & DCC_TYPES) == DCC_BOTMODE)
 		{
 			dcc_printf(s->is_read, "whom %d:%s@%s %s %d\n",
 				idx, s1->server, get_server_nickname(from_server), arg, 0);
-			found = 1;
 		}
 	}
 	return 0;
@@ -598,8 +594,8 @@ SocketList *s, *s1 = NULL;
 
 int tand_priv (int idx, char *args)
 {
-char *to, *from, *p, *i_dx;
-	from = next_arg(args, &args);
+char *to, *p, *i_dx;
+	next_arg(args, &args);
 	to = next_arg(args, &args);
 	p = strchr(to, '@');
 	if (p && !my_stricmp(p+1, get_server_nickname(from_server)))
@@ -747,9 +743,9 @@ int cmd_tcl(int idx, char *par)
 		return TCL_ERROR;
 	if ((Tcl_Eval(tcl_interp, par)) == TCL_OK)
 	{
-		dcc_printf(idx, "Tcl: %s\n", tcl_interp->result);
+		dcc_printf(idx, "Tcl: %s\n", Tcl_GetStringResult(tcl_interp));
 	} else 
-		dcc_printf(idx, "Tcl Error: %s\n", tcl_interp->result);
+		dcc_printf(idx, "Tcl Error: %s\n", Tcl_GetStringResult(tcl_interp));
 #else
 		dcc_printf(idx, "Not implemented in this client\n");
 #endif
@@ -890,16 +886,15 @@ char buffer[IRCD_BUFFER_SIZE+1];
 
 void invite_dcc_chat(UserhostItem *stuff, char *nick, char *args)
 {
-char *id;
-int idx = -1;
-	id = next_arg(args, &args);
-	idx = atol(id);
-        if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
-        {
+	char *id = next_arg(args, &args);
+	int idx = atol(id);
+
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
+	{
 		if (check_dcc_socket(idx))
-	                dcc_printf(idx, "No such for user %s\n", nick);
-                return;
-        }
+			dcc_printf(idx, "No such for user %s\n", nick);
+		return;
+	}
 	dcc_chat(NULL, nick);
 	send_to_server("NOTICE %s :You've been invited to a TwilightZone", nick);
 	send_to_server("NOTICE %s :Please type .chat in dcc chat to start", nick);
@@ -922,7 +917,8 @@ int old_server = from_server;
 
 int cmd_echo(int idx, char *par)
 {
-SocketList *s;
+	SocketList *s;
+
 	if ((idx == -1) || !check_dcc_socket(idx))
 		return TCL_ERROR;
 
@@ -932,10 +928,11 @@ SocketList *s;
 		if (!my_stricmp(par, "off"))
 			s->flags &= ~DCC_ECHO;
 		else
-			s->flags &= DCC_ECHO;
+			s->flags |= DCC_ECHO;
 	} 
 	else
-		s->flags &= (s->flags & DCC_ECHO) ? ~DCC_ECHO : DCC_ECHO;		
+		s->flags ^= DCC_ECHO;
+
 	dcc_printf(idx, " echo is now %s\n", on_off((s->flags & DCC_ECHO)));
 	return TCL_OK;
 }

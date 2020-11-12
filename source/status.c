@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: status.c 139 2011-09-07 10:13:18Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(status_c)
 #include "struct.h"
 
@@ -114,7 +114,7 @@ static	char	*status_refnum (Window *);
 static	char	*status_topic (Window *);
 static	char	*status_null_function (Window *);
 static	char	*status_notify_windows (Window *);
-static	char	*convert_sub_format (char *, char, char *);
+static	char	*convert_sub_format (const char *, int, char, const char *);
 static	char	*status_voice (Window *);
 static	char	*status_cpu_saver_mode (Window *);
 static	char	*status_dcccount (Window *);
@@ -142,8 +142,8 @@ struct status_formats {
 	int	map;
 	char 	key;
 	char	*(*callback_function)(Window *);
-	char	**format_var;
-	int	format_set;
+	int args;	/* number of arguments used by the subformat */
+	int	format_set;	/* WSET for subformat, if any */
 };
 
 
@@ -173,97 +173,97 @@ char	*away_format = NULL,
  * specifying the map.
  */
 struct status_formats status_expandos[] = {
-{ 0, 'A', status_away,           NULL,		STATUS_AWAY_WSET },
-{ 0, 'B', status_hold_lines,     NULL,		STATUS_HOLD_LINES_WSET },
-{ 0, 'C', status_channel,        NULL,		STATUS_CHANNEL_WSET },
-{ 0, 'D', status_dcc, 	         NULL, 			-1 },
-{ 0, 'E', status_scrollback,     NULL, 			-1 },
-{ 0, 'F', status_notify_windows, NULL,		STATUS_NOTIFY_WSET },
-{ 0, 'H', status_hold,		 NULL,			-1 },
-{ 0, 'G', status_halfop,	 NULL,			-1 },
-{ 0, 'I', status_insert_mode,    NULL,			-1 },
-{ 0, 'J', status_cpu_saver_mode, NULL,		STATUS_CPU_SAVER_WSET },
-{ 0, 'K', status_oper_kills,	 NULL,		STATUS_OPER_KILLS_WSET },
-{ 0, 'L', status_lag, 		 NULL,		STATUS_LAG_WSET },
+{ 0, 'A', status_away,           1,		STATUS_AWAY_WSET },
+{ 0, 'B', status_hold_lines,     1,		STATUS_HOLD_LINES_WSET },
+{ 0, 'C', status_channel,        1,		STATUS_CHANNEL_WSET },
+{ 0, 'D', status_dcc, 	         0, 			-1 },
+{ 0, 'E', status_scrollback,     0, 			-1 },
+{ 0, 'F', status_notify_windows, 1,		STATUS_NOTIFY_WSET },
+{ 0, 'H', status_hold,		 0,			-1 },
+{ 0, 'G', status_halfop,	 0,			-1 },
+{ 0, 'I', status_insert_mode,    0,			-1 },
+{ 0, 'J', status_cpu_saver_mode, 1,		STATUS_CPU_SAVER_WSET },
+{ 0, 'K', status_oper_kills,	 2,		STATUS_OPER_KILLS_WSET },
+{ 0, 'L', status_lag, 		 1,		STATUS_LAG_WSET },
 
-{ 0, 'M', status_mail,		 NULL,		STATUS_MAIL_WSET },
-{ 0, 'N', status_nickname,	 NULL,		STATUS_NICKNAME_WSET },
-{ 0, 'O', status_overwrite_mode, NULL,			-1 },
-{ 0, 'P', status_position,       NULL,			-1 },
-{ 0, 'Q', status_query_nick,     NULL,		STATUS_QUERY_WSET },
-{ 0, 'R', status_refnum,         NULL, 			-1 },
-{ 0, 'S', status_server,         NULL,     	STATUS_SERVER_WSET },
-{ 0, 'T', status_clock,          NULL,      	STATUS_CLOCK_WSET },
-{ 0, 'U', status_user0s,		 NULL, 			-1 },
-{ 0, 'V', status_version,	 NULL, 			-1 },
-{ 0, 'W', status_window,	 NULL, 			-1 },
-{ 0, 'X', status_user1s,		 NULL, 			-1 },
-{ 0, 'Y', status_user2s,		 NULL, 			-1 },
-{ 0, 'Z', status_user3s,		 NULL, 			-1 },
-{ 0, '&', status_dcccount,	 NULL,		STATUS_DCCCOUNT_WSET },
-{ 0, '|', status_cdcccount,	 NULL,		STATUS_CDCCCOUNT_WSET },
-{ 0, '^', status_msgcount,	 NULL,		STATUS_MSGCOUNT_WSET },
-{ 0, '#', status_umode,		 NULL,	     	STATUS_UMODE_WSET },
-{ 0, '%', status_percent,	 NULL, 			-1 },
-{ 0, '*', status_oper,		 NULL, 			-1 },
-{ 0, '+', status_mode,		 NULL,       	STATUS_MODE_WSET },
-{ 0, '.', status_windowspec,	 NULL, 			-1 },
-{ 0, '=', status_voice,		 NULL, 			-1 },
-{ 0, '>', status_right_justify,	 NULL, 			-1 },
-{ 0, '-', status_topic,		 NULL,		STATUS_TOPIC_WSET },
-{ 0, '!', status_users,		 NULL,		STATUS_USERS_WSET },
-{ 0, '@', status_chanop,	 NULL, 			-1 },
-{ 0, '0', status_user0s,		 NULL, 			-1 },
-{ 0, '1', status_user1s,		 NULL, 			-1 },
-{ 0, '2', status_user2s,		 NULL, 			-1 },
-{ 0, '3', status_user3s,		 NULL, 			-1 },
-{ 0, '4', status_user4s,		 NULL, 			-1 },
-{ 0, '5', status_user5s,		 NULL, 			-1 },
-{ 0, '6', status_user6s,		 NULL, 			-1 },
-{ 0, '7', status_user7s,		 NULL, 			-1 },
-{ 0, '8', status_user8s,		 NULL, 			-1 },
-{ 0, '9', status_user9s,		 NULL, 			-1 },
-{ 0, 'f', status_shitlist,		 NULL,			-1 },
-{ 0, 'a', status_aop,			 NULL,			-1 },
-{ 0, 'b', status_bitch,			 NULL,			-1 },
-{ 0, 'h', status_nethack,		 NULL,			-1 },
-{ 0, 'l', status_lastjoin,		 NULL,			-1 },
-{ 0, 'n', status_notifyusers,		 NULL,			-1 },
-{ 0, 's', status_newserver,		 NULL,			-1 },
-{ 0, 'u', status_userlist,		 NULL,			-1 },
+{ 0, 'M', status_mail,		 1,		STATUS_MAIL_WSET },
+{ 0, 'N', status_nickname,	 1,		STATUS_NICKNAME_WSET },
+{ 0, 'O', status_overwrite_mode, 0,			-1 },
+{ 0, 'P', status_position,       0,			-1 },
+{ 0, 'Q', status_query_nick,     1,		STATUS_QUERY_WSET },
+{ 0, 'R', status_refnum,         0, 			-1 },
+{ 0, 'S', status_server,         1,     	STATUS_SERVER_WSET },
+{ 0, 'T', status_clock,          1,      	STATUS_CLOCK_WSET },
+{ 0, 'U', status_user0s,		 0, 			-1 },
+{ 0, 'V', status_version,	 0, 			-1 },
+{ 0, 'W', status_window,	 0, 			-1 },
+{ 0, 'X', status_user1s,		 0, 			-1 },
+{ 0, 'Y', status_user2s,		 0, 			-1 },
+{ 0, 'Z', status_user3s,		 0, 			-1 },
+{ 0, '&', status_dcccount,	 2,		STATUS_DCCCOUNT_WSET },
+{ 0, '|', status_cdcccount,	 2,		STATUS_CDCCCOUNT_WSET },
+{ 0, '^', status_msgcount,	 1,		STATUS_MSGCOUNT_WSET },
+{ 0, '#', status_umode,		 1,	     	STATUS_UMODE_WSET },
+{ 0, '%', status_percent,	 0, 			-1 },
+{ 0, '*', status_oper,		 0, 			-1 },
+{ 0, '+', status_mode,		 1,       	STATUS_MODE_WSET },
+{ 0, '.', status_windowspec,	 0, 			-1 },
+{ 0, '=', status_voice,		 0, 			-1 },
+{ 0, '>', status_right_justify,	 0, 			-1 },
+{ 0, '-', status_topic,		 1,		STATUS_TOPIC_WSET },
+{ 0, '!', status_users,		 5,		STATUS_USERS_WSET },
+{ 0, '@', status_chanop,	 0, 			-1 },
+{ 0, '0', status_user0s,		 0, 			-1 },
+{ 0, '1', status_user1s,		 0, 			-1 },
+{ 0, '2', status_user2s,		 0, 			-1 },
+{ 0, '3', status_user3s,		 0, 			-1 },
+{ 0, '4', status_user4s,		 0, 			-1 },
+{ 0, '5', status_user5s,		 0, 			-1 },
+{ 0, '6', status_user6s,		 0, 			-1 },
+{ 0, '7', status_user7s,		 0, 			-1 },
+{ 0, '8', status_user8s,		 0, 			-1 },
+{ 0, '9', status_user9s,		 0, 			-1 },
+{ 0, 'f', status_shitlist,		 0,			-1 },
+{ 0, 'a', status_aop,			 0,			-1 },
+{ 0, 'b', status_bitch,			 0,			-1 },
+{ 0, 'h', status_nethack,		 0,			-1 },
+{ 0, 'l', status_lastjoin,		 0,			-1 },
+{ 0, 'n', status_notifyusers,		 0,			-1 },
+{ 0, 's', status_newserver,		 0,			-1 },
+{ 0, 'u', status_userlist,		 0,			-1 },
 
-{ 1, '0', status_user10s,		NULL,			-1 },
-{ 1, '1', status_user11s,		NULL,			-1 },
-{ 1, '2', status_user12s,		NULL,			-1 },
-{ 1, '3', status_user13s,		NULL,			-1 },
-{ 1, '4', status_user14s,		NULL,			-1 },
-{ 1, '5', status_user15s,		NULL,			-1 },
-{ 1, '6', status_user16s,		NULL,			-1 },
-{ 1, '7', status_user17s,		NULL,			-1 },
-{ 1, '8', status_user18s,		NULL,			-1 },
-{ 1, '9', status_user19s,		NULL,			-1 },
+{ 1, '0', status_user10s,		0,			-1 },
+{ 1, '1', status_user11s,		0,			-1 },
+{ 1, '2', status_user12s,		0,			-1 },
+{ 1, '3', status_user13s,		0,			-1 },
+{ 1, '4', status_user14s,		0,			-1 },
+{ 1, '5', status_user15s,		0,			-1 },
+{ 1, '6', status_user16s,		0,			-1 },
+{ 1, '7', status_user17s,		0,			-1 },
+{ 1, '8', status_user18s,		0,			-1 },
+{ 1, '9', status_user19s,		0,			-1 },
 
-{ 2, '0', status_user20s,		NULL,			-1 },
-{ 2, '1', status_user21s,		NULL,			-1 },
-{ 2, '2', status_user22s,		NULL,			-1 },
-{ 2, '3', status_user23s,		NULL,			-1 },
-{ 2, '4', status_user24s,		NULL,			-1 },
-{ 2, '5', status_user25s,		NULL,			-1 },
-{ 2, '6', status_user26s,		NULL,			-1 },
-{ 2, '7', status_user27s,		NULL,			-1 },
-{ 2, '8', status_user28s,		NULL,			-1 },
-{ 2, '9', status_user29s,		NULL,			-1 },
+{ 2, '0', status_user20s,		0,			-1 },
+{ 2, '1', status_user21s,		0,			-1 },
+{ 2, '2', status_user22s,		0,			-1 },
+{ 2, '3', status_user23s,		0,			-1 },
+{ 2, '4', status_user24s,		0,			-1 },
+{ 2, '5', status_user25s,		0,			-1 },
+{ 2, '6', status_user26s,		0,			-1 },
+{ 2, '7', status_user27s,		0,			-1 },
+{ 2, '8', status_user28s,		0,			-1 },
+{ 2, '9', status_user29s,		0,			-1 },
 
-{ 3, '0', status_user30s,		NULL,			-1 },
-{ 3, '1', status_user31s,		NULL,			-1 },
-{ 3, '2', status_user32s,		NULL,			-1 },
-{ 3, '3', status_user33s,		NULL,			-1 },
-{ 3, '4', status_user34s,		NULL,			-1 },
-{ 3, '5', status_user35s,		NULL,			-1 },
-{ 3, '6', status_user36s,		NULL,			-1 },
-{ 3, '7', status_user37s,		NULL,			-1 },
-{ 3, '8', status_user38s,		NULL,			-1 },
-{ 3, '9', status_user39s,		NULL,			-1 },
+{ 3, '0', status_user30s,		0,			-1 },
+{ 3, '1', status_user31s,		0,			-1 },
+{ 3, '2', status_user32s,		0,			-1 },
+{ 3, '3', status_user33s,		0,			-1 },
+{ 3, '4', status_user34s,		0,			-1 },
+{ 3, '5', status_user35s,		0,			-1 },
+{ 3, '6', status_user36s,		0,			-1 },
+{ 3, '7', status_user37s,		0,			-1 },
+{ 3, '8', status_user38s,		0,			-1 },
+{ 3, '9', status_user39s,		0,			-1 },
 
 };
 
@@ -275,83 +275,84 @@ void *default_status_output_function = make_status;
 /*
  * convert_sub_format: This is used to convert the formats of the
  * sub-portions of the status line to a format statement specially designed
- * for that sub-portions.  convert_sub_format looks for a single occurence of
- * %c (where c is passed to the function). When found, it is replaced by "%s"
- * for use is a sprintf.  All other occurences of % followed by any other
- * character are left unchanged.  Only the first occurence of %c is
- * converted, all subsequence occurences are left unchanged.  This routine
- * mallocs the returned string. 
+ * for that sub-portion.  convert_sub_format looks for occurrences of %c
+ * (where c is passed to the function); when found, it is replaced by %s
+ * for use in an sprintf.  Only the first 'args' instances are replaced.
+ * All other occurrences of % are replaced by %%.  The string returned by 
+ * this function must be freed.
  */
-static	char	* convert_sub_format(char *format, char c, char *padded)
+static char *convert_sub_format(const char *format, int args, char c, const char *padded)
 {
-	char	buffer[BIG_BUFFER_SIZE + 1];
-	static	char	bletch[] = "%% ";
-	char	*ptr = NULL;
-	int	dont_got_it = 1;
+	size_t i = 0;
+	char buffer[BIG_BUFFER_SIZE];
 	
-	if (format == NULL)
-		return (NULL);
-	*buffer = (char) 0;
-	memset(buffer, 0, sizeof(buffer));
-	while (format)
+	if (!format)
+		return NULL;
+
+	while (*format && i < sizeof buffer)
 	{
-#if 0
-/wset status_mode +#%+%
-#endif
-		if ((ptr = (char *) strchr(format, '%')) != NULL)
+		buffer[i++] = *format;
+
+		if (*format == '%')
 		{
-			*ptr = (char) 0;
-			strmcat(buffer, format, BIG_BUFFER_SIZE);
-			*(ptr++) = '%';
-			if ((*ptr == c)/* && dont_got_it*/)
+			format++;
+
+			if (*format == c && args)
 			{
-				dont_got_it = 0;
-				if (*padded)
+				args--;
+
+				if (i < sizeof buffer)
+					i += strlcpy(buffer + i, padded, sizeof buffer - i);
+
+				if (i < sizeof buffer)
+					buffer[i++] = 's';
+			}
+			else if (*format == '<')
+			{
+				const char *saved_format = format;
+				size_t saved_i = i;
+				format++;
+
+				while (strchr("0123456789.", *format) && i < sizeof buffer)
+					buffer[i++] = *format++;
+		
+				while (*format != '>' && *format)
+					format++;
+				if (*format)
+					format++;
+
+				if (*format == c && args)
 				{
-					strmcat(buffer, "%", BIG_BUFFER_SIZE);
-					strmcat(buffer, padded, BIG_BUFFER_SIZE);
-					strmcat(buffer, "s", BIG_BUFFER_SIZE);
+					args--;
+
+					if (i < sizeof buffer)
+						buffer[i++] = 's';
 				}
 				else
-					strmcat(buffer, "%s", BIG_BUFFER_SIZE);
-			}
-			else if (*ptr == '<')
-			{
-				char *s = ptr + 1;
-				while(*ptr && *ptr != '>') ptr++;				
-				if (*ptr)
 				{
-					ptr++;
-					if (!*ptr)
-						continue;
-					else if (*ptr == c)
-					{
-
-						strmcat(buffer, "%", BIG_BUFFER_SIZE);
-						strmcat(buffer, s, (ptr - s));
-						strmcat(buffer, "s", BIG_BUFFER_SIZE);
-					}
-				}
-			
-			}
-			else
-			{
-				bletch[2] = *ptr;
-				strmcat(buffer, bletch, BIG_BUFFER_SIZE);
-				if (!*ptr)
-				{
-					format = ptr;
+					i = saved_i;
+					format = saved_format;
+					
+					if (i < sizeof buffer)
+						buffer[i++] = '%';
 					continue;
 				}
 			}
-			ptr++;
+			else
+			{
+				if (i < sizeof buffer)
+					buffer[i++] = '%';
+				continue;
+			}
 		}
-		else
-			strmcat(buffer, format, BIG_BUFFER_SIZE);
-		format = ptr;
-	}
-	malloc_strcpy(&ptr, buffer);
-	return (ptr);
+		format++;
+	}	
+
+	if (i > sizeof buffer - 1)
+		i = sizeof buffer - 1;
+	buffer[i] = 0;
+
+	return m_strdup(buffer);
 }
 
 static	char	*convert_format(Window *win, char *format, int k)
@@ -377,7 +378,7 @@ static	char	*convert_format(Window *win, char *format, int k)
 		/* Its a % */
 		map = 0;
 
-		/* Find the map, if neccesary */
+		/* Find the map, if necessary */
 		if (*++format == '{')
 		{
 			char	*endptr;
@@ -393,12 +394,18 @@ static	char	*convert_format(Window *win, char *format, int k)
 		}
 		else if (*format == '<')
 		{
-			char *p = padded;
+			size_t pad_len;
+	
 			format++;
+			pad_len = strspn(format, "0123456789.");
+			memcpy(padded, format, pad_len);
+			padded[pad_len] = 0;
+
+			format += pad_len;
 			while(*format && *format != '>') 
-				*p++ = *format++;
-			*p = 0;
-			format++;
+				format++;
+			if (*format)
+				format++;
 		}
 		key = *format++;
 
@@ -417,9 +424,13 @@ static	char	*convert_format(Window *win, char *format, int k)
 			{
 				s = get_wset_format_var_address(win->wset, status_expandos[i].format_set);
 				if (s)
+				{
 					new_free(s);
-				if (s)
-					*s = convert_sub_format(get_wset_string_var(win->wset, status_expandos[i].format_set), key, padded);
+					*s = convert_sub_format(
+						get_wset_string_var(win->wset, 
+							status_expandos[i].format_set), 
+						status_expandos[i].args, key, padded);
+				}
 			}
 			buffer[pos++] = '%';
 			buffer[pos++] = 's';
@@ -432,229 +443,6 @@ static	char	*convert_format(Window *win, char *format, int k)
 
 	win->func_cnt[k] = *cp;
 	buffer[pos] = 0;
-	return m_strdup(buffer);
-}
-
-void fix_status_buffer(Window *win, char *buffer, int in_status)
-{
-unsigned char	rhs_buffer[3*BIG_BUFFER_SIZE + 1];
-unsigned char	lhs_buffer[3*BIG_BUFFER_SIZE + 1];
-unsigned char	lhs_fillchar[6],
-		rhs_fillchar[6],
-		*fillchar = lhs_fillchar,
-		*lhp = lhs_buffer,
-		*rhp = rhs_buffer,
-		*cp,
-		*start_rhs = 0,
-		*str = NULL, *ptr = NULL;
-int		in_rhs = 0,
-		pr_lhs = 0,
-		pr_rhs = 0,
-		*prc = &pr_lhs;
-
-	lhs_buffer[0] = 0;
-	rhs_buffer[0] = 0;
-	if (!buffer || !*buffer)
-		return;
-	if (get_int_var(STATUS_DOES_EXPANDOS_VAR))
-	{
-		int  af = 0;
-		char *stuff;
-		Window *old = current_window;
-		current_window = win;
-		stuff = expand_alias(buffer, empty_string, &af, NULL);
-		strmcpy(buffer, stuff, BIG_BUFFER_SIZE);
-		new_free(&stuff);
-		current_window = old;
-	}
-	/*
-	 * This converts away any ansi codes in the status line
-	 * in accordance with the current settings.  This leaves us
-	 * with nothing but logical characters, which are then easy
-	 * to count. :-)
-	 */
-	str = strip_ansi(buffer);
-
-	/*
-	 * Count out the characters.
-	 * Walk the entire string, looking for nonprintable
-	 * characters.  We count all the printable characters
-	 * on both sides of the %> tag.
-	 */
-	ptr = str;
-	cp = lhp;
-	lhs_buffer[0] = rhs_buffer[0] = 0;
-	while (*ptr)
-	{
-		/*
-		 * The FIRST such %> tag is used.
-		 * Using multiple %>s is bogus.
-		 */
-		if (*ptr == '\f' && start_rhs == NULL)
-		{
-			ptr++;
-			start_rhs = ptr;
-			fillchar = rhs_fillchar;
-			in_rhs = 1;
-			*cp = 0;
-			cp = rhp;
-			prc = &pr_rhs;
-		}
-		/*
-		 * Skip over color attributes if we're not
-		 * doing color.
-		 */
-		else if (*ptr == '\003')
-		{
-			const u_char *end = skip_ctl_c_seq(ptr, NULL, NULL, 0);
-			while (ptr < end)
-				*cp++ = *ptr++;
-		}
-		/*
-		 * If we have a ROM character code here, we need to
-		 * copy it to the output buffer, as well as the fill
-		 * character, and increment the printable counter by
-		 * only 1.
-		 */
-		else if (*ptr == ROM_CHAR)
-		{
-			fillchar[0] = *cp++ = *ptr++;
-			fillchar[1] = *cp++ = *ptr++;
-			fillchar[2] = *cp++ = *ptr++;
-			fillchar[3] = *cp++ = *ptr++;
-			fillchar[4] = 0;
-			*prc += 1;
-		}
-		/*
-		 * Is it NOT a printable character?
-		 */
-		else if ((*ptr == REV_TOG) || (*ptr == UND_TOG) ||
-			 (*ptr == ALL_OFF) || (*ptr == BOLD_TOG) ||
-			 (*ptr == BLINK_TOG))
-				*cp++ = *ptr++;
-#if 0
-		else if (*ptr == 9)	/* TAB */
-		{
-			fillchar[0] = ' ';
-			fillchar[1] = 0;
-			do
-				*cp++ = ' ';
-			while (++(*prc) % 8);
-			ptr++;
-		}
-#endif
-		/*
-		 * So it is a printable character.
-		 * Or maybe its a tab. ;-)
-		 */
-		else
-		{
-			*prc += 1;
-			fillchar[0] = *cp++ = *ptr++;
-			fillchar[1] = 0;
-		}
-		/*
-		 * Dont allow more than CO printable characters
-		 */
-		if (pr_lhs + pr_rhs >= win->screen->co)
-		{
-			*cp = 0;
-			break;
-		}
-	}
-	*cp = 0;
-#if 0
-	/* What will we be filling with? */
-	if (get_int_var(STATUS_NO_REPEAT_VAR))
-	{
-		lhs_fillchar[0] = ' ';
-		lhs_fillchar[1] = 0;
-		rhs_fillchar[0] = ' ';
-		rhs_fillchar[1] = 0;
-	}
-
-	/*
-	 * Now if we have a rhs, then we have to adjust it.
-	 */
-	if (start_rhs)
-	{
-		int numf = 0;
-			numf = win->screen->co - pr_lhs - pr_rhs  -1;
-		while (numf-- >= 0)
-			strmcat(lhs_buffer, lhs_fillchar, 
-					BIG_BUFFER_SIZE);
-	}
-	/*
-	 * No rhs?  If the user wants us to pad it out, do so.
-	 */
-	else if (get_int_var(FULL_STATUS_LINE_VAR))
-	{
-		int chars = win->screen->co - pr_lhs - 1;
-		while (chars-- >= 0)
-			strmcat(lhs_buffer, lhs_fillchar, 
-					BIG_BUFFER_SIZE);
-	}
-#endif
-	strcpy(buffer, lhs_buffer);
-	strmcat(buffer, rhs_buffer, BIG_BUFFER_SIZE);
-	new_free(&str);
-}
-
-char	*stat_convert_format(Window *win, char *form)
-{
-unsigned char	buffer[2 * BIG_BUFFER_SIZE + 1];
-	 char   *ptr = form;
-	 int	pos = 0;
-	 int	map;
-	 char	key;
-	 int	i;
-
-
-	if (!form || !*form)
-		return m_strdup(empty_string);	
-	*buffer = 0;
-
-	while (*ptr && pos < (2 * BIG_BUFFER_SIZE) - 4)
-	{
-		if (*ptr != '%')
-		{
-			buffer[pos++] = *ptr++;
-			continue;
-		}
-
-		/* Its a % */
-		map = 0;
-
-		/* Find the map, if neccesary */
-		if (*++ptr == '{')
-		{
-			char	*endptr;
-
-			ptr++;
-			map = strtoul(ptr, &endptr, 10);
-			if (*endptr != '}')
-			{
-				/* Unrecognized */
-				continue;
-			}
-			ptr = endptr + 1;
-		}
-
-		key = *ptr++;
-
-		/* Choke once we get to the maximum number of expandos */
-		for (i = 0; i < NUMBER_OF_EXPANDOS; i++)
-		{
-			if (status_expandos[i].map != map || status_expandos[i].key != key)
-				continue;
-			strmcat(buffer, (status_expandos[i].callback_function)(win), BIG_BUFFER_SIZE);
-			pos = strlen(buffer);
-			break;
-		}
-	}
-
-	buffer[pos] = 0;
-	fix_status_buffer(win, buffer, 0);
 	return m_strdup(buffer);
 }
 
@@ -696,13 +484,136 @@ void BX_build_status(Window *win, char *format, int unused)
 	from_server = ofs;
 }
 
+/* Take a built status line and justify it to window size, handling the >% right-justify status format. */
+static void justify_status(Window *win, char *buffer, size_t buffer_size)
+{
+	char padding[BIG_BUFFER_SIZE + 1];
+	char *str;
+	char *rhs = NULL;
+	char *ptr;
+	int printable = 0;
+	const char *padchar = " ";
+	size_t padchar_len = 1;
+
+	/*
+	 * This converts away any ansi codes in the status line
+	 * in accordance with the current settings.  This leaves us
+	 * with nothing but logical characters, which are then easy
+	 * to count. :-)
+	 */
+	str = strip_ansi(buffer);
+
+	/*
+	 * Count out the characters.
+	 * Walk the entire string, looking for nonprintable
+	 * characters.  We count all the printable characters
+	 * on both sides of the %> tag.
+	 */
+	ptr = str;
+
+	while (*ptr)
+	{
+		/*
+		 * The FIRST such %> tag is used.
+		 * Using multiple %>s is bogus.
+		 */
+		if (*ptr == '\f' && !rhs)
+		{
+			*ptr++ = 0;
+			rhs = ptr;
+		}
+
+		/*
+		 * Skip over color attributes if we're not
+		 * doing color.
+		 */
+		else if (*ptr == COLOR_CHAR)
+		{
+			ptr = skip_ctl_c_seq(ptr, NULL, NULL, 0);
+		}
+
+		/*
+		 * If we have a ROM character code here, we need to
+		 * copy it to the output buffer, as well as the fill
+		 * character, and increment the printable counter by
+		 * only 1.
+		 */
+		else if (*ptr == ROM_CHAR)
+		{
+			if (!rhs)
+			{
+				padchar = ptr;
+				padchar_len = 4;
+			}
+			ptr += 4;
+			printable += 1;
+		}
+
+		/*
+		 * Is it NOT a printable character?
+		 */
+		else if ((*ptr == REV_TOG) || (*ptr == UND_TOG) ||
+				(*ptr == ALL_OFF) || (*ptr == BOLD_TOG) ||
+				(*ptr == BLINK_TOG))
+			ptr++;
+		/*
+		 * So it is a printable character.
+		 * Or maybe its a tab. ;-)
+		 */
+		else
+		{
+			if (!rhs)
+			{
+				padchar = ptr;
+				padchar_len = 1;
+			}
+			ptr += 1;
+			printable += 1;
+		}
+
+		/*
+		 * Don't allow more than CO printable characters
+		 */
+		if (printable >= win->screen->co)
+		{
+			*ptr = 0;
+			break;
+		}
+	}
+
+	/* What will we be filling with? */
+	if (get_int_var(STATUS_NO_REPEAT_VAR))
+	{
+		padchar = " ";
+		padchar_len = 1;
+	}
+
+	/*
+	 * Now if we have a rhs, or the user wants padding anyway, then we have to pad it.
+	 */
+	padding[0] = 0;
+	if (rhs || get_int_var(FULL_STATUS_LINE_VAR))
+	{
+		int chars = win->screen->co - printable - 1;
+		char * const endptr = &padding[sizeof padding - padchar_len];
+
+		ptr = padding;
+		while (chars-- >= 0 && ptr < endptr)
+		{
+			memcpy(ptr, padchar, padchar_len);
+			ptr += padchar_len;
+		}
+		*ptr = 0;
+	}
+
+	snprintf(buffer, buffer_size, "%s%s%s%s", str, padding, rhs ? rhs : "", ALL_OFF_STR);
+	new_free(&str);
+}
+
 void make_status(Window *win)
 {
-	u_char	buffer	    [BIG_BUFFER_SIZE + 1];
-	u_char	lhs_buffer  [BIG_BUFFER_SIZE + 1];
-	u_char	rhs_buffer  [BIG_BUFFER_SIZE + 1];
-	char	*func_value[MAX_FUNCTIONS+10] = {NULL};
-	u_char	*ptr;
+	char buffer[BIG_BUFFER_SIZE + 1];
+	char *func_value[MAX_FUNCTIONS+10] = {NULL};
 	
 	int	len = 1,
 		status_line,
@@ -714,22 +625,9 @@ void make_status(Window *win)
 	 */
 	for (status_line = 0 ; status_line < 1+win->double_status + win->status_lines; status_line++)
 	{
-		u_char	lhs_fillchar[6],
-			rhs_fillchar[6],
-			*fillchar = lhs_fillchar,
-			*lhp = lhs_buffer,
-			*rhp = rhs_buffer,
-			*cp,
-			*start_rhs = 0,
-			*str;
-		int	in_rhs = 0,
-			pr_lhs = 0,
-			pr_rhs = 0,
-			line = status_line,
-			*prc = &pr_lhs, 
-			i;
-
-		fillchar[0] = fillchar[1] = 0;
+		char *str;
+		int line = status_line;
+		int i;
 
 		if (!win->wset || !win->wset->status_format[line])
 			continue;
@@ -776,150 +674,11 @@ void make_status(Window *win)
 			int  af = 0;
 
 			str = expand_alias(buffer, empty_string, &af, NULL);
-			strmcpy(buffer, str, BIG_BUFFER_SIZE);
+			strlcpy(buffer, str, sizeof buffer);
 			new_free(&str);
 		}
 
-		/*
-		 * This converts away any ansi codes in the status line
-		 * in accordance with the current settings.  This leaves us
-		 * with nothing but logical characters, which are then easy
-		 * to count. :-)
-		 */
-		str = strip_ansi(buffer);
-
-		/*
-		 * Count out the characters.
-		 * Walk the entire string, looking for nonprintable
-		 * characters.  We count all the printable characters
-		 * on both sides of the %> tag.
-		 */
-		ptr = str;
-		cp = lhp;
-		lhs_buffer[0] = rhs_buffer[0] = 0;
-
-		while (*ptr)
-		{
-			/*
-			 * The FIRST such %> tag is used.
-			 * Using multiple %>s is bogus.
-			 */
-			if (*ptr == '\f' && start_rhs == NULL)
-			{
-				ptr++;
-				start_rhs = ptr;
-				fillchar = rhs_fillchar;
-				in_rhs = 1;
-				*cp = 0;
-				cp = rhp;
-				prc = &pr_rhs;
-			}
-
-			/*
-			 * Skip over color attributes if we're not
-			 * doing color.
-			 */
-			else if (*ptr == '\003')
-			{
-				const u_char *end = skip_ctl_c_seq(ptr, NULL, NULL, 0);
-				while (ptr < end)
-					*cp++ = *ptr++;
-			}
-
-			/*
-			 * If we have a ROM character code here, we need to
-			 * copy it to the output buffer, as well as the fill
-			 * character, and increment the printable counter by
-			 * only 1.
-			 */
-			else if (*ptr == ROM_CHAR)
-			{
-				fillchar[0] = *cp++ = *ptr++;
-				fillchar[1] = *cp++ = *ptr++;
-				fillchar[2] = *cp++ = *ptr++;
-				fillchar[3] = *cp++ = *ptr++;
-				fillchar[4] = 0;
-				*prc += 1;
-			}
-
-			/*
-			 * Is it NOT a printable character?
-			 */
-			else if ((*ptr == REV_TOG) || (*ptr == UND_TOG) ||
-				 (*ptr == ALL_OFF) || (*ptr == BOLD_TOG) ||
-				 (*ptr == BLINK_TOG))
-					*cp++ = *ptr++;
-#if 0
-			else if (*ptr == 9)	/* TAB */
-			{
-				fillchar[0] = ' ';
-				fillchar[1] = 0;
-				do
-					*cp++ = ' ';
-				while (++(*prc) % 8);
-				ptr++;
-			}
-#endif
-			/*
-			 * So it is a printable character.
-			 * Or maybe its a tab. ;-)
-			 */
-			else
-			{
-				*prc += 1;
-				fillchar[0] = *cp++ = *ptr++;
-				fillchar[1] = 0;
-			}
-
-			/*
-			 * Dont allow more than CO printable characters
-			 */
-			if (pr_lhs + pr_rhs >= win->screen->co)
-			{
-				*cp = 0;
-				break;
-			}
-		}
-		*cp = 0;
-
-		/* What will we be filling with? */
-		if (get_int_var(STATUS_NO_REPEAT_VAR))
-		{
-			lhs_fillchar[0] = ' ';
-			lhs_fillchar[1] = 0;
-			rhs_fillchar[0] = ' ';
-			rhs_fillchar[1] = 0;
-		}
-
-		/*
-		 * Now if we have a rhs, then we have to adjust it.
-		 */
-		if (start_rhs)
-		{
-			int numf = 0;
-
-			numf = win->screen->co - pr_lhs - pr_rhs  -1;
-			while (numf-- >= 0)
-				strmcat(lhs_buffer, lhs_fillchar, 
-						BIG_BUFFER_SIZE);
-		}
-
-		/*
-		 * No rhs?  If the user wants us to pad it out, do so.
-		 */
-		else if (get_int_var(FULL_STATUS_LINE_VAR))
-		{
-			int chars = win->screen->co - pr_lhs - 1;
-
-			while (chars-- >= 0)
-				strmcat(lhs_buffer, lhs_fillchar, 
-						BIG_BUFFER_SIZE);
-		}
-
-		strcpy(buffer, lhs_buffer);
-		strmcat(buffer, rhs_buffer, BIG_BUFFER_SIZE);
-		strmcat(buffer, ALL_OFF_STR, BIG_BUFFER_SIZE);
-		new_free(&str);
+		justify_status(win, buffer, sizeof buffer);
 
 		do_hook(STATUS_UPDATE_LIST, "%d %d %s", 
 			win->refnum, 
@@ -956,6 +715,76 @@ void make_status(Window *win)
 	cursor_to_input();
 }
 
+/* Formats a status line in the context of the current window, 
+ * for the $statsparse() scripting function. */
+char *stat_convert_format(Window *win, char *form)
+{
+	int map, key, i, pos = 0;
+	char *ptr = form;
+	char buffer[2 * BIG_BUFFER_SIZE + 1];
+
+	if (!form || !*form)
+		return m_strdup(empty_string);	
+
+	*buffer = 0;
+	while (*ptr && pos < (2 * BIG_BUFFER_SIZE) - 4)
+	{
+		if (*ptr != '%')
+		{
+			buffer[pos++] = *ptr++;
+			continue;
+		}
+
+		/* Its a % */
+		map = 0;
+
+		/* Find the map, if necessary */
+		if (*++ptr == '{')
+		{
+			char	*endptr;
+
+			ptr++;
+			map = strtoul(ptr, &endptr, 10);
+			if (*endptr != '}')
+			{
+				/* Unrecognized */
+				continue;
+			}
+			ptr = endptr + 1;
+		}
+
+		key = *ptr++;
+
+		/* Choke once we get to the maximum number of expandos */
+		for (i = 0; i < NUMBER_OF_EXPANDOS; i++)
+		{
+			if (status_expandos[i].map != map || status_expandos[i].key != key)
+				continue;
+			buffer[pos] = 0;
+			strlcat(buffer, status_expandos[i].callback_function(win), sizeof buffer);
+			pos = strlen(buffer);
+			break;
+		}
+	}
+
+	buffer[pos] = 0;
+
+	if (get_int_var(STATUS_DOES_EXPANDOS_VAR))
+	{
+		int  af = 0;
+		char *stuff;
+		Window *old = current_window;
+
+		current_window = win;
+		stuff = expand_alias(buffer, empty_string, &af, NULL);
+		strlcpy(buffer, stuff, sizeof buffer);
+		new_free(&stuff);
+		current_window = old;
+	}
+
+	justify_status(win, buffer, sizeof buffer);
+	return m_strdup(buffer);
+}
 
 /* Some useful macros */
 /*
@@ -1037,27 +866,28 @@ static	char	my_buffer[] = "\f";
 
 static	char	*status_notify_windows(Window *window)
 {
-	int	doneone = 0;
-	char	buf2[MY_BUFFER+2];
-static	char	my_buffer[MY_BUFFER/2+1];
+	int doneone = 0;
+	char notes[MY_BUFFER + 2];
+	static char my_buffer[MY_BUFFER / 2 + 1];
+
 	if (get_int_var(SHOW_STATUS_ALL_VAR) || window == window->screen->current_window)
 	{
-		*buf2='\0';
-		window = NULL;
-		while ((traverse_all_windows(&window)))
+		Window *notify_win = NULL;
+		*notes = 0;
+		while ((traverse_all_windows(&notify_win)))
 		{
-			if (window->miscflags & WINDOW_NOTIFIED)
+			if (notify_win->miscflags & WINDOW_NOTIFIED)
 			{
 				if (doneone++)
-					strmcat(buf2, ",", MY_BUFFER/2);
-				strmcat(buf2, ltoa(window->refnum), MY_BUFFER/2);
+					strlcat(notes, ",", sizeof notes);
+				strlcat(notes, ltoa(notify_win->refnum), sizeof notes);
 			}
 		}
 	}
 	if (doneone && window->wset->notify_format)
 	{
-		snprintf(my_buffer, MY_BUFFER/2, window->wset->notify_format, buf2);
-		return (my_buffer);
+		snprintf(my_buffer, sizeof my_buffer, window->wset->notify_format, notes);
+		return my_buffer;
 	}
 	RETURN_EMPTY;
 }
@@ -1110,7 +940,7 @@ static char my_buffer[MY_BUFFER/2+1];
 		*localbuf = 0;
 	else {
 		if (window->server > -1)
-			strmcpy(localbuf, get_umode(window->server), MY_BUFFER);
+			strlcpy(localbuf, get_umode(window->server), sizeof localbuf);
 		else
 			*localbuf = 0;
 	}
@@ -1183,9 +1013,9 @@ static	char	my_buffer[IRCD_BUFFER_SIZE + 1];
 		    is_channel_mode(window->current_channel,
 				MODE_PRIVATE | MODE_SECRET,
 				window->server))
-			strmcpy(channel, "*private*", IRCD_BUFFER_SIZE);
+			strlcpy(channel, "*private*", sizeof channel);
 		else
-			strmcpy(channel, window->current_channel, IRCD_BUFFER_SIZE);
+			strlcpy(channel, window->current_channel, sizeof channel);
 
 		#ifdef WANT_HEBREW
 		if (get_int_var(HEBREW_TOGGLE_VAR))
@@ -1347,7 +1177,8 @@ static  char	my_buffer[MY_BUFFER/2+1];
 
 static	char	*status_topic (Window *window)
 {
-static  char	my_buffer[MY_BUFFER+41];
+	static char my_buffer[IRCD_BUFFER_SIZE];
+
 	if (window && window->current_channel && window->wset->topic_format)
 	{
 		ChannelList *chan;
@@ -1361,11 +1192,11 @@ static  char	my_buffer[MY_BUFFER+41];
 					double_quote(t, "()[]$\"", t2);
 				else
 					strcpy(t2, t);
-				snprintf(my_buffer, MY_BUFFER, window->wset->topic_format, stripansicodes(t2));
+				snprintf(my_buffer, sizeof my_buffer, window->wset->topic_format, stripansicodes(t2));
 			}
 			else
-				strmcpy(my_buffer, "No Topic", MY_BUFFER);
-			return(my_buffer);
+				strlcpy(my_buffer, "No Topic", sizeof my_buffer);
+			return my_buffer;
 		}
 	}
 	RETURN_EMPTY;
@@ -1406,7 +1237,7 @@ char	*text;
 static	char	*status_refnum(Window *window)
 {
 static char my_buffer[MY_BUFFER/3+1];
-	strmcpy(my_buffer, window->name ? window->name : ltoa(window->refnum), MY_BUFFER/3);
+	strlcpy(my_buffer, window->name ? window->name : ltoa(window->refnum), sizeof my_buffer);
 	return (my_buffer);
 }
 
@@ -1635,7 +1466,6 @@ static char *status_lastjoin (Window *window)
 
 static char *status_newserver (Window *window)
 {
-extern char *ov_server(int);
 	if (window->server != -1)	
 		return ov_server(window->server);
 	RETURN_EMPTY;
@@ -1655,7 +1485,7 @@ static	char	*status_windowspec	(Window *window)
 {
 static char my_buffer[81];
 	if (window->wset->window_special_format)
-		strmcpy(my_buffer, window->wset->window_special_format, 80);
+		strlcpy(my_buffer, window->wset->window_special_format, sizeof my_buffer);
 	else
 		*my_buffer = 0;
 

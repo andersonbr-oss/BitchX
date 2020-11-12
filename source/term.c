@@ -12,7 +12,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: term.c 17 2008-03-10 06:38:25Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(term_c)
 #include "struct.h"
 #include "screen.h"
@@ -46,7 +46,7 @@ DWORD gdwPlatform;
 #define MAIN_SOURCE
 #include "modval.h"
 
-#if defined(_ALL_SOURCE) || defined(__EMX__) || defined(__QNX__) || defined(__FreeBSD__)
+#ifdef HAVE_TERMIOS_H
 #include <termios.h>
 #else
 #include <sys/termios.h>
@@ -54,42 +54,35 @@ DWORD gdwPlatform;
 
 #include <sys/ioctl.h>
 
+#if defined(HAVE_NCURSES_TERM_H)
+#include <ncurses/term.h>
+#elif defined(HAVE_TERM_H)
+#include <term.h>
+#endif
+
 static	int		tty_des;		/* descriptor for the tty */
 
 static	struct	termios	oldb, newb;
 
-	char		my_PC, *BC, *UP;
-	int		BClen, UPlen;
 extern	int		already_detached;
 
-#ifdef WTERM_C
-int use_socks = 0;
-char *get_string_var(enum VAR_TYPES var) { return NULL; }
-char username[40];
-void put_it(const char *str, ...) { return; }
-#endif
-
-                
 #if !defined(WTERM_C)
 
-/* Systems cant seem to agree where to put these... */
+/* Systems can't seem to agree where to put these... */
 #ifdef HAVE_TERMINFO
-extern	int		setupterm();
-extern	char		*tigetstr();
-extern	int		tigetnum();
-extern	int		tigetflag();
-#define Tgetstr(x, y) 	tigetstr(x.iname)
+#define Tgetstr(x, y) 	((void)&(y), tigetstr((x).iname))
 #define Tgetnum(x) 	tigetnum(x.iname);
 #define Tgetflag(x) 	tigetflag(x.iname);
 #else
-extern	int		tgetent();
-extern	char		*tgetstr();
-extern	int		tgetnum();
-extern	int		tgetflag();
 #define Tgetstr(x, y) 	tgetstr(x.tname, &y)
 #define Tgetnum(x) 	tgetnum(x.tname)
 #define Tgetflag(x) 	tgetflag(x.tname)
 #endif
+
+/* Some systems declare tparm() with 9 fixed 'long' arguments */
+#define tparm1(str, a1) tparm(str, a1, 0, 0, 0, 0, 0, 0, 0, 0)
+#define tparm2(str, a1, a2) tparm(str, a1, a2, 0, 0, 0, 0, 0, 0, 0)
+#define tparm4(str, a1, a2, a3, a4) tparm(str, a1, a2, a3, a4, 0, 0, 0, 0, 0)
 
 extern  char    *getenv();
 
@@ -108,7 +101,12 @@ extern  char    *getenv();
 typedef struct cap2info
 {
 	const char *	longname;
-	const char *	iname;
+/* ncurses can optionally declare tigetstr(), tigetnum() and tigetflags() with
+ * a const char * argument. */
+#ifdef NCURSES_CONST
+NCURSES_CONST
+#endif
+	char *	iname;
 	const char *	tname;
 	int 		type;
 	void *		ptr;
@@ -116,78 +114,78 @@ typedef struct cap2info
 
 struct	term_struct TIS;
 
-cap2info tcaps[] =
+static const cap2info tcaps[] =
 {
-	{ "auto_left_margin",		"bw",		"bw",	CAP_TYPE_BOOL,	(void *)&TIS.TI_bw },
-	{ "auto_right_margin",		"am",		"am",	CAP_TYPE_BOOL,	(void *)&TIS.TI_am },
-	{ "no_esc_ctlc",		"xsb",		"xb",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xsb },
-	{ "ceol_standout_glitch",	"xhp",		"xs",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xhp },
-	{ "eat_newline_glitch",		"xenl",		"xn",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xenl },
-	{ "erase_overstrike",		"eo",		"eo",	CAP_TYPE_BOOL,	(void *)&TIS.TI_eo },
-	{ "generic_type",		"gn",		"gn",	CAP_TYPE_BOOL,	(void *)&TIS.TI_gn },
-	{ "hard_copy",			"hc",		"hc",	CAP_TYPE_BOOL,	(void *)&TIS.TI_hc },
-	{ "has_meta_key",		"km",		"km",	CAP_TYPE_BOOL,	(void *)&TIS.TI_km },
-	{ "has_status_line",		"hs",		"hs",	CAP_TYPE_BOOL,	(void *)&TIS.TI_hs },
-	{ "insert_null_glitch",		"in",		"in",	CAP_TYPE_BOOL,	(void *)&TIS.TI_in },
-	{ "memory_above",		"da",		"da",	CAP_TYPE_BOOL,	(void *)&TIS.TI_da },
-	{ "memory_below",		"db",		"db",	CAP_TYPE_BOOL,	(void *)&TIS.TI_db },
-	{ "move_insert_mode",		"mir",		"mi",	CAP_TYPE_BOOL,	(void *)&TIS.TI_mir },
-	{ "move_standout_mode",		"msgr",		"ms",	CAP_TYPE_BOOL,	(void *)&TIS.TI_msgr },
-	{ "over_strike",		"os",		"os",	CAP_TYPE_BOOL,	(void *)&TIS.TI_os },
-	{ "status_line_esc_ok",		"eslok",	"es",	CAP_TYPE_BOOL,	(void *)&TIS.TI_eslok },
-	{ "dest_tabs_magic_smso",	"xt",		"xt",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xt },
-	{ "tilde_glitch",		"hz",		"hz",	CAP_TYPE_BOOL,	(void *)&TIS.TI_hz },
-	{ "transparent_underline",	"ul",		"ul",	CAP_TYPE_BOOL,	(void *)&TIS.TI_ul },
-	{ "xon_xoff",			"xon",		"xo",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xon },
-	{ "needs_xon_xoff",		"nxon",		"nx",	CAP_TYPE_BOOL,	(void *)&TIS.TI_nxon },
-	{ "prtr_silent",		"mc5i",		"5i",	CAP_TYPE_BOOL,	(void *)&TIS.TI_mc5i },
-	{ "hard_cursor",		"chts",		"HC",	CAP_TYPE_BOOL,	(void *)&TIS.TI_chts },
-	{ "non_rev_rmcup",		"nrrmc",	"NR",	CAP_TYPE_BOOL,	(void *)&TIS.TI_nrrmc },
-	{ "no_pad_char",		"npc",		"NP",	CAP_TYPE_BOOL,	(void *)&TIS.TI_npc },
-	{ "non_dest_scroll_region",	"ndscr",	"ND",	CAP_TYPE_BOOL,	(void *)&TIS.TI_ndscr },
-	{ "can_change",			"ccc",		"cc",	CAP_TYPE_BOOL,	(void *)&TIS.TI_ccc },
-	{ "back_color_erase",		"bce",		"ut",	CAP_TYPE_BOOL,	(void *)&TIS.TI_bce },
-	{ "hue_lightness_saturation",	"hls",		"hl",	CAP_TYPE_BOOL,	(void *)&TIS.TI_hls },
-	{ "col_addr_glitch",		"xhpa",		"YA",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xhpa },
-	{ "cr_cancels_micro_mode",	"crxm",		"YB",	CAP_TYPE_BOOL,	(void *)&TIS.TI_crxm },
-	{ "has_print_wheel",		"daisy",	"YC",	CAP_TYPE_BOOL,	(void *)&TIS.TI_daisy },
-	{ "row_addr_glitch",		"xvpa",		"YD",	CAP_TYPE_BOOL,	(void *)&TIS.TI_xvpa },
-	{ "semi_auto_right_margin",	"sam",		"YE",	CAP_TYPE_BOOL,	(void *)&TIS.TI_sam },
-	{ "cpi_changes_res",		"cpix",		"YF",	CAP_TYPE_BOOL,	(void *)&TIS.TI_cpix },
-	{ "lpi_changes_res",		"lpix",		"YG",	CAP_TYPE_BOOL,	(void *)&TIS.TI_lpix },
-	{ "columns",			"cols",		"co",	CAP_TYPE_INT,	(void *)&TIS.TI_cols },
-	{ "init_tabs",			"it",		"it",	CAP_TYPE_INT,	(void *)&TIS.TI_it },
-	{ "lines",			"lines",	"li",	CAP_TYPE_INT,	(void *)&TIS.TI_lines },
-	{ "lines_of_memory",		"lm",		"lm",	CAP_TYPE_INT,	(void *)&TIS.TI_lm },
-	{ "magic_cookie_glitch",	"xmc",		"sg",	CAP_TYPE_INT,	(void *)&TIS.TI_xmc },
-	{ "padding_baud_rate",		"pb",		"pb",	CAP_TYPE_INT,	(void *)&TIS.TI_pb },
-	{ "virtual_terminal",		"vt",		"vt",	CAP_TYPE_INT,	(void *)&TIS.TI_vt },
-	{ "width_status_line",		"wsl",		"ws",	CAP_TYPE_INT,	(void *)&TIS.TI_wsl },
-	{ "num_labels",			"nlab",		"Nl",	CAP_TYPE_INT,	(void *)&TIS.TI_nlab },
-	{ "label_height",		"lh",		"lh",	CAP_TYPE_INT,	(void *)&TIS.TI_lh },
-	{ "label_width",		"lw",		"lw",	CAP_TYPE_INT,	(void *)&TIS.TI_lw },
-	{ "max_attributes",		"ma",		"ma",	CAP_TYPE_INT,	(void *)&TIS.TI_ma },
-	{ "maximum_windows",		"wnum",		"MW",	CAP_TYPE_INT,	(void *)&TIS.TI_wnum },
-	{ "max_colors",			"colors",	"Co",	CAP_TYPE_INT,	(void *)&TIS.TI_colors },
-	{ "max_pairs",			"pairs",	"pa",	CAP_TYPE_INT,	(void *)&TIS.TI_pairs },
-	{ "no_color_video",		"ncv",		"NC",	CAP_TYPE_INT,	(void *)&TIS.TI_ncv },
-	{ "buffer_capacity",		"bufsz",	"Ya",	CAP_TYPE_INT,	(void *)&TIS.TI_bufsz },
-	{ "dot_vert_spacing",		"spinv",	"Yb",	CAP_TYPE_INT,	(void *)&TIS.TI_spinv },
-	{ "dot_horz_spacing",		"spinh",	"Yc",	CAP_TYPE_INT,	(void *)&TIS.TI_spinh },
-	{ "max_micro_address",		"maddr",	"Yd",	CAP_TYPE_INT,	(void *)&TIS.TI_maddr },
-	{ "max_micro_jump",		"mjump",	"Ye",	CAP_TYPE_INT,	(void *)&TIS.TI_mjump },
-	{ "micro_col_size",		"mcs",		"Yf",	CAP_TYPE_INT,	(void *)&TIS.TI_mcs },
-	{ "micro_line_size",		"mls",		"Yg",	CAP_TYPE_INT,	(void *)&TIS.TI_mls },
-	{ "number_of_pins",		"npins",	"Yh",	CAP_TYPE_INT,	(void *)&TIS.TI_npins },
-	{ "output_res_char",		"orc",		"Yi",	CAP_TYPE_INT,	(void *)&TIS.TI_orc },
-	{ "output_res_line",		"orl",		"Yj",	CAP_TYPE_INT,	(void *)&TIS.TI_orl },
-	{ "output_res_horz_inch",	"orhi",		"Yk",	CAP_TYPE_INT,	(void *)&TIS.TI_orhi },
-	{ "output_res_vert_inch",	"orvi",		"Yl",	CAP_TYPE_INT,	(void *)&TIS.TI_orvi },
-	{ "print_rate",			"cps",		"Ym",	CAP_TYPE_INT,	(void *)&TIS.TI_cps },
-	{ "wide_char_size",		"widcs",	"Yn",	CAP_TYPE_INT,	(void *)&TIS.TI_widcs },
-	{ "buttons",			"btns",		"BT",	CAP_TYPE_INT,	(void *)&TIS.TI_btns },
-	{ "bit_image_entwining",	"bitwin",	"Yo",	CAP_TYPE_INT,	(void *)&TIS.TI_bitwin },
-	{ "bit_image_type",		"bitype",	"Yp",	CAP_TYPE_INT,	(void *)&TIS.TI_bitype },
+	{ "auto_left_margin",		"bw",		"bw",	CAP_TYPE_BOOL,	&TIS.TI_bw },
+	{ "auto_right_margin",		"am",		"am",	CAP_TYPE_BOOL,	&TIS.TI_am },
+	{ "no_esc_ctlc",		"xsb",		"xb",	CAP_TYPE_BOOL,	&TIS.TI_xsb },
+	{ "ceol_standout_glitch",	"xhp",		"xs",	CAP_TYPE_BOOL,	&TIS.TI_xhp },
+	{ "eat_newline_glitch",		"xenl",		"xn",	CAP_TYPE_BOOL,	&TIS.TI_xenl },
+	{ "erase_overstrike",		"eo",		"eo",	CAP_TYPE_BOOL,	&TIS.TI_eo },
+	{ "generic_type",		"gn",		"gn",	CAP_TYPE_BOOL,	&TIS.TI_gn },
+	{ "hard_copy",			"hc",		"hc",	CAP_TYPE_BOOL,	&TIS.TI_hc },
+	{ "has_meta_key",		"km",		"km",	CAP_TYPE_BOOL,	&TIS.TI_km },
+	{ "has_status_line",		"hs",		"hs",	CAP_TYPE_BOOL,	&TIS.TI_hs },
+	{ "insert_null_glitch",		"in",		"in",	CAP_TYPE_BOOL,	&TIS.TI_in },
+	{ "memory_above",		"da",		"da",	CAP_TYPE_BOOL,	&TIS.TI_da },
+	{ "memory_below",		"db",		"db",	CAP_TYPE_BOOL,	&TIS.TI_db },
+	{ "move_insert_mode",		"mir",		"mi",	CAP_TYPE_BOOL,	&TIS.TI_mir },
+	{ "move_standout_mode",		"msgr",		"ms",	CAP_TYPE_BOOL,	&TIS.TI_msgr },
+	{ "over_strike",		"os",		"os",	CAP_TYPE_BOOL,	&TIS.TI_os },
+	{ "status_line_esc_ok",		"eslok",	"es",	CAP_TYPE_BOOL,	&TIS.TI_eslok },
+	{ "dest_tabs_magic_smso",	"xt",		"xt",	CAP_TYPE_BOOL,	&TIS.TI_xt },
+	{ "tilde_glitch",		"hz",		"hz",	CAP_TYPE_BOOL,	&TIS.TI_hz },
+	{ "transparent_underline",	"ul",		"ul",	CAP_TYPE_BOOL,	&TIS.TI_ul },
+	{ "xon_xoff",			"xon",		"xo",	CAP_TYPE_BOOL,	&TIS.TI_xon },
+	{ "needs_xon_xoff",		"nxon",		"nx",	CAP_TYPE_BOOL,	&TIS.TI_nxon },
+	{ "prtr_silent",		"mc5i",		"5i",	CAP_TYPE_BOOL,	&TIS.TI_mc5i },
+	{ "hard_cursor",		"chts",		"HC",	CAP_TYPE_BOOL,	&TIS.TI_chts },
+	{ "non_rev_rmcup",		"nrrmc",	"NR",	CAP_TYPE_BOOL,	&TIS.TI_nrrmc },
+	{ "no_pad_char",		"npc",		"NP",	CAP_TYPE_BOOL,	&TIS.TI_npc },
+	{ "non_dest_scroll_region",	"ndscr",	"ND",	CAP_TYPE_BOOL,	&TIS.TI_ndscr },
+	{ "can_change",			"ccc",		"cc",	CAP_TYPE_BOOL,	&TIS.TI_ccc },
+	{ "back_color_erase",		"bce",		"ut",	CAP_TYPE_BOOL,	&TIS.TI_bce },
+	{ "hue_lightness_saturation",	"hls",		"hl",	CAP_TYPE_BOOL,	&TIS.TI_hls },
+	{ "col_addr_glitch",		"xhpa",		"YA",	CAP_TYPE_BOOL,	&TIS.TI_xhpa },
+	{ "cr_cancels_micro_mode",	"crxm",		"YB",	CAP_TYPE_BOOL,	&TIS.TI_crxm },
+	{ "has_print_wheel",		"daisy",	"YC",	CAP_TYPE_BOOL,	&TIS.TI_daisy },
+	{ "row_addr_glitch",		"xvpa",		"YD",	CAP_TYPE_BOOL,	&TIS.TI_xvpa },
+	{ "semi_auto_right_margin",	"sam",		"YE",	CAP_TYPE_BOOL,	&TIS.TI_sam },
+	{ "cpi_changes_res",		"cpix",		"YF",	CAP_TYPE_BOOL,	&TIS.TI_cpix },
+	{ "lpi_changes_res",		"lpix",		"YG",	CAP_TYPE_BOOL,	&TIS.TI_lpix },
+	{ "columns",			"cols",		"co",	CAP_TYPE_INT,	&TIS.TI_cols },
+	{ "init_tabs",			"it",		"it",	CAP_TYPE_INT,	&TIS.TI_it },
+	{ "lines",			"lines",	"li",	CAP_TYPE_INT,	&TIS.TI_lines },
+	{ "lines_of_memory",		"lm",		"lm",	CAP_TYPE_INT,	&TIS.TI_lm },
+	{ "magic_cookie_glitch",	"xmc",		"sg",	CAP_TYPE_INT,	&TIS.TI_xmc },
+	{ "padding_baud_rate",		"pb",		"pb",	CAP_TYPE_INT,	&TIS.TI_pb },
+	{ "virtual_terminal",		"vt",		"vt",	CAP_TYPE_INT,	&TIS.TI_vt },
+	{ "width_status_line",		"wsl",		"ws",	CAP_TYPE_INT,	&TIS.TI_wsl },
+	{ "num_labels",			"nlab",		"Nl",	CAP_TYPE_INT,	&TIS.TI_nlab },
+	{ "label_height",		"lh",		"lh",	CAP_TYPE_INT,	&TIS.TI_lh },
+	{ "label_width",		"lw",		"lw",	CAP_TYPE_INT,	&TIS.TI_lw },
+	{ "max_attributes",		"ma",		"ma",	CAP_TYPE_INT,	&TIS.TI_ma },
+	{ "maximum_windows",		"wnum",		"MW",	CAP_TYPE_INT,	&TIS.TI_wnum },
+	{ "max_colors",			"colors",	"Co",	CAP_TYPE_INT,	&TIS.TI_colors },
+	{ "max_pairs",			"pairs",	"pa",	CAP_TYPE_INT,	&TIS.TI_pairs },
+	{ "no_color_video",		"ncv",		"NC",	CAP_TYPE_INT,	&TIS.TI_ncv },
+	{ "buffer_capacity",		"bufsz",	"Ya",	CAP_TYPE_INT,	&TIS.TI_bufsz },
+	{ "dot_vert_spacing",		"spinv",	"Yb",	CAP_TYPE_INT,	&TIS.TI_spinv },
+	{ "dot_horz_spacing",		"spinh",	"Yc",	CAP_TYPE_INT,	&TIS.TI_spinh },
+	{ "max_micro_address",		"maddr",	"Yd",	CAP_TYPE_INT,	&TIS.TI_maddr },
+	{ "max_micro_jump",		"mjump",	"Ye",	CAP_TYPE_INT,	&TIS.TI_mjump },
+	{ "micro_col_size",		"mcs",		"Yf",	CAP_TYPE_INT,	&TIS.TI_mcs },
+	{ "micro_line_size",		"mls",		"Yg",	CAP_TYPE_INT,	&TIS.TI_mls },
+	{ "number_of_pins",		"npins",	"Yh",	CAP_TYPE_INT,	&TIS.TI_npins },
+	{ "output_res_char",		"orc",		"Yi",	CAP_TYPE_INT,	&TIS.TI_orc },
+	{ "output_res_line",		"orl",		"Yj",	CAP_TYPE_INT,	&TIS.TI_orl },
+	{ "output_res_horz_inch",	"orhi",		"Yk",	CAP_TYPE_INT,	&TIS.TI_orhi },
+	{ "output_res_vert_inch",	"orvi",		"Yl",	CAP_TYPE_INT,	&TIS.TI_orvi },
+	{ "print_rate",			"cps",		"Ym",	CAP_TYPE_INT,	&TIS.TI_cps },
+	{ "wide_char_size",		"widcs",	"Yn",	CAP_TYPE_INT,	&TIS.TI_widcs },
+	{ "buttons",			"btns",		"BT",	CAP_TYPE_INT,	&TIS.TI_btns },
+	{ "bit_image_entwining",	"bitwin",	"Yo",	CAP_TYPE_INT,	&TIS.TI_bitwin },
+	{ "bit_image_type",		"bitype",	"Yp",	CAP_TYPE_INT,	&TIS.TI_bitype },
 	{ "back_tab",			"cbt",		"bt",	CAP_TYPE_STR,	&TIS.TI_cbt },
 	{ "bell",			"bel",		"bl",	CAP_TYPE_STR,	&TIS.TI_bel },
 	{ "carriage_return",		"cr",		"cr",	CAP_TYPE_STR,	&TIS.TI_cr },
@@ -584,23 +582,23 @@ cap2info tcaps[] =
 	{ "set_pglen_inch",		"slength",	"sL",	CAP_TYPE_STR,	&TIS.TI_slength },
 	{ "termcap_init2",		"OTi2",		"i2",	CAP_TYPE_STR,	&TIS.TI_OTi2 },
 	{ "termcap_reset",		"OTrs",		"rs",	CAP_TYPE_STR,	&TIS.TI_OTrs },
-	{ "magic_cookie_glitch_ul",	"OTug",		"ug",	CAP_TYPE_INT,	(char **)&TIS.TI_OTug },
-	{ "backspaces_with_bs",		"OTbs",		"bs",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTbs },
-	{ "crt_no_scrolling",		"OTns",		"ns",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTns },
-	{ "no_correctly_working_cr",	"OTnc",		"nc",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTnc },
-	{ "carriage_return_delay",	"OTdC",		"dC",	CAP_TYPE_INT,	(char **)&TIS.TI_OTdC },
-	{ "new_line_delay",		"OTdN",		"dN",	CAP_TYPE_INT,	(char **)&TIS.TI_OTdN },
+	{ "magic_cookie_glitch_ul",	"OTug",		"ug",	CAP_TYPE_INT,	&TIS.TI_OTug },
+	{ "backspaces_with_bs",		"OTbs",		"bs",	CAP_TYPE_BOOL,	&TIS.TI_OTbs },
+	{ "crt_no_scrolling",		"OTns",		"ns",	CAP_TYPE_BOOL,	&TIS.TI_OTns },
+	{ "no_correctly_working_cr",	"OTnc",		"nc",	CAP_TYPE_BOOL,	&TIS.TI_OTnc },
+	{ "carriage_return_delay",	"OTdC",		"dC",	CAP_TYPE_INT,	&TIS.TI_OTdC },
+	{ "new_line_delay",		"OTdN",		"dN",	CAP_TYPE_INT,	&TIS.TI_OTdN },
 	{ "linefeed_if_not_lf",		"OTnl",		"nl",	CAP_TYPE_STR,	&TIS.TI_OTnl },
 	{ "backspace_if_not_bs",	"OTbc",		"bc",	CAP_TYPE_STR,	&TIS.TI_OTbc },
-	{ "gnu_has_meta_key",		"OTMT",		"MT",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTMT },
-	{ "linefeed_is_newline",	"OTNL",		"NL",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTNL },
-	{ "backspace_delay",		"OTdB",		"dB",	CAP_TYPE_INT,	(char **)&TIS.TI_OTdB },
-	{ "horizontal_tab_delay",	"OTdT",		"dT",	CAP_TYPE_INT,	(char **)&TIS.TI_OTdT },
-	{ "number_of_function_keys",	"OTkn",		"kn",	CAP_TYPE_INT,	(char **)&TIS.TI_OTkn },
+	{ "gnu_has_meta_key",		"OTMT",		"MT",	CAP_TYPE_BOOL,	&TIS.TI_OTMT },
+	{ "linefeed_is_newline",	"OTNL",		"NL",	CAP_TYPE_BOOL,	&TIS.TI_OTNL },
+	{ "backspace_delay",		"OTdB",		"dB",	CAP_TYPE_INT,	&TIS.TI_OTdB },
+	{ "horizontal_tab_delay",	"OTdT",		"dT",	CAP_TYPE_INT,	&TIS.TI_OTdT },
+	{ "number_of_function_keys",	"OTkn",		"kn",	CAP_TYPE_INT,	&TIS.TI_OTkn },
 	{ "other_non_function_keys",	"OTko",		"ko",	CAP_TYPE_STR,	&TIS.TI_OTko },
 	{ "arrow_key_map",		"OTma",		"ma",	CAP_TYPE_STR,	&TIS.TI_OTma },
-	{ "has_hardware_tabs",		"OTpt",		"pt",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTpt },
-	{ "return_does_clr_eol",	"OTxr",		"xr",	CAP_TYPE_BOOL,	(char **)&TIS.TI_OTxr },
+	{ "has_hardware_tabs",		"OTpt",		"pt",	CAP_TYPE_BOOL,	&TIS.TI_OTpt },
+	{ "return_does_clr_eol",	"OTxr",		"xr",	CAP_TYPE_BOOL,	&TIS.TI_OTxr },
 	{ "acs_ulcorner",		"OTG2",		"G2",	CAP_TYPE_STR,	&TIS.TI_OTG2 },
 	{ "acs_llcorner",		"OTG3",		"G3",	CAP_TYPE_STR,	&TIS.TI_OTG3 },
 	{ "acs_urcorner",		"OTG1",		"G1",	CAP_TYPE_STR,	&TIS.TI_OTG1 },
@@ -617,15 +615,14 @@ cap2info tcaps[] =
 	{ "box_chars_1",		"box1",		"bx",	CAP_TYPE_STR,	&TIS.TI_box1 },
 };
 
+static const int numcaps = sizeof tcaps / sizeof tcaps[0];
+
 	struct	term_struct *current_term = &TIS;
-	int 	numcaps = sizeof(tcaps) / sizeof(cap2info);
 
 	int	meta_mode = 2;
 	int	can_color = 0;
 	int	need_redraw = 0;
 static	int	term_echo_flag = 1;
-static	int	li;
-static	int	co;
 
 #if !defined(__EMX__) && !defined(WINNT) && !defined(GUI)
 #ifndef HAVE_TERMINFO
@@ -636,7 +633,7 @@ static	char	termcap2[2048];	/* bigger than we need, just in case */
 
 /* 
  * Any GUI system modules must be included here to make the GUI support
- *  routines accessable to the rest of BitchX. 
+ *  routines accessible to the rest of BitchX. 
  */
 #ifndef WTERM_C
 #ifdef __EMXPM__
@@ -663,7 +660,7 @@ int	term_echo (int flag)
 
 /*
  * term_putchar: puts a character to the screen, and displays control
- * characters as inverse video uppercase letters.  NOTE:  Dont use this to
+ * characters as inverse video uppercase letters.  NOTE:  Don't use this to
  * display termcap control sequences!  It won't work! 
  *
  * Um... well, it will work if DISPLAY_ANSI_VAR is set to on... (hop)
@@ -710,11 +707,9 @@ void	term_putchar (unsigned char c)
  */
 void term_reset (void)
 {
-	tcsetattr(tty_des, TCSADRAIN, &oldb);
-
 	if (current_term->TI_csr)
-		tputs_x((char *)tparm(current_term->TI_csr, 0, current_term->TI_lines - 1));
-	term_gotoxy(0, current_term->TI_lines - 1);
+		tputs_x(tparm2(current_term->TI_csr, 0, current_term->li - 1));
+	term_gotoxy(0, current_term->li - 1);
 #if use_alt_screen
 	if (current_term->TI_rmcup)
 		tputs_x(current_term->TI_rmcup);
@@ -724,12 +719,13 @@ void term_reset (void)
 		tputs_x(current_term->TI_smam);
 #endif
 	term_flush();
+	tcsetattr(tty_des, TCSADRAIN, &oldb);
 }
 
 void term_reset2 (void)
 {
-	tcsetattr(tty_des, TCSADRAIN, &oldb);
 	term_flush();
+	tcsetattr(tty_des, TCSADRAIN, &oldb);
 }
 
 /*
@@ -805,9 +801,6 @@ PROCESS_INFORMATION pi = { 0 };
 #endif /* STERM_C */
 #endif /* NOT IN WTERM_C */
 
-
-
-
 /*
  * term_init: does all terminal initialization... reads termcap info, sets
  * the terminal to CBREAK, no ECHO mode.   Chooses the best of the terminal
@@ -820,9 +813,9 @@ int termfeatures = 0;
 int term_init (char *term)
 {
 #ifndef WTERM_C
-	int	i;
-	int	desired;
-
+	int i;
+	int desired;
+	char *termcap2_ptr = termcap2;
 
 #if !defined(__EMX__) && !defined(WINNT) && !defined(GUI)
 	memset(current_term, 0, sizeof(struct term_struct));
@@ -842,8 +835,7 @@ int term_init (char *term)
 		fprintf(stdout, "Using terminal type [%s]\n", term);
 #endif
 #ifdef HAVE_TERMINFO
-	setupterm(NULL, 1, &i);
-	if (i != 1)
+	if (setupterm(NULL, 1, &i) == ERR)
 	{
 		fprintf(stderr, "setupterm failed: %d\n", i);
 		fprintf(stderr, "So we'll be running in dumb mode...\n");
@@ -861,53 +853,30 @@ int term_init (char *term)
 
 	for (i = 0; i < numcaps; i++)
 	{
-		int ival;
-		char *cval;
-
 		if (tcaps[i].type == CAP_TYPE_INT)
 		{
-			ival = Tgetnum(tcaps[i]);
-			*(int *)tcaps[i].ptr = ival;
+			*(int *)tcaps[i].ptr = Tgetnum(tcaps[i]);
 		}
 		else if (tcaps[i].type == CAP_TYPE_BOOL)
 		{
-			ival = Tgetflag(tcaps[i]);
-			*(int *)tcaps[i].ptr = ival;
+			*(int *)tcaps[i].ptr = Tgetflag(tcaps[i]);
 		}
 		else
 		{
-			char *tmp = termcap2;
-
-			cval = Tgetstr(tcaps[i], tmp);
+			char *cval = Tgetstr(tcaps[i], termcap2_ptr);
 			if (cval == (char *) -1)
-				*(char **)tcaps[i].ptr = NULL;
-			else
-				*(char **)tcaps[i].ptr = cval;
+				cval = NULL;
+			*(char **)tcaps[i].ptr = cval;
 		}
 	}
 
-	BC = current_term->TI_cub1;
-	UP = current_term->TI_cuu1;
-	if (current_term->TI_pad)
-		my_PC = current_term->TI_pad[0];
-	else
-		my_PC = 0;
+	if (!current_term->TI_cols)
+		current_term->TI_cols = 79;
+	if (!current_term->TI_lines)
+		current_term->TI_lines = 24;
 
-	if (BC)
-		BClen = strlen(BC);
-	else
-		BClen = 0;
-	if (UP)
-		UPlen = strlen(UP);
-	else
-		UPlen = 0;
-
-	li = current_term->TI_lines;
-	co = current_term->TI_cols;
-	if (!co)
-		co = 79;
-	if (!li)
-		li = 24;
+	current_term->li = current_term->TI_lines;
+	current_term->co = current_term->TI_cols;
 
 	if (!current_term->TI_nel)
 		current_term->TI_nel = "\n";
@@ -931,7 +900,7 @@ int term_init (char *term)
 	}
 
 
-#else
+#else /* !defined(__EMX__) && !defined(WINNT) && !defined(GUI) */
 
 #if defined(WINNT) && !defined(GUI)
 	CONSOLE_SCREEN_BUFFER_INFO scrbuf;
@@ -959,13 +928,13 @@ int term_init (char *term)
 	GetConsoleCursorInfo(hinput, &gcursbuf);
 
 	GetConsoleScreenBufferInfo(ghstdout, &scrbuf);
-	li = scrbuf.srWindow.Bottom - scrbuf.srWindow.Top + 1;
-	co = scrbuf.srWindow.Right - scrbuf.srWindow.Left + 1;
+	current_term->TI_lines = scrbuf.srWindow.Bottom - scrbuf.srWindow.Top + 1;
+	current_term->TI_cols = scrbuf.srWindow.Right - scrbuf.srWindow.Left + 1;
 
 	memset(current_term, 0, sizeof(struct term_struct));
 
-	current_term->TI_lines = li;
-	current_term->TI_cols = co - 1;
+	current_term->li = current_term->TI_lines;
+	current_term->co = current_term->TI_cols - 1;
 #elif defined(GUI)
 
 	memset(current_term, 0, sizeof(struct term_struct));
@@ -980,8 +949,8 @@ int term_init (char *term)
 
 	current_term->TI_lines = vmode.row;
 	current_term->TI_cols = vmode.col;
-	li = current_term->TI_lines;
-	co = current_term->TI_cols;
+	current_term->li = current_term->TI_lines;
+	current_term->co = current_term->TI_cols;
 #endif
 
 	current_term->TI_cup = strdup("\e[%i%d;%dH");
@@ -1085,7 +1054,7 @@ int term_init (char *term)
 	 * we have many ways of doing the same thing.
 	 * To keep the set of tests easier, we set up a bitfield integer
 	 * which will have the desired capabilities added to it. If after
-	 * all the checks we dont have the desired mask, we dont have a
+	 * all the checks we don't have the desired mask, we don't have a
 	 * capable enough terminal.
 	 */
 	desired = TERM_CAN_CUP | TERM_CAN_CLEAR | TERM_CAN_CLREOL |
@@ -1186,9 +1155,9 @@ int term_init (char *term)
 		if (i >= 8)
 			strcpy(cbuf, current_term->TI_sgrstrs[TERM_SGR_BOLD_ON-1]);
 		if (current_term->TI_setaf) 
-			strcat(cbuf, (char *)tparm(current_term->TI_setaf, i & 0x07, 0));
+			strcat(cbuf, tparm2(current_term->TI_setaf, i & 0x07, 0));
 		else if (current_term->TI_setf)
-			strcat(cbuf, (char *)tparm(current_term->TI_setf, i & 0x07, 0));
+			strcat(cbuf, tparm2(current_term->TI_setf, i & 0x07, 0));
 		else if (i >= 8)
 			sprintf(cbuf, "\033[1;%dm", (i & 0x07) + 30);
 		else
@@ -1206,9 +1175,9 @@ int term_init (char *term)
 			strcpy(cbuf, current_term->TI_sgrstrs[TERM_SGR_BLINK_ON - 1]);
 
 		if (current_term->TI_setab)
-			strcat (cbuf, tparm(current_term->TI_setab, i & 0x07, 0));
+			strcat(cbuf, tparm2(current_term->TI_setab, i & 0x07, 0));
 		else if (current_term->TI_setb)
-			strcat (cbuf, tparm(current_term->TI_setb, i & 0x07, 0));
+			strcat(cbuf, tparm2(current_term->TI_setb, i & 0x07, 0));
 		else if (i >= 8)
 			sprintf(cbuf, "\033[1;%dm", (i & 0x07) + 40);
 		else
@@ -1278,14 +1247,16 @@ void tty_dup(int tty)
 	dup2(tty, tty_des);
 }
 
-void reset_lines(int lines)
+/* These force the default terminal size, and are used when reattached by scr-bx.
+   They are then used as the fallback by term_resize(). */
+void reset_lines(int nlines)
 {
-	li = lines;
+	current_term->TI_lines = nlines;
 }
 
 void reset_cols(int cols)
 {
-	co = cols;
+	current_term->TI_cols = cols;
 }
 
 /*
@@ -1305,40 +1276,40 @@ int term_resize (void)
 
 		if (ioctl(tty_des, TIOCGWINSZ, &window) < 0)
 		{
-			current_term->TI_lines = li;
-			current_term->TI_cols = co;
+			current_term->li = current_term->TI_lines;
+			current_term->co = current_term->TI_cols;
 		}
 		else
 		{
-			if ((current_term->TI_lines = window.ws_row) == 0)
-				current_term->TI_lines = li;
-			if ((current_term->TI_cols = (window.ws_col)) == 0)
-				current_term->TI_cols = co;
+			if ((current_term->li = window.ws_row) == 0)
+				current_term->li = current_term->TI_lines;
+			if ((current_term->co = window.ws_col) == 0)
+				current_term->co = current_term->TI_cols;
 		}
 	}
 #	else
 	{
-		current_term->TI_lines = li;
-		current_term->TI_cols = co;
+		current_term->li = current_term->TI_lines;
+		current_term->co = current_term->TI_cols;
 	}
 #	endif
 
 #if use_automargins
 	if (!current_term->TI_am || !current_term->TI_rmam)
 	{
-		current_term->TI_cols--;
+		current_term->co--;
 	}
 #else
-	current_term->TI_cols--;
+	current_term->co--;
 #endif
-	if ((old_li != current_term->TI_lines) || (old_co != current_term->TI_cols))
+	if ((old_li != current_term->li) || (old_co != current_term->co))
 	{
-		old_li = current_term->TI_lines;
-		old_co = current_term->TI_cols;
+		old_li = current_term->li;
+		old_co = current_term->co;
 		if (main_screen)
 		{
-			main_screen->li = current_term->TI_lines;
-			main_screen->co = current_term->TI_cols;
+			main_screen->li = current_term->li;
+			main_screen->co = current_term->co;
 		}
 		return (1);
 	}
@@ -1370,25 +1341,26 @@ void term_gotoxy (int col, int row)
 #else
 	
 	if (current_term->TI_cup)
-		tputs_x((char *)tparm(current_term->TI_cup, row, col));
+		tputs_x(tparm2(current_term->TI_cup, row, col));
 	else
 	{
-		tputs_x((char *)tparm(current_term->TI_hpa, col));
-		tputs_x((char *)tparm(current_term->TI_vpa, row));
+		tputs_x(tparm1(current_term->TI_hpa, col));
+		tputs_x(tparm1(current_term->TI_vpa, row));
 	}
 #endif
 }
 
 /* A no-brainer. Clear the screen. */
-void term_clrscr (void)
+void term_clear_screen(void)
 {
 #if defined(__EMX__) && !defined(__EMXX__) && !defined(GUI)
 	VioScrollUp(0, 0, -1, -1, -1, &default_pair, vio_screen);
 #elif defined(GUI)
 	gui_clrscr();
 #else
-
 	int i;
+	/* This is called from scr-bx with output_screen == NULL */
+	const long li = output_screen ? output_screen->li : current_term->li;
 
 	/* We have a specific cap for clearing the screen */
 	if (current_term->TI_clear)
@@ -1408,28 +1380,28 @@ void term_clrscr (void)
 	/* We can also clear by deleteing lines ... */
 	else if (current_term->TI_dl)
 	{
-		tputs_x((char *)tparm(current_term->TI_dl, current_term->TI_lines));
+		tputs_x(tparm1(current_term->TI_dl, li));
 		return;
 	}
 	/* ... in this case one line at a time */
 	else if (current_term->TI_dl1)
 	{
-		for (i = 0; i < current_term->TI_lines; i++)
-			tputs_x (current_term->TI_dl1);
+		for (i = 0; i < li; i++)
+			tputs_x(current_term->TI_dl1);
 		return;
 	}
 	/* As a last resort we can insert lines ... */
 	else if (current_term->TI_il)
 	{
-		tputs_x ((char *)tparm(current_term->TI_il, current_term->TI_lines));
+		tputs_x(tparm1(current_term->TI_il, li));
 		term_gotoxy (0, 0);
 		return;
 	}
 	/* ... one line at a time */
 	else if (current_term->TI_il1)
 	{
-		for (i = 0; i < current_term->TI_lines; i++)
-			tputs_x (current_term->TI_il1);
+		for (i = 0; i < li; i++)
+			tputs_x(current_term->TI_il1);
 		term_gotoxy (0, 0);
 	}
 #endif
@@ -1444,15 +1416,15 @@ void term_left (int num)
 	gui_left(num);
 #else
 	if (current_term->TI_cub)
-		tputs_x ((char *)tparm(current_term->TI_cub, num));
+		tputs_x(tparm1(current_term->TI_cub, num));
 	else if (current_term->TI_mrcup)
-		tputs_x ((char *)tparm(current_term->TI_mrcup, -num, 0));
+		tputs_x(tparm2(current_term->TI_mrcup, -num, 0));
 	else if (current_term->TI_cub1)
 		while (num--)
 			tputs_x(current_term->TI_cub1);
 	else if (current_term->TI_kbs)
 		while (num--)
-			tputs_x (current_term->TI_kbs);
+			tputs_x(current_term->TI_kbs);
 #endif
 }
 
@@ -1465,9 +1437,9 @@ void term_right (int num)
 	gui_right(num);
 #else
 	if (current_term->TI_cuf)
-		tputs_x ((char *)tparm(current_term->TI_cuf, num));
+		tputs_x(tparm1(current_term->TI_cuf, num));
 	else if (current_term->TI_mrcup)
-		tputs_x ((char *)tparm(current_term->TI_mrcup, num, 0));
+		tputs_x(tparm2(current_term->TI_mrcup, num, 0));
 	else if (current_term->TI_cuf1)
 		while (num--)
 			tputs_x(current_term->TI_cuf1);
@@ -1484,7 +1456,7 @@ void term_delete (int num)
 		tputs_x(current_term->TI_smdc);
 
 	if (current_term->TI_dch)
-		tputs_x ((char *)tparm (current_term->TI_dch, num));
+		tputs_x(tparm1(current_term->TI_dch, num));
 	else if (current_term->TI_dch1)
 		while (num--)
 			tputs_x (current_term->TI_dch1);
@@ -1503,7 +1475,7 @@ void term_insert (unsigned char c)
 	else if (current_term->TI_ich1)
 		tputs_x (current_term->TI_ich1);
 	else if (current_term->TI_ich)
-		tputs_x ((char *)tparm(current_term->TI_ich, 1));
+		tputs_x(tparm1(current_term->TI_ich, 1));
 
 	term_putchar (c);
 
@@ -1518,7 +1490,7 @@ void term_insert (unsigned char c)
 void term_repeat (unsigned char c, int rep)
 {
 	if (current_term->TI_rep)
-		tputs_x((char *)tparm (current_term->TI_rep, (int)c, rep));
+		tputs_x(tparm2(current_term->TI_rep, (int)c, rep));
 	else
 		while (rep--)
 			putchar_x (c);
@@ -1538,8 +1510,8 @@ void term_scroll (int top, int bot, int n)
       char thing[128], final[128], start[128];
 #ifdef __EMX__
       pair[0] = ' '; pair[1] = 7;
-      if (n > 0) VioScrollUp(top, 0, bot, current_term->TI_cols, n, (PBYTE)&pair, (HVIO) vio_screen);
-      else if (n < 0) { n = -n; VioScrollDn(top, 0, bot, current_term->TI_cols, n, (PBYTE)&pair, (HVIO) vio_screen); }
+      if (n > 0) VioScrollUp(top, 0, bot, output_screen->co, n, (PBYTE)&pair, (HVIO) vio_screen);
+      else if (n < 0) { n = -n; VioScrollDn(top, 0, bot, output_screen->co, n, (PBYTE)&pair, (HVIO) vio_screen); }
 #ifndef __EMXX__
       return;
 #endif
@@ -1593,8 +1565,8 @@ void term_scroll (int top, int bot, int n)
 		 * region was the full screen.  That test *always* fails,
 		 * because we never scroll the bottom line of the screen.
 		 */
-		strcpy(start, (char *)tparm(current_term->TI_csr, top, bot));
-		strcpy(final, (char *)tparm(current_term->TI_csr, 0, current_term->TI_lines-1));
+		strcpy(start, tparm2(current_term->TI_csr, top, bot));
+		strcpy(final, tparm2(current_term->TI_csr, 0, output_screen->li-1));
 
 		if (n > 0)
 		{
@@ -1603,7 +1575,7 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_indn)
 			{
 				oneshot = 1;
-				strcpy(thing, (char *)tparm(current_term->TI_indn, rn, rn));
+				strcpy(thing, tparm2(current_term->TI_indn, rn, rn));
 			}
 			else
 				strcpy(thing, current_term->TI_ind);
@@ -1615,17 +1587,17 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_rin)
 			{
 				oneshot = 1;
-				strcpy (thing, (char *)tparm(current_term->TI_rin, rn, rn));
+				strcpy(thing, tparm2(current_term->TI_rin, rn, rn));
 			}
 			else
-				strcpy (thing, current_term->TI_ri);
+				strcpy(thing, current_term->TI_ri);
 		}
 	}
 
 	else if (current_term->TI_wind && (current_term->TI_ri || current_term->TI_rin) && (current_term->TI_ind || current_term->TI_indn))
 	{
-		strcpy(start, (char *)tparm(current_term->TI_wind, top, bot, 0, current_term->TI_cols-1));
-		strcpy(final, (char *)tparm(current_term->TI_wind, 0, current_term->TI_lines-1, 0, current_term->TI_cols-1));
+		strcpy(start, tparm4(current_term->TI_wind, top, bot, 0, output_screen->co-1));
+		strcpy(final, tparm4(current_term->TI_wind, 0, output_screen->li-1, 0, output_screen->co-1));
 
 		if (n > 0)
 		{
@@ -1634,10 +1606,10 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_indn)
 			{
 				oneshot = 1;
-				strcpy (thing, (char *)tparm(current_term->TI_indn, rn, rn));
+				strcpy(thing, tparm2(current_term->TI_indn, rn, rn));
 			}
 			else
-				strcpy (thing, current_term->TI_ind);
+				strcpy(thing, current_term->TI_ind);
 		}
 		else
 		{
@@ -1646,7 +1618,7 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_rin)
 			{
 				oneshot = 1;
-				strcpy (thing,(char *)tparm(current_term->TI_rin, rn, rn));
+				strcpy(thing, tparm2(current_term->TI_rin, rn, rn));
 			}
 			else
 				strcpy (thing, current_term->TI_ri);
@@ -1663,7 +1635,7 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_dl)
 			{
 				oneshot = 1;
-				strcpy (thing, (char *)tparm(current_term->TI_dl, rn, rn));
+				strcpy(thing, tparm2(current_term->TI_dl, rn, rn));
 			}
 			else
 				strcpy (thing, current_term->TI_dl1);
@@ -1671,7 +1643,7 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_il)
 			{
 				oneshot = 1;
-				strcpy(final, (char *)tparm(current_term->TI_il, rn, rn));
+				strcpy(final, tparm2(current_term->TI_il, rn, rn));
 			}
 			else
 				strcpy(final, current_term->TI_il1);
@@ -1683,7 +1655,7 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_il)
 			{
 				oneshot = 1;
-				strcpy (thing, (char *)tparm(current_term->TI_il, rn, rn));
+				strcpy(thing, tparm2(current_term->TI_il, rn, rn));
 			}
 			else
 				strcpy (thing, current_term->TI_il1);
@@ -1691,7 +1663,7 @@ void term_scroll (int top, int bot, int n)
 			if (current_term->TI_dl)
 			{
 				oneshot = 1;
-				strcpy(final, (char *)tparm(current_term->TI_dl, rn, rn));
+				strcpy(final, tparm2(current_term->TI_dl, rn, rn));
 			}
 			else
 				strcpy(final, current_term->TI_dl1);
@@ -1783,7 +1755,7 @@ char *term_getsgr (int opt, int fore, int back)
 			break;
 		case TERM_SGR_GCHAR:
 			if (current_term->TI_dispc)
-				ret = (char *)tparm(current_term->TI_dispc, fore);
+				ret = tparm1(current_term->TI_dispc, fore);
 			break;
 		default:
 			ircpanic ("Unknown option '%d' to term_getsgr", opt);
@@ -1849,18 +1821,23 @@ void	set_meta_8bit (Window *w, char *u, int value)
 		meta_mode = (current_term->TI_km == 0 ? 0 : 1);
 }
 
-char *	control_mangle (unsigned char *text)
+/* control_mangle()
+ *
+ * Convert control characters in a string into printable sequences. */
+static char *control_mangle(char *text)
 {
-static 	u_char	retval[256];
-	int 	pos = 0;
+	static char retval[256];
+	int pos;
 	
-	*retval = 0;
 	if (!text)
-		return retval;
-		
-	for (; *text && (pos < 254); text++, pos++)
 	{
-		if (*text < 32) 
+		*retval = 0;
+		return retval;
+	}
+		
+	for (pos = 0; *text && (pos < 254); text++, pos++)
+	{
+		if (*text >= 0 && *text < 32) 
 		{
 			retval[pos++] = '^';
 			retval[pos] = *text + 64;
@@ -1878,12 +1855,16 @@ static 	u_char	retval[256];
 	return retval;
 }
 
-char *	get_term_capability (char *name, int querytype, int mangle)
+/* get_term_capability()
+ *
+ * Returns a named terminal capability of the current terminal as a string.
+ */
+char *get_term_capability(char *name, int querytype, int mangle)
 {
-static	char		retval[128];
-	const char *	compare = empty_string;
-	int 		x;
-	cap2info *	t;
+	static char retval[256];
+	const char *compare = empty_string;
+	int x;
+	const cap2info *t;
 
 	for (x = 0; x < numcaps; x++)
 	{
@@ -1897,23 +1878,26 @@ static	char		retval[128];
 
 		if (!strcmp(name, compare))
 		{
+			char *control_str;
+			if (!t->ptr)
+				return NULL;
 
 			switch (t->type)
 			{
 			case CAP_TYPE_BOOL:
 			case CAP_TYPE_INT:
-			if (!(int *)t->ptr)
-				return NULL;
-			strcpy(retval, ltoa(* (int *)(t->ptr)));
-			return retval;
+				strlcpy(retval, ltoa(*(int *)(t->ptr)), sizeof retval);
+				return retval;
+
 			case CAP_TYPE_STR:
-			if (!(char **)t->ptr || !*(char **)t->ptr)
-				return NULL;
-			strcpy(retval, mangle ? 
-					control_mangle(*(char **)t->ptr) :
-					(*(char **)t->ptr));
-			return retval;
-		}
+				control_str = *(char **)t->ptr;
+				if (!control_str)
+					return NULL;
+				strlcpy(retval, 
+					mangle ? control_mangle(control_str) : control_str, 
+					sizeof retval);
+				return retval;
+			}
 		}
 	}
 	return NULL;

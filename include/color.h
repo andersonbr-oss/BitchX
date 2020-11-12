@@ -1,6 +1,5 @@
-
-#ifndef _INC_COLOR
-#define _INC_COLOR
+#ifndef COLOR_H_
+#define COLOR_H_
 
 /*
  * DEFAULT_DOUBLE STATUS  can be defined as 0 or 1
@@ -34,13 +33,13 @@
 #define DEFAULT_FORMAT_ACTION_USER_FSET "%@%K* %c$3%K>%W$1 %n$4-"
 #define DEFAULT_FORMAT_ACTION_USER_AR_FSET "%@%K* %c$3%K>%Y$1 %n$4-"
 #else /* ONLY_STD_CHARS */
-#define DEFAULT_FORMAT_ACTION_FSET ansi?"%@%KÃ° %W$1 %n$4-":"%@Ã° $1 $4-"
-#define DEFAULT_FORMAT_ACTION_AR_FSET ansi?"%@%KÃ° %Y$1 %n$4-":"%@Ã° $1 $4-"
-#define DEFAULT_FORMAT_ACTION_CHANNEL_FSET ansi?"%@%KÃ° %W$1 %n$4-":"%@Ã° $1 $4-"
-#define DEFAULT_FORMAT_ACTION_OTHER_FSET ansi?"%@%KÃ° %c$3%K>%W$1 %n$4-":"%@Ã° $3>$1 $4-"
-#define DEFAULT_FORMAT_ACTION_OTHER_AR_FSET ansi?"%@%KÃ° %c$3%K>%Y$1 %n$4-":"%@Ã° $3>$1 $4-"
-#define DEFAULT_FORMAT_ACTION_USER_FSET ansi?"%@%KÃ° %c$3%K>%W$1 %n$4-":"%@Ã° $3>$1 $4-"
-#define DEFAULT_FORMAT_ACTION_USER_AR_FSET ansi?"%@%KÃ° %c$3%K>%Y$1 %n$4-":"%@Ã° $3>$1 $4-"
+#define DEFAULT_FORMAT_ACTION_FSET ansi?"%@%Kð %W$1 %n$4-":"%@ð $1 $4-"
+#define DEFAULT_FORMAT_ACTION_AR_FSET ansi?"%@%Kð %Y$1 %n$4-":"%@ð $1 $4-"
+#define DEFAULT_FORMAT_ACTION_CHANNEL_FSET ansi?"%@%Kð %W$1 %n$4-":"%@ð $1 $4-"
+#define DEFAULT_FORMAT_ACTION_OTHER_FSET ansi?"%@%Kð %c$3%K>%W$1 %n$4-":"%@ð $3>$1 $4-"
+#define DEFAULT_FORMAT_ACTION_OTHER_AR_FSET ansi?"%@%Kð %c$3%K>%Y$1 %n$4-":"%@ð $3>$1 $4-"
+#define DEFAULT_FORMAT_ACTION_USER_FSET ansi?"%@%Kð %c$3%K>%W$1 %n$4-":"%@ð $3>$1 $4-"
+#define DEFAULT_FORMAT_ACTION_USER_AR_FSET ansi?"%@%Kð %c$3%K>%Y$1 %n$4-":"%@ð $3>$1 $4-"
 #endif /* ONLY_STD_CHARS */
 
 /* Done ALIAS, ASSIGN */
@@ -97,6 +96,8 @@
 #define DEFAULT_FORMAT_DISCONNECT_FSET "$G Use %G/Server%n to connect to a server"
 #define DEFAULT_FORMAT_ENCRYPTED_NOTICE_FSET "%K-%Y$1%K(%p$2%K)-%n $3-"
 #define DEFAULT_FORMAT_ENCRYPTED_PRIVMSG_FSET "%K[%Y$1%K(%p$2%K)]%n $3-"
+#define DEFAULT_FORMAT_ENCRYPTED_PUBLIC_FSET "%Y<%n$1%K/%n$3%Y>%n $4-"
+#define DEFAULT_FORMAT_ENCRYPTED_PUBLIC_NOTICE_FSET "%Y-%n$1%K/%n$3%Y-%n $4-"
 #define DEFAULT_FORMAT_FLOOD_FSET "%Y$1%n flood detected from %G$2%K(%g$3%K)%n on %K[%G$4%K]"
 #define DEFAULT_FORMAT_FRIEND_JOIN_FSET "$G %R$1 %K[%c$2%K]%n has joined $3"
 #define DEFAULT_FORMAT_HELP_FSET "$0-"
@@ -131,7 +132,7 @@
 #define DEFAULT_FORMAT_MSG_FSET "%K[%P$1%K(%p$2%K)]%n $3-"
 #define DEFAULT_FORMAT_MSG_AR_FSET "%K[%Y$1%K(%Y$2%K)]%n $3-"
 
-#define DEFAULT_FORMAT_OPER_FSET "%C$1 %K[%c$2%K]%n )s now %Wan%w %GIRC%n whore"
+#define DEFAULT_FORMAT_OPER_FSET "%C$1 %K[%c$2%K]%n is now %Wan%w %GIRC%n whore"
 
 #define DEFAULT_FORMAT_IGNORE_INVITE_FSET "%K>%n>%W> You have been invited to $1-"
 #define DEFAULT_FORMAT_IGNORE_MSG_FSET "%K[%P$1%P$2%K(%p$3%K)]%n $4-"
@@ -139,8 +140,8 @@
 #define DEFAULT_FORMAT_IGNORE_NOTICE_FSET "%K-%P$2%K(%p$3%K)-%n $4-"
 #define DEFAULT_FORMAT_IGNORE_WALL_FSET "%K%P$1%n $2-"
 /* Done MSG */
-#define DEFAULT_FORMAT_MSG_GROUP_FSET "%K-%P$1%K:%p$3%K-%n $4-"
-#define DEFAULT_FORMAT_MSG_GROUP_AR_FSET "%K-%Y$1%K:%Y$3%K-%n $4-"
+#define DEFAULT_FORMAT_MSG_GROUP_FSET "%K-%P$1%K:%p$2%K-%n $3-"
+#define DEFAULT_FORMAT_NOTICE_GROUP_FSET "%K=%P$1%K:%p$2%K=%n $3-"
 
 /* Done NAMES */
 #define DEFAULT_FORMAT_NAMES_BANNER_FSET "$G "
@@ -205,8 +206,8 @@
 #define DEFAULT_FORMAT_PUBLIC_OTHER_AR_FSET "%b<%Y$1%K:%Y$2%b>%n $3-"
 
 /* Done SEND */
-#define DEFAULT_FORMAT_SEND_ACTION_FSET "%KÃ° %W$1 %n$3-"
-#define DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET "%KÃ° %n-> %c$2%K>%W$1 %n$3-"
+#define DEFAULT_FORMAT_SEND_ACTION_FSET "%Kð %W$1 %n$3-"
+#define DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET "%Kð %n-> %c$2%K>%W$1 %n$3-"
 #define DEFAULT_FORMAT_SEND_DCC_CHAT_FSET "%K[%rdcc%K(%R$1%K)] %n$2-"
 #define DEFAULT_FORMAT_SEND_MSG_FSET "%K[%rmsg%K(%R$1%K)] %n$3-"
 #define DEFAULT_FORMAT_SEND_NOTICE_FSET "%K[%rnotice%K(%R$1%K)] %n$3-"
@@ -216,8 +217,9 @@
 #define DEFAULT_FORMAT_SEND_AWAY_FSET "[Away ($strftime($1 %a %b %d %I:%M%p %Z))] [$tdiff2(${time() - u})] [BX-MsgLog $2]"
 #define DEFAULT_FORMAT_SEND_CTCP_FSET "%K[%rctcp%K(%R$1%K)] %n$2"
 #define DEFAULT_FORMAT_SEND_RCTCP_FSET "%K[%rrctcp%K(%R$1%K)] %n$2-"
-#define DEFAULT_FORMAT_SEND_ENCRYPTED_NOTICE_FSET "%K-%Y$1%K(%p$2%K)-%n $2-"
-#define DEFAULT_FORMAT_SEND_ENCRYPTED_MSG_FSET "%K[%Y$1%K(%p$2%K)]%n $2-"
+#define DEFAULT_FORMAT_SEND_ENCRYPTED_MSG_FSET "%K[%ymsg%K(%Y$1%K)] %n$3-"
+#define DEFAULT_FORMAT_SEND_ENCRYPTED_NOTICE_FSET "%K[%ynotice%K(%Y$1%K)] %n$3-"
+#define DEFAULT_FORMAT_SEND_ENCRYPTED_PUBLIC_FSET "%y<%n$2%K:%n$1%y>%n $3-"
 
 
 #define DEFAULT_FORMAT_SERVER_FSET "$G%n $1: $2-"
@@ -227,20 +229,19 @@
 #define DEFAULT_FORMAT_SERVER_MSG2_FROM_FSET "$G%n $1-"
 
 #define DEFAULT_FORMAT_SERVER_NOTICE_FSET "%K[%c***%K] %n$2-"
-/*#define DEFAULT_FORMAT_SERVER_NOTICE_FSET "$2-"*/
 #define DEFAULT_FORMAT_SERVER_NOTICE_BOT_FSET "Possible bot: %C$1 %K[%c$2-%K]%n"
 #define DEFAULT_FORMAT_SERVER_NOTICE_BOT1_FSET "Possible $1 bot: %C$2 %K[%c$3-%K]%n"
 #define DEFAULT_FORMAT_SERVER_NOTICE_BOT_ALARM_FSET "$1 alarm activated: %C$2 %K[%c$3-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_CONNECT_FSET "Client Connecting: %C$1 %K[%c$2%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_EXIT_FSET "Client Exiting: %C$1 %K[%c$2-%K] %K[%c$3-%K]"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_INVALID_FSET "Invalid username: %C$1%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_CONNECT_FSET "Client Connecting: %C$1 %K[%c$2%K]%n $3-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_EXIT_FSET "Client Exiting: %C$1 %K[%c$2%K]%n $3-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_INVALID_FSET "Invalid username: %C$1 %K[%c$2-%K]%n"
 #define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_TERM_FSET "Terminating client for excess flood %C$1%K [%c$2-%K]%n"
 #define DEFAULT_FORMAT_SERVER_NOTICE_FAKE_FSET "Fake Mode detected on $1 -> $2-"
 #define DEFAULT_FORMAT_SERVER_NOTICE_KILL_FSET "Foreign OperKill: %W$1%n killed %c$2%n %K(%n$3-%K)%n"
 #define DEFAULT_FORMAT_SERVER_NOTICE_KILL_LOCAL_FSET "Local OperKill: %W$1%n killed %c$2%n %K(%n$3-%K)%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_KLINE_FSET "%W$1%n added a new K-Line %K[%c$2%K]%n for $3-"
-#define DEFAULT_FORMAT_SERVER_NOTICE_GLINE_FSET "%W$1%n added a new K-Line %K[%c$2%K]%n from $3 for $4-"
-#define DEFAULT_FORMAT_SERVER_NOTICE_NICK_COLLISION_FSET "Nick collision %W$1%n killed %c$2%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_KLINE_FSET "%W$1%n added a new $3 %K[%c$2%K]%n for %K[%R$4-%K]"
+#define DEFAULT_FORMAT_SERVER_NOTICE_GLINE_FSET "%W$1%n added a new $4 %K[%c$2%K]%n from %W$3%n for %K[%R$4-%K]"
+#define DEFAULT_FORMAT_SERVER_NOTICE_NICK_COLLISION_FSET "Nick collision %W$1%n killed %c$2-%n"
 #define DEFAULT_FORMAT_SERVER_NOTICE_OPER_FSET "%C$1 %K[%c$2%K]%n is now %Wan%w %GIRC%n whore"
 #define DEFAULT_FORMAT_SERVER_NOTICE_REHASH_FSET "%W$1%n is rehashing the Server config file"
 #define DEFAULT_FORMAT_SERVER_NOTICE_STATS_FSET "Stats $1: %C$2 %K[%c$3-%K]%n"
@@ -298,30 +299,31 @@
 #define DEFAULT_FORMAT_WHO_FSET "$[7]0 %W$[9]1%w $[3]2 $3@$4 ($6-)"
 
 /* Done WHOIS WHOLEFT WHOWAS */
-#define DEFAULT_FORMAT_WHOIS_AWAY_FSET "%KÂ³ %Wa%nway     %K:%n $1-"
-#define DEFAULT_FORMAT_WHOIS_BOT_FSET "%gÂ³ %Wb%not      %K:%n A:$0 P:$1 [$2] $3-"
-#define DEFAULT_FORMAT_WHOIS_CHANNELS_FSET "%gÂ³ %Wc%nhannels %K:%n $0-"
-#define DEFAULT_FORMAT_WHOIS_FRIEND_FSET "%gÂ³ %Wf%nriend   %K:%n L:$0 A:$1 P:$2 $3-"
-#define DEFAULT_FORMAT_WHOIS_HEADER_FSET "%GÃšÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%gÃ„%GÃ„Ã„%gÃ„Ã„%GÃ„%gÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%KÃ„%gÃ„Ã„%KÃ„Ã„%gÃ„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„-Ã„ Ã„Ã„  Ã„   -"
+#define DEFAULT_FORMAT_WHOIS_AWAY_FSET "%K³ %Wa%nway     %K:%n $1-"
+#define DEFAULT_FORMAT_WHOIS_BOT_FSET "%g³ %Wb%not      %K:%n F:$0 $1-"
+#define DEFAULT_FORMAT_WHOIS_CHANNELS_FSET "%g³ %Wc%nhannels %K:%n $0-"
+#define DEFAULT_FORMAT_WHOIS_FRIEND_FSET "%g³ %Wf%nriend   %K:%n F:$0 $1-"
+#define DEFAULT_FORMAT_WHOIS_HEADER_FSET "%GÚÄÄÄÄÄÄÄÄ%gÄ%GÄÄ%gÄÄ%GÄ%gÄÄÄÄÄÄÄÄÄ%KÄ%gÄÄ%KÄÄ%gÄ%KÄÄÄÄÄÄÄÄÄÄ-Ä ÄÄ  Ä   -"
 #define DEFAULT_FORMAT_WHOIS_IDLE_FSET "%K. %Wi%ndle     %K:%n $0 hours $1 mins $2 secs (signon: $stime($3))"
-#define DEFAULT_FORMAT_WHOIS_SHIT_FSET "%gÂ³ %Ws%nhit     %K:%n L:$0 [$1] $2 $3-"
+#define DEFAULT_FORMAT_WHOIS_SHIT_FSET "%g³ %Ws%nhit     %K:%n L:$0 [$1] $2 $3-"
 #define DEFAULT_FORMAT_WHOIS_SIGNON_FSET "%K: %Ws%nignon   %K:%n $0-"
 #define DEFAULT_FORMAT_WHOIS_ACTUALLY_FSET "%K| %Wa%nctually %K:%n $0-"
 #define DEFAULT_FORMAT_WHOIS_CALLERID_FSET "%K! %Wc%nallerid %K:%n $0-"
 #define DEFAULT_FORMAT_WHOIS_SECURE_FSET "%K! %Ws%necure   %K:%n $0-"
-#define DEFAULT_FORMAT_WHOIS_NAME_FSET "%GÂ³ %Wi%nrcname  %K:%n $0-"
-#define DEFAULT_FORMAT_WHOIS_NICK_FSET "%GÂ³ %W$0 %K(%n$1@$2%K) (%n$3-%K)"
+#define DEFAULT_FORMAT_WHOIS_NAME_FSET "%G³ %Wi%nrcname  %K:%n $0-"
+#define DEFAULT_FORMAT_WHOIS_NICK_FSET "%G³ %W$0 %K(%n$1@$2%K) (%n$3-%K)"
 #define DEFAULT_FORMAT_WHOIS_OPER_FSET "%K| %Wo%nperator %K:%n $0 $1-"
-#define DEFAULT_FORMAT_WHOIS_SERVER_FSET "%KÂ³ %Ws%nerver   %K:%n $0 ($1-)"
-#define DEFAULT_FORMAT_WHOLEFT_HEADER_FSET "%PÃšÃ„Ã„Ã„Ã„Ã„ %WWho %PÃ„Ã„Ã„Ã„Ã„%pÃ„Ã„Ã„%PÃ„Ã„Ã„%pÃ„Ã„%PÃ„Ã„Ã„Ã„Ã„%pÃ„Ã„%PÃ„Ã„ %WChannel%p Ã„%KÃ„ %WServer %KÃ„%pÃ„Ã„Ã„Ã„%KÃ„Ã„%pÃ„Ã„%KÃ„Ã„-- %WSeconds"
-#define DEFAULT_FORMAT_WHOLEFT_USER_FSET "%PÂ³%n $[-10]0!$[20]1 $[10]2 $[20]4 $3"
-#define DEFAULT_FORMAT_WHOLEFT_FOOTER_FSET "%PÃ€Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„%pÃ„Ã„%PÃ„Ã„Ã„%pÃ„Ã„Ã„%PÃ„Ã„%pÃ„%PÃ„%pÃ„Ã„Ã„Ã„Ã„%KÃ„%pÃ„Ã„Ã„%KÃ„Ã„Ã„%pÃ„Ã„%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„-- --  -"
-#define DEFAULT_FORMAT_WHOWAS_NICK_FSET "%GÂ³ %W$0%n was %K(%n$1@$2%K)"
+#define DEFAULT_FORMAT_WHOIS_SERVER_FSET "%K³ %Ws%nerver   %K:%n $0 ($1-)"
+#define DEFAULT_FORMAT_WHOLEFT_HEADER_FSET "%PÚÄÄÄÄÄ %WWho %PÄÄÄÄÄ%pÄÄÄ%PÄÄÄ%pÄÄ%PÄÄÄÄÄ%pÄÄ%PÄÄ %WChannel%p Ä%KÄ %WServer %KÄ%pÄÄÄÄ%KÄÄ%pÄÄ%KÄÄ-- %WSeconds"
+#define DEFAULT_FORMAT_WHOLEFT_USER_FSET "%P³%n $[-10]0!$[20]1 $[10]2 $[20]4 $3"
+#define DEFAULT_FORMAT_WHOLEFT_FOOTER_FSET "%PÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ%pÄÄ%PÄÄÄ%pÄÄÄ%PÄÄ%pÄ%PÄ%pÄÄÄÄÄ%KÄ%pÄÄÄ%KÄÄÄ%pÄÄ%KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ-- --  -"
+#define DEFAULT_FORMAT_WHOWAS_NICK_FSET "%G³ %W$0%n was %K(%n$1@$2%K)"
 /* Not convered in hades*/
 #define DEFAULT_FORMAT_WHOIS_ADMIN_FSET   "%K| %Wa%ndmin    : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_SERVICE_FSET "%K| %Ws%nervice  : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_HELP_FSET    "%K| %Wh%nelp     : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_REGISTER_FSET "%K| %Wr%negister : $0 - $1-"
+#define DEFAULT_FORMAT_WHOIS_LOGGEDIN_FSET "%K: %Wl%noggedin : $0 $2- %W$1%n"
 
 #define DEFAULT_FORMAT_WIDELIST_FSET "$1-"
 #define DEFAULT_FORMAT_WINDOW_SET_FSET "$0-"
@@ -353,9 +355,9 @@
 
 /* Color.h by Humble - Lets try the hades look =) */
 
-#define DEFAULT_STATUS_FORMAT "[1;30;40mÃš[0;37m%T %*[1;36m%N[0;37m%# %@%C%+ %A%W%H%B%M%Q %>%D %L [1;30m]"
-#define DEFAULT_STATUS_FORMAT1 "[1;30;40mÃšÃ„ [1;37mU[0;37mser[1;30m: %*[1;36m%N[0;37m%#%A %^%H%B %>%D %S [1;30mÃ„Â¿"
-#define DEFAULT_STATUS_FORMAT2 "[1;30;40mÂ³  [1;37mC[0;37mhannel[1;30m:[0;37m %@%C%+%W %M%Q %>%T %L [1;30mÃ„Ã™"
+#define DEFAULT_STATUS_FORMAT "[1;30;40mÚ[0;37m%T %*[1;36m%N[0;37m%# %@%C%+ %A%W%H%B%M%Q %>%D %L [1;30m]"
+#define DEFAULT_STATUS_FORMAT1 "[1;30;40mÚÄ [1;37mU[0;37mser[1;30m: %*[1;36m%N[0;37m%#%A %^%H%B %>%D %S [1;30mÄ¿"
+#define DEFAULT_STATUS_FORMAT2 "[1;30;40m³  [1;37mC[0;37mhannel[1;30m:[0;37m %@%C%+%W %M%Q %>%T %L [1;30mÄÙ"
 
 #define DEFAULT_STATUS_AWAY "[1;30;40m([1;37mA[1;30m)[0;37m"
 #define DEFAULT_STATUS_CHANNEL "[1;36m%C[0;37m"
@@ -374,7 +376,7 @@
 #define DEFAULT_STATUS_SERVER "[1;37mS[0;37merver[1;30m: [1;36m%S[0;37m"
 #define DEFAULT_STATUS_UMODE "[1;30;40m([1;37m+%#[1;30m)[0;37m"
 #define DEFAULT_STATUS_OPER_KILLS "[1;30;40m[[1;37mnk [1;36m%d[1;30m:[1;37mok [1;36m%d[1;30m][0;37m"
-#define DEFAULT_STATUS_WINDOW "[1;30;40m[[1;37mÃ¾[1;30m][0;37m"
+#define DEFAULT_STATUS_WINDOW "[1;30;40m[[1;37mþ[1;30m][0;37m"
 
 #define DEFAULT_STATUS_FORMAT3 "BitchX by panasync, Hades formats by Humble"
 #define DEFAULT_STATUS_INSERT ""
@@ -432,10 +434,10 @@
 
 #define DEFAULT_FORMAT_LASTLOG_FSET "$strftime($0 %H:%M) $1-"
 
-#define DEFAULT_INPUT_PROMPT "[1;30;40mÃ€-[[1;37mb[0;37mitch[0;36mx[1;30m]Ã„>[0;37m "
+#define DEFAULT_INPUT_PROMPT "[1;30;40mÀ-[[1;37mb[0;37mitch[0;36mx[1;30m]Ä>[0;37m "
 
 #ifndef ONLY_STD_CHARS
-#define DEFAULT_SHOW_NUMERICS_STR "[1;30mÃ¹[0m[1;36mÃ­[1;30mÃ¹[0m"
+#define DEFAULT_SHOW_NUMERICS_STR "[1;30mù[0m[1;36mí[1;30mù[0m"
 #else
 #ifndef LATIN1
 #define DEFAULT_SHOW_NUMERICS_STR "***"
@@ -445,7 +447,7 @@
 #endif
 
 
-#define DEFAULT_SERVER_PROMPT "%K[%c$0%K] "
+#define DEFAULT_SERVER_PROMPT "%K[%c$0%K]"
 
 #define DEFAULT_FORMAT_WATCH_SIGNOFF_FSET "$G $0!$1@$2 has signed off"
 #define DEFAULT_FORMAT_WATCH_SIGNON_FSET "$G $0!$1@$2 has signed on $3"
@@ -472,9 +474,9 @@
 #define DEFAULT_FORMAT_ACTION_USER_FSET ansi?"%@%K* %n>%c$1 %n$3-":"* >$1 $3-"
 #define DEFAULT_FORMAT_ACTION_USER_AR_FSET ansi?"%@%K* %Y>%c$1 %n$3-":"* >$1 $3-"
 #else
-#define DEFAULT_FORMAT_ACTION_FSET ansi?"%@%KÃ° %W$1 %n$4-":"%@Ã° $1 $4-"
-#define DEFAULT_FORMAT_ACTION_AR_FSET ansi?"%@%KÃ° %Y$1 %n$4-":"%@Ã° $1 $4-"
-#define DEFAULT_FORMAT_ACTION_CHANNEL_FSET ansi?"%@%KÃ° %Y$1/$3 %n$4-":"%@Ã° $1/$3 $4-"
+#define DEFAULT_FORMAT_ACTION_FSET ansi?"%@%Kð %W$1 %n$4-":"%@ð $1 $4-"
+#define DEFAULT_FORMAT_ACTION_AR_FSET ansi?"%@%Kð %Y$1 %n$4-":"%@ð $1 $4-"
+#define DEFAULT_FORMAT_ACTION_CHANNEL_FSET ansi?"%@%Kð %Y$1/$3 %n$4-":"%@ð $1/$3 $4-"
 #define DEFAULT_FORMAT_ACTION_OTHER_FSET ansi?"%@%K* %n>%c$1 %n$3-":"%@* >$1 $3-"
 #define DEFAULT_FORMAT_ACTION_OTHER_AR_FSET ansi?"%@%K* %Y>%c$1 %n$3-":"%@* >$1 $3-"
 #define DEFAULT_FORMAT_ACTION_USER_FSET ansi?"%@%K* %n>%c$1 %n$3-":"%@* >$1 $3-"
@@ -530,6 +532,8 @@
 #define DEFAULT_FORMAT_DISCONNECT_FSET "$G Use %G/Server%n to connect to a server"
 #define DEFAULT_FORMAT_ENCRYPTED_NOTICE_FSET "%@%K-%Y$1%K(%p$2%K)-%n $3-"
 #define DEFAULT_FORMAT_ENCRYPTED_PRIVMSG_FSET "%@%K[%Y$1%K(%p$2%K)]%n $3-"
+#define DEFAULT_FORMAT_ENCRYPTED_PUBLIC_FSET "%@%Y<%n$1%K/%n$3%Y>%n $4-"
+#define DEFAULT_FORMAT_ENCRYPTED_PUBLIC_NOTICE_FSET "%@%Y-%n$1%K/%n$3%Y-%n $4-"
 #define DEFAULT_FORMAT_FLOOD_FSET "%Y$1%n flood detected from %G$2%K(%g$3%K)%n on %K[%G$4%K]"
 #define DEFAULT_FORMAT_FRIEND_JOIN_FSET "$G %R$1 %K[%c$2%K]%n has joined $3"
 #define DEFAULT_FORMAT_HELP_FSET "$0-"
@@ -543,9 +547,9 @@
 #define DEFAULT_FORMAT_LEAVE_FSET "$G $1 %K[%w$2%K]%n has left $3 %K[%W$4-%K]"
 
 #ifdef ONLY_STD_CHARS
-#define DEFAULT_FORMAT_LINKS_FSET "%K|%n$[24]0%K| |%n$[24]1%K| |%n$[3]2%K| |%n$[13]3%K|"
+#define DEFAULT_FORMAT_LINKS_FSET "%K|%n$[24]0%K| |%n$[24]1%K| |%n$[3]2%K| |%n$[13]3-%K|"
 #else
-#define DEFAULT_FORMAT_LINKS_FSET "%KÂ³%n$[24]0%KÂ³ Â³%n$[24]1%KÂ³ Â³%n$[3]2%KÂ³ Â³%n$[13]3%KÂ³"
+#define DEFAULT_FORMAT_LINKS_FSET "%K³%n$[24]0%K³ ³%n$[24]1%K³ ³%n$[3]2%K³ ³%n$[13]3-%K³"
 #endif
 
 #define DEFAULT_FORMAT_LIST_FSET "$[12]1 $[-5]2   $[40]3-"
@@ -562,7 +566,7 @@
 #define DEFAULT_FORMAT_MSG_FSET ansi?"%@%K[%P$1%K(%p$2%K)]%n $3-":"%@[$1($2)] $3-"
 #define DEFAULT_FORMAT_MSG_AR_FSET ansi?"%@%K[%Y$1%K(%Y$2%K)]%n $3-":"%@[$1($2)] $3-"
 
-#define DEFAULT_FORMAT_OPER_FSET "%C$1 %K[%c$2%K]%n )s now %Wan%w %GIRC%n whore"
+#define DEFAULT_FORMAT_OPER_FSET "%C$1 %K[%c$2%K]%n is now %Wan%w %GIRC%n whore"
 
 #define DEFAULT_FORMAT_IGNORE_INVITE_FSET "%K>%n>%W> You have been invited to $1-"
 #define DEFAULT_FORMAT_IGNORE_MSG_FSET "%K[%P$1%P$2%K(%p$3%K)]%n $4-"
@@ -570,7 +574,7 @@
 #define DEFAULT_FORMAT_IGNORE_NOTICE_FSET "%K-%P$2%K(%p$3%K)-%n $4-"
 #define DEFAULT_FORMAT_IGNORE_WALL_FSET "%K%P$1%n $2-"
 #define DEFAULT_FORMAT_MSG_GROUP_FSET "%K-%P$1%K:%p$2%K-%n $3-"
-#define DEFAULT_FORMAT_MSG_GROUP_AR_FSET "%K-%Y$1%K:%Y$2%K-%n $3-"
+#define DEFAULT_FORMAT_NOTICE_GROUP_FSET "%K=%P$1%K:%p$2%K=%n $3-"
 
 #define DEFAULT_FORMAT_NAMES_FSET ansi?"$G %K[%GUsers%K(%g$1%K:%g$2%K/%g$3%K)]%c $4":"$G [Users($1:$2/$3)] $4"
 #define DEFAULT_FORMAT_NAMES_BOT_FSET ansi?"$G %K[%GBots%K(%g$1%K:%g$2%K/%g$3%K)]%c $4":"$G [Bots($1:$2/$3)] $4"
@@ -631,16 +635,17 @@
 #define DEFAULT_FORMAT_SEND_ACTION_FSET "%K* %W$1 %n$3-"
 #define DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET "%K* %n-> %W$1%n/%c$2 %n$3-"
 #else
-#define DEFAULT_FORMAT_SEND_ACTION_FSET "%KÃ° %W$1 %n$3-"
-#define DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET "%KÃ° %n-> %W$1%n/%c$2 %n$3-"
+#define DEFAULT_FORMAT_SEND_ACTION_FSET "%Kð %W$1 %n$3-"
+#define DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET "%Kð %n-> %W$1%n/%c$2 %n$3-"
 #endif
 
 #define DEFAULT_FORMAT_SEND_AWAY_FSET "[Away ($strftime($1 %a %b %d %I:%M%p %Z))] [$tdiff2(${time() - u})] [BX-MsgLog $2]"
 #define DEFAULT_FORMAT_SEND_CTCP_FSET ansi?"%K[%rctcp%K(%R$1%K)] %n$2":"[ctcp($1)] $2"
 #define DEFAULT_FORMAT_SEND_RCTCP_FSET ansi?"%K[%rrctcp%K(%R$1%K)] %n$2-":"^B[rctcp(^B$1^B)]^B $2-"
 #define DEFAULT_FORMAT_SEND_DCC_CHAT_FSET ansi?"%K[%rdcc%K(%R$1%K)] %n$2-":"[dcc($1)] $2-"
-#define DEFAULT_FORMAT_SEND_ENCRYPTED_NOTICE_FSET "%K-%Y$1%K(%p$2%K)-%n $2-"
-#define DEFAULT_FORMAT_SEND_ENCRYPTED_MSG_FSET "%K[%Y$1%K(%p$2%K)]%n $2-"
+#define DEFAULT_FORMAT_SEND_ENCRYPTED_MSG_FSET "%K[%ymsg%K(%Y$1%K)] %n$3-"
+#define DEFAULT_FORMAT_SEND_ENCRYPTED_NOTICE_FSET "%K[%ynotice%K(%Y$1%K)] %n$3-"
+#define DEFAULT_FORMAT_SEND_ENCRYPTED_PUBLIC_FSET "%y<%n$2%K:%n$1%y>%n $3-"
 
 #define DEFAULT_FORMAT_SEND_MSG_FSET ansi?"%K[%rmsg%K(%R$1%K)] %n$3-":"[msg($1)] $3-"
 #define DEFAULT_FORMAT_SEND_NOTICE_FSET ansi?"%K[%rnotice%K(%R$1%K)] %n$3-":"[notice($1)] $3-"
@@ -654,26 +659,26 @@
 #define DEFAULT_FORMAT_SERVER_MSG2_FSET "$G%n $1-"
 #define DEFAULT_FORMAT_SERVER_MSG2_FROM_FSET "$G%n $1-"
 
-#define DEFAULT_FORMAT_SERVER_NOTICE_FSET " $2-"
-#define DEFAULT_FORMAT_SERVER_NOTICE_BOT_FSET " Possible bot: %C$1 %K[%c$2-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_BOT1_FSET " Possible $1 bot: %C$2 %K[%c$3-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_BOT_ALARM_FSET " $1 alarm activated: %C$2 %K[%c$3-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_CONNECT_FSET " Client Connecting: %C$1 %K[%c$2-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_EXIT_FSET " Client Exiting: %C$1 %K[%c$2-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_INVALID_FSET " Invalid username: %C$1 %K[%c$2-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_TERM_FSET " Terminating client for excess flood %C$1%K [%c$2-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_FAKE_FSET " Fake Mode detected on $1 -> $2-"
-#define DEFAULT_FORMAT_SERVER_NOTICE_KILL_FSET " Foreign OperKill: %W$1%n killed %c$2%n %K(%n$3-%K)%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_KILL_LOCAL_FSET " Local OperKill: %W$1%n killed %c$2%n %K(%n$3-%K)%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_KLINE_FSET " %W$1%n added a new K-Line %K[%c$2%K]%n for $3-"
-#define DEFAULT_FORMAT_SERVER_NOTICE_GLINE_FSET " %W$1%n added a new K-Line %K[%c$2%K]%n from $3 for $4-"
-#define DEFAULT_FORMAT_SERVER_NOTICE_NICK_COLLISION_FSET " Nick collision %W$1%n killed %c$2%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_OPER_FSET " %C$1 %K[%c$2%K]%n is now %Wa%w %GIRC%n whore"
-#define DEFAULT_FORMAT_SERVER_NOTICE_REHASH_FSET " %W$1%n is rehashing the Server config file"
-#define DEFAULT_FORMAT_SERVER_NOTICE_STATS_FSET " Stats $1: %C$2 %K[%c$3-%K]%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_TRAFFIC_HIGH_FSET " Entering high-traffic mode %K(%n$1 > $2-%K)%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_TRAFFIC_NORM_FSET " Resuming standard operation %K(%n$1 $2 $3-%K)%n"
-#define DEFAULT_FORMAT_SERVER_NOTICE_UNAUTH_FSET " Unauthorized Connection from $1-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_FSET "$2-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_BOT_FSET "Possible bot: %C$1 %K[%c$2-%K]%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_BOT1_FSET "Possible $1 bot: %C$2 %K[%c$3-%K]%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_BOT_ALARM_FSET "$1 alarm activated: %C$2 %K[%c$3-%K]%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_CONNECT_FSET "Client Connecting: %C$1 %K[%c$2%K]%n $3-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_EXIT_FSET "Client Exiting: %C$1 %K[%c$2%K]%n $3-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_INVALID_FSET "Invalid username: %C$1 %K[%c$2-%K]%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_CLIENT_TERM_FSET "Terminating client for excess flood %C$1%K [%c$2-%K]%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_FAKE_FSET "Fake Mode detected on $1 -> $2-"
+#define DEFAULT_FORMAT_SERVER_NOTICE_KILL_FSET "Foreign OperKill: %W$1%n killed %c$2%n %K(%n$3-%K)%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_KILL_LOCAL_FSET "Local OperKill: %W$1%n killed %c$2%n %K(%n$3-%K)%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_KLINE_FSET "%W$1%n added a new $3 %K[%c$2%K]%n for %K[%R$4-%K]"
+#define DEFAULT_FORMAT_SERVER_NOTICE_GLINE_FSET "%W$1%n added a new $4 %K[%c$2%K]%n from %W$3%n for %K[%R$4-%K]"
+#define DEFAULT_FORMAT_SERVER_NOTICE_NICK_COLLISION_FSET "Nick collision %W$1%n killed %c$2-%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_OPER_FSET "%C$1 %K[%c$2%K]%n is now %Wan%w %GIRC%n whore"
+#define DEFAULT_FORMAT_SERVER_NOTICE_REHASH_FSET "%W$1%n is rehashing the Server config file"
+#define DEFAULT_FORMAT_SERVER_NOTICE_STATS_FSET "Stats $1: %C$2 %K[%c$3-%K]%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_TRAFFIC_HIGH_FSET "Entering high-traffic mode %K(%n$1 > $2-%K)%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_TRAFFIC_NORM_FSET "Resuming standard operation %K(%n$1 $2 $3-%K)%n"
+#define DEFAULT_FORMAT_SERVER_NOTICE_UNAUTH_FSET "Unauthorized Connection from $1-"
 
 #define DEFAULT_FORMAT_SET_FSET "%g$[-30.]0 %w$1-"
 #define DEFAULT_FORMAT_CSET_FSET "%r$[-14]1 %R$[-20.]0   %w$2-"
@@ -724,7 +729,7 @@
 
 #ifdef ONLY_STD_CHARS
 #define DEFAULT_FORMAT_WHOIS_AWAY_FSET ansi?"%K| %Wa%nway     : $0 - $1-":"| away     : $0 - $1-"
-#define DEFAULT_FORMAT_WHOIS_BOT_FSET ansi?"%g| %Wb%not      : A:$0 P:$1 [$2] $3-":"| bot      : A:$0 P:$1 [$2] $3-"
+#define DEFAULT_FORMAT_WHOIS_BOT_FSET ansi?"%g| %Wb%not      : F:$0 $1-":"| bot      : F:$0 $1-"
 #define DEFAULT_FORMAT_WHOIS_CHANNELS_FSET ansi?"%g| %Wc%nhannels : $0-":"| channels : $0-"
 #define DEFAULT_FORMAT_WHOIS_FRIEND_FSET ansi?"%g| %Wf%nriend   : F:$0 $1-":"| friend   : F:$0 $1-"
 #define DEFAULT_FORMAT_WHOIS_HEADER_FSET ansi?"%G.--------%g-%G--%g--%G-%g---------%K-%g--%K--%g-%K------------ --  -":".----------------------------------------- --  -"
@@ -746,30 +751,32 @@
 #define DEFAULT_FORMAT_WHOIS_SERVICE_FSET ansi?"%K| %Ws%nervice  : $0 - $1-":"| service  : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_HELP_FSET ansi?"%K| %Wh%nelp     : $0 - $1-":"| help     : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_REGISTER_FSET ansi?"%K| %Wr%negister : $0 - $1-":"| register : $0 - $1-"
+#define DEFAULT_FORMAT_WHOIS_LOGGEDIN_FSET ansi?"%K: %Wl%noggedin : $0 $2- %W$1%n":": loggedin : $0 $2- $1"
 #else
 #define DEFAULT_FORMAT_WHOIS_AWAY_FSET ansi?"%K| %Wa%nway     : $0 - $1-":"| away     : $0 - $1-"
-#define DEFAULT_FORMAT_WHOIS_BOT_FSET ansi?"%g| %Wb%not      : A:$0 P:$1 [$2] $3-":"| bot      : A:$0 P:$1 [$2] $3-"
+#define DEFAULT_FORMAT_WHOIS_BOT_FSET ansi?"%g| %Wb%not      : F:$0 $1-":"| bot      : F:$0 $1-"
 #define DEFAULT_FORMAT_WHOIS_CHANNELS_FSET ansi?"%g| %Wc%nhannels : $0-":"| channels : $0-"
 #define DEFAULT_FORMAT_WHOIS_FRIEND_FSET ansi?"%g| %Wf%nriend   : F:$0 $1-":"| friend   : F:$0 $1-"
-#define DEFAULT_FORMAT_WHOIS_HEADER_FSET ansi?"%GÃšÃ„Ã„Ã„Ã„Ã„---%gÃ„%G--%gÃ„Ã„%G-%gÃ„Ã„Ã„Ã„Ã„Ã„---%KÃ„%g--%KÃ„Ã„%g-%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -":"ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -"
+#define DEFAULT_FORMAT_WHOIS_HEADER_FSET ansi?"%GÚÄÄÄÄÄ---%gÄ%G--%gÄÄ%G-%gÄÄÄÄÄÄ---%KÄ%g--%KÄÄ%g-%KÄÄÄÄÄÄÄÄÄ--- --  -":"ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -"
 #define DEFAULT_FORMAT_WHOIS_IDLE_FSET ansi?"%K: %Wi%ndle     : $0 hours $1 mins $2 secs (signon: $stime($3))":": idle     : $0 hours $1 mins $2 secs (signon: $stime($3))"
 #define DEFAULT_FORMAT_WHOIS_SHIT_FSET ansi?"%g| %Ws%nhit     : L:$0 [$1] $2 $3-":"| shit     : L:$0 [$1] $2 $3-"
 #define DEFAULT_FORMAT_WHOIS_SIGNON_FSET ansi?"%K %Ws%nignon   : $0-":" signon   : $0-"
 #define DEFAULT_FORMAT_WHOIS_ACTUALLY_FSET ansi?"%K| %Wa%nctually : $0-":"| actually : $0-"
 #define DEFAULT_FORMAT_WHOIS_CALLERID_FSET ansi?"%K! %Wc%nallerid : $0-":"! callerid : $0-"
 #define DEFAULT_FORMAT_WHOIS_SECURE_FSET ansi?"%K! %Ws%necure   : $0-":"! secure   : $0-"
-#define DEFAULT_FORMAT_WHOIS_NAME_FSET ansi?"%GÂ³ %Wi%nrcname  : $0-":"Â³ ircname  : $0-"
+#define DEFAULT_FORMAT_WHOIS_NAME_FSET ansi?"%G³ %Wi%nrcname  : $0-":"³ ircname  : $0-"
 #define DEFAULT_FORMAT_WHOIS_NICK_FSET ansi?"%G| %W$0 %K(%n$1@$2%K) %K(%W$3-%K)":"| $0 ($1@$2) ($3-)"
 #define DEFAULT_FORMAT_WHOIS_OPER_FSET ansi?"%K| %Wo%nperator : $0 $1-":"| operator : $0 $1-"
-#define DEFAULT_FORMAT_WHOIS_SERVER_FSET ansi?"%KÂ³ %Ws%nerver   : $0 ($1-)":"Â³ server   : $0 ($1-)"
-#define DEFAULT_FORMAT_WHOLEFT_HEADER_FSET ansi?"%GÃšÃ„Ã„Ã„Ã„Ã„ %WWho %GÃ„Ã„Ã„Ã„Ã„%g---%GÃ„Ã„Ã„%g--%GÃ„Ã„Ã„Ã„Ã„%gÃ„-%GÃ„Ã„ %WChannel%gÃ„Ã„Ã„ %wServer %G-%gÃ„Ã„--%GÃ„Ã„%g--%GÃ„Ã„Ã„Ã„%g %wSeconds":"ÃšÃ„Ã„Ã„Ã„Ã„ Who Ã„Ã„Ã„Ã„Ã„---Ã„Ã„Ã„--Ã„Ã„Ã„Ã„Ã„Ã„-Ã„Ã„ ChannelÃ„Ã„Ã„ Server -Ã„Ã„--Ã„Ã„--Ã„Ã„Ã„Ã„ Seconds"
+#define DEFAULT_FORMAT_WHOIS_SERVER_FSET ansi?"%K³ %Ws%nerver   : $0 ($1-)":"³ server   : $0 ($1-)"
+#define DEFAULT_FORMAT_WHOLEFT_HEADER_FSET ansi?"%GÚÄÄÄÄÄ %WWho %GÄÄÄÄÄ%g---%GÄÄÄ%g--%GÄÄÄÄÄ%gÄ-%GÄÄ %WChannel%gÄÄÄ %wServer %G-%gÄÄ--%GÄÄ%g--%GÄÄÄÄ%g %wSeconds":"ÚÄÄÄÄÄ Who ÄÄÄÄÄ---ÄÄÄ--ÄÄÄÄÄÄ-ÄÄ ChannelÄÄÄ Server -ÄÄ--ÄÄ--ÄÄÄÄ Seconds"
 #define DEFAULT_FORMAT_WHOLEFT_USER_FSET ansi?"%G|%n $[-10]0!$[20]1 $[10]2 $[20]4 $3":"| $[-10]0!$[20]1 $[10]2 $[20]4 $3"
-#define DEFAULT_FORMAT_WHOWAS_HEADER_FSET ansi?"%GÃšÃ„Ã„Ã„Ã„Ã„---%gÃ„%G--%gÃ„Ã„%G-%gÃ„Ã„Ã„Ã„Ã„Ã„---%KÃ„%g--%KÃ„Ã„%g-%KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -":"ÃšÃ„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„---Ã„--Ã„Ã„-Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„--- --  -"
+#define DEFAULT_FORMAT_WHOWAS_HEADER_FSET ansi?"%GÚÄÄÄÄÄ---%gÄ%G--%gÄÄ%G-%gÄÄÄÄÄÄ---%KÄ%g--%KÄÄ%g-%KÄÄÄÄÄÄÄÄÄ--- --  -":"ÚÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄ---Ä--ÄÄ-ÄÄÄÄÄÄÄÄÄ--- --  -"
 #define DEFAULT_FORMAT_WHOWAS_NICK_FSET ansi?"%G| %W$0%n was %K(%n$1@$2%K)":"| $0 was ($1@$2)"
 #define DEFAULT_FORMAT_WHOIS_ADMIN_FSET ansi?"%K| %Wa%ndmin    : $0 - $1-":"| admin    : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_SERVICE_FSET ansi?"%K| %Ws%nervice  : $0 - $1-":"| service  : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_HELP_FSET ansi?"%K| %Wh%nelp     : $0 - $1-":"| help     : $0 - $1-"
 #define DEFAULT_FORMAT_WHOIS_REGISTER_FSET ansi?"%K| %Wr%negister : $0 - $1-":"| register : $0 - $1-"
+#define DEFAULT_FORMAT_WHOIS_LOGGEDIN_FSET ansi?"%K: %Wl%noggedin : $0 $2- %W$1%n":": loggedin : $0 $2- $1"
 #endif
 
 #define DEFAULT_FORMAT_WIDELIST_FSET "$1-"
@@ -881,7 +888,7 @@
 #define DEFAULT_INPUT_PROMPT "[$C] "
 
 #ifndef ONLY_STD_CHARS
-#define DEFAULT_SHOW_NUMERICS_STR "[1;31mÃ¹[0m[1;37mÃ­[1;31mÃ¹[0m"
+#define DEFAULT_SHOW_NUMERICS_STR "[1;31mù[0m[1;37mí[1;31mù[0m"
 #else
 #ifndef LATIN1
 #define DEFAULT_SHOW_NUMERICS_STR "***"
@@ -890,7 +897,7 @@
 #endif
 #endif
 
-#define DEFAULT_SERVER_PROMPT "[0m[1;32m[$0]"
+#define DEFAULT_SERVER_PROMPT "%G[$0]"
 
 #define DEFAULT_FORMAT_WATCH_SIGNOFF_FSET "$G $0!$1@$2 has signed off"
 #define DEFAULT_FORMAT_WATCH_SIGNON_FSET "$G $0!$1@$2 has signed on $3"

@@ -6,11 +6,11 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: irc.h 206 2012-06-13 12:34:32Z keaston $
+ * @(#)$Id$
  */
+#ifndef IRC_H_
+#define IRC_H_
 
-#ifndef __irc_h
-#define __irc_h
 #define IRCII_COMMENT   "\002 Keep it to yourself!\002"
 #define BUG_EMAIL "<bitchx-devel@lists.sourceforge.net>"
 
@@ -60,8 +60,13 @@ extern char	thing_star[4];
 #  include <gtk/gtkmenu.h>
 #endif
 
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
+
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
 
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
@@ -78,13 +83,13 @@ extern char	thing_star[4];
 # endif /* HAVE_SYS_TIME_H */
 #endif /* TIME_WITH_SYS_TIME */
 
-#ifdef HAVE_SYS_FCNTL_H
-# include <sys/fcntl.h>
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
 #else
-  #ifdef HAVE_FCNTL_H
-  #include <fcntl.h> 
-  #endif /* HAVE_FCNTL_H */
-#endif
+# ifdef HAVE_SYS_FCNTL_H
+#  include <sys/fcntl.h>
+# endif
+#endif /* HAVE_FCNTL_H */
 
 #include <stdarg.h>
 #include <unistd.h>
@@ -111,22 +116,26 @@ extern char	thing_star[4];
 #include "newio.h"
 
 /* these define what characters do, inverse, underline, bold and all off */
-#define REV_TOG		'\026'		/* ^V */
-#define REV_TOG_STR	"\026"
-#define UND_TOG		'\037'		/* ^_ */
-#define UND_TOG_STR	"\037"
-#define BOLD_TOG	'\002'		/* ^B */
+#define REV_TOG			'\026'	/* ^V */
+#define REV_TOG_STR		"\026"
+#define UND_TOG			'\037'	/* ^_ */
+#define UND_TOG_STR		"\037"
+#define BOLD_TOG		'\002'	/* ^B */
 #define BOLD_TOG_STR	"\002"
-#define ALL_OFF		'\017'		/* ^O */
-#define ALL_OFF_STR	"\017"
-#define BLINK_TOG	'\006'		/* ^F (think flash) */
+#define ALL_OFF			'\017'	/* ^O */
+#define ALL_OFF_STR		"\017"
+#define BLINK_TOG		'\006'	/* ^F (think flash) */
 #define BLINK_TOG_STR	"\006"
-#define ROM_CHAR        '\022'          /* ^R */
-#define ROM_CHAR_STR    "\022"
-#define ALT_TOG		'\005'		/* ^E (think Extended) */
-#define ALT_TOG_STR	"\005"
-#define ND_SPACE	'\023'		/* ^S */
+#define ROM_CHAR		'\022'	/* ^R */
+#define ROM_CHAR_STR	"\022"
+#define ALT_TOG			'\005'	/* ^E (think Extended) */
+#define ALT_TOG_STR		"\005"
+#define ND_SPACE		'\023'	/* ^S */
 #define ND_SPACE_STR	"\023"
+#define COLOR_CHAR		'\003'	/* ^C */
+#define COLOR_CHAR_STR	"\003"
+#define BELL_CHAR		'\007'	/* ^G */
+#define BELL_CHAR_STR	"\007"
 
 #define IRCD_BUFFER_SIZE	512
 #define BIG_BUFFER_SIZE		(4 * IRCD_BUFFER_SIZE)
@@ -155,6 +164,11 @@ extern char	thing_star[4];
 #ifndef MAX
 #define MAX(a,b) ((a > b) ? (a) : (b))
 #endif
+
+/* send_text flag values */
+#define STXT_NOTICE 0x0001U /* Send as a NOTICE rather than PRIVMSG. */
+#define STXT_QUIET  0x0002U /* Do not run hooks or screen output. */
+#define STXT_LOG    0x0004U /* Add sent message to the log file. */
 
 /* This section is for keeping track internally
  * the CVS revision info of the running client.
@@ -254,14 +268,14 @@ extern	char	space_minus[];
 extern	char	dot[];
 extern	char	star[];
 extern	char	comma[];
-extern	char	nickname[];
+extern	char	nickname[NICKNAME_LEN + 1];
 extern	char	*ircrc_file;
 extern	char	*bircrc_file;
 extern	char	*LocalHostName;
-extern	char	hostname[];
-extern	char	userhost[];
-extern	char	realname[];
-extern	char	username[];
+extern	char	hostname[NAME_LEN + 1];
+extern	char	userhost[(NAME_LEN + 1) * 2];
+extern	char	realname[REALNAME_LEN + 1];
+extern	char	username[NAME_LEN + 1];
 extern	char	*send_umode;
 extern	char	*last_notify_nick;
 extern	int	away_set;
@@ -307,7 +321,7 @@ extern	int	cpu_saver;
 extern	struct	sockaddr_foobar	local_ip_address;
 
 
-int	BX_is_channel (char *);
+int	BX_is_channel (const char *);
 void	BX_irc_exit (int, char *, char *, ...);
 void	BX_beep_em (int);
 void	got_initial_version (char *);
@@ -335,7 +349,7 @@ extern short ospeed;
 #endif
 
 void reattach_tty(char *, char *);
-void init_socketpath(void);
+const char *init_socketpath(void);
 void kill_attached_if_needed(int);
 void setup_pid();
 
@@ -344,4 +358,4 @@ void initsetproctitle(int, char **, char **);
 void setproctitle(const char *, ...);
 #endif
 
-#endif /* __irc_h */
+#endif /* IRC_H_ */

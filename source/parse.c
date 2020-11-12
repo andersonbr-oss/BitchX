@@ -9,7 +9,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: parse.c 214 2012-10-19 12:25:25Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(parse_c)
 #include "struct.h"
 
@@ -28,9 +28,7 @@ CVS_REVISION(parse_c)
 #include "input.h"
 #include "ircaux.h"
 #include "funny.h"
-#include "encrypt.h"
 #include "input.h"
-#include "ircterm.h"
 #include "flood.h"
 #include "window.h"
 #include "screen.h"
@@ -64,7 +62,6 @@ static	void	strip_modes (char *, char *, char *);
 
 	char *last_split_server = NULL;
 	char *last_split_from = NULL;
-	int in_server_ping = 0;
 
 /*
  * joined_nick: the nickname of the last person who joined the current
@@ -128,44 +125,43 @@ register BanList *eban = NULL;
 
 void fake (void) 
 {
-	bitchsay("--- Fake Message recieved!!! ---");
+	bitchsay("--- Fake Message received!!! ---");
 	return;
 }
 
 int check_auto_reply(char *str)
 {
-char *p = NULL;
-char *pat;
-	if (!str || !*str || !get_int_var(AUTO_RESPONSE_VAR))
+	char *p = NULL;
+	char *pat;
+
+	if (!str || !*str || !get_int_var(AUTO_RESPONSE_VAR) || !auto_str)
 		return 0;
-	p = alloca(strlen(auto_str)+1);
-	strcpy(p, auto_str);
-	if (p && *p)
+
+	p = LOCAL_COPY(auto_str);
+	while ((pat = next_arg(p, &p)))
 	{
-		while ((pat = next_arg(p, &p)))
+		switch(get_int_var(NICK_COMPLETION_TYPE_VAR))
 		{
-			switch(get_int_var(NICK_COMPLETION_TYPE_VAR))
-			{
-				case 3:
-					if (!my_stricmp(str, pat))
-						goto found_auto;
-					continue;
-				case 2:
-					if (wild_match(pat, str))
-						goto found_auto;
-					continue;
-				case 1:
-					if (stristr(str, pat))
-						goto found_auto;
-					continue;
-				default:
-				case 0:
-					if (!my_strnicmp(str, pat, strlen(pat)))
-						goto found_auto;
-					continue;
-			}
+			case 3:
+				if (!my_stricmp(str, pat))
+					goto found_auto;
+				continue;
+			case 2:
+				if (wild_match(pat, str))
+					goto found_auto;
+				continue;
+			case 1:
+				if (stristr(str, pat))
+					goto found_auto;
+				continue;
+			default:
+			case 0:
+				if (!my_strnicmp(str, pat, strlen(pat)))
+					goto found_auto;
+				continue;
 		}
 	}
+
 	return 0;
 found_auto:
 #ifdef GUI
@@ -174,10 +170,51 @@ found_auto:
 	return 1;
 }
 
+/* Check for more than 75% ALLCAPS */
+static int annoy_caps(const char *crap)
+{
+	int total = 0, allcaps = 0;
+/* removed from ComStud client */
+	while (*crap)
+	{
+		if (isalpha((unsigned char)*crap))
+		{
+			total++;
+			if (isupper((unsigned char)*crap))
+				allcaps++;
+		}
+		crap++;
+	}
+	return total > 12 && (double)allcaps / total >= 0.75;
+}
+
+/* Check for more than 75% of printable chars highlighted */
+static int annoy_hl(const char *crap, char hl_tog)
+{
+	int total = 0, all_hl = 0, in_highlight = 0;
+
+	while (*crap)
+	{
+		if (*crap == hl_tog)
+			in_highlight = !in_highlight;
+
+		if (isgraph((unsigned char)*crap))
+		{
+			total++;
+			if (in_highlight)
+				all_hl++;
+		}
+
+		crap++;
+	}
+	return total > 12 && (double)all_hl / total >= 0.75;
+}
+
 int annoy_kicks(int list_type, char *to, char *from, char *ptr, NickList *nick)
 {
-int kick_em = 0;
-ChannelList *chan;
+	int kick_em = 0;
+	ChannelList *chan;
+
 	if (nick && (nick->userlist && nick->userlist->flags))
 		return 0;
 	if (!check_channel_match(get_string_var(PROTECT_CHANNELS_VAR), to) || !are_you_opped(to))
@@ -187,17 +224,19 @@ ChannelList *chan;
 	if (get_cset_int_var(chan->csets, ANNOY_KICK_CSET) && !nick_isop(nick))
 	{	
 		char *buffer = NULL;
-		if (char_fucknut(ptr, '\002', 12))
-			malloc_sprintf(&buffer, "KICK %s %s :%s",to, from, "autokick for \002bold\002");
-		else if (char_fucknut(ptr, '\007', 1))
+		if (annoy_hl(ptr, BOLD_TOG))
+			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for " BOLD_TOG_STR "bold" BOLD_TOG_STR);
+		else if (strchr(ptr, BELL_CHAR))
 			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for beeping");
-		else if (char_fucknut(ptr, '\003', 12))
-			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for \037mirc color\037");
-		else if (char_fucknut(ptr, '\037', 0))
-			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for \037underline\037");
-		else if (char_fucknut(ptr, '\026', 12))
-			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for \026inverse\026");
-		else if (caps_fucknut(ptr))
+		else if (annoy_hl(ptr, COLOR_CHAR))
+			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for " UND_TOG_STR "mirc color" UND_TOG_STR);
+		else if (annoy_hl(ptr, UND_TOG))
+			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for " UND_TOG_STR "underline" UND_TOG_STR);
+		else if (annoy_hl(ptr, REV_TOG))
+			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for " REV_TOG_STR "inverse" REV_TOG_STR);
+		else if (annoy_hl(ptr, BLINK_TOG))
+			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for " BLINK_TOG_STR "flashing" BLINK_TOG_STR);
+		else if (annoy_caps(ptr))
 			malloc_sprintf(&buffer, "KICK %s %s :%s", to, from, "autokick for CAPS LOCK");
 		else if (strstr(ptr, "0000027fed"))
 		{
@@ -246,15 +285,13 @@ ChannelList *chan;
  * begins with MULTI_CHANNEL and has no '*', or STRING_CHANNEL, then its a
  * channel 
  */
-int BX_is_channel(char *to)
+int BX_is_channel(const char *to)
 {
-	if (!to || !*to)
-		return 0;
-
-	return ( (to) && ((*to == MULTI_CHANNEL)
-					  || (*to == STRING_CHANNEL)
-					  || (*to == ID_CHANNEL)
-					  || (*to == LOCAL_CHANNEL)));
+	return to &&
+		(*to == MULTI_CHANNEL ||
+		*to == STRING_CHANNEL ||
+		*to == ID_CHANNEL ||
+		*to == LOCAL_CHANNEL);
 }
 
 
@@ -273,7 +310,7 @@ char	* BX_PasteArgs(char **Args, int StartPoint)
 
 /*
  * BreakArgs: breaks up the line from the server, in to where its from,
- * setting FromUserHost if it should be, and returns all the arguements
+ * setting FromUserHost if it should be, and returns all the arguments
  * that are there.   Re-written by phone, dec 1992.
  */
 int BX_BreakArgs(char *Input, char **Sender, char **OutPut, int ig_sender)
@@ -327,7 +364,9 @@ int BX_BreakArgs(char *Input, char **Sender, char **OutPut, int ig_sender)
 
 		if (*Input == ':')
 		{
-			OutPut[ArgCount++] = ++Input;
+			/* Squash the : so if PasteArgs() is called it doesn't reappear */
+			ov_strcpy(Input, Input + 1);
+			OutPut[ArgCount++] = Input;
 			break;
 		}
 
@@ -436,36 +475,30 @@ static	void p_wallops(char *from, char **ArgList)
 	}
 }
 
-static	void p_privmsg(char *from, char **Args)
+static void p_privmsg(char *from, char **Args)
 {
-	int	level,
-		list_type,
-		flood_type,
-		log_type,
-		ar_true = 0,
-		no_flood = 1,
-		do_beep = 0;
-
-	unsigned char	ignore_type;
-
-	char	*ptr = NULL,
-		*to,
-		*high;
-
-	static int com_do_log, com_lines = 0;
-
+	int level;
+	int list_type;
+	int flood_type;
+	int log_type;
+	int ar_true = 0;
+	int flooding = 0;
+	long ignore_type;
+	char *ptr;
+	char *to;
+	char *high;
 	ChannelList *channel = NULL;
 	NickList *tmpnick = NULL;
 	
-
-	
 	if (!from)
 		return;
+
 	PasteArgs(Args, 1);
 	to = Args[0];
 	ptr = Args[1];
 	if (!to || !ptr)
 		{ fake(); return; }
+
 	doing_privmsg = 1;
 
 	ptr = do_ctcp(from, to, ptr);
@@ -533,173 +566,142 @@ static	void p_privmsg(char *from, char **Args)
 	}
 
 #ifdef WANT_TCL
+	switch (list_type)
 	{
-		int x = 0;
-		char *cmd = NULL;
-		switch(list_type)
-		{
-			case MSG_LIST:
-			case MSG_GROUP_LIST:
+		case MSG_LIST:
+		case MSG_GROUP_LIST:
 			{
-				char *ctcp_ptr;
-				ctcp_ptr = LOCAL_COPY(ptr);
-				cmd = next_arg(ctcp_ptr, &ctcp_ptr);
-				x = check_tcl_msg(cmd, from, FromUserHost, from, ctcp_ptr);
-				if (!x)
+				char *ctcp_ptr = LOCAL_COPY(ptr);
+				char *cmd = next_arg(ctcp_ptr, &ctcp_ptr);
+				if (!check_tcl_msg(cmd, from, FromUserHost, from, ctcp_ptr))
 					check_tcl_msgm(cmd, from, FromUserHost, from, ctcp_ptr);
 				break;
 			}
-			case PUBLIC_MSG_LIST:
-			case PUBLIC_LIST:
-			case PUBLIC_OTHER_LIST:
+
+		case PUBLIC_MSG_LIST:
+		case PUBLIC_LIST:
+		case PUBLIC_OTHER_LIST:
 			{
-				x = check_tcl_pub(from, FromUserHost, to, ptr);
-				if (!x)
+				if (!check_tcl_pub(from, FromUserHost, to, ptr))
 					check_tcl_pubm(from, FromUserHost, to, ptr);
 				break;
 			}
-		}
 	}
 #endif
 	update_stats(PUBLICLIST, tmpnick, channel, 0);
 
 	level = set_lastlog_msg_level(log_type);
-	com_do_log = 0;
 	if (flood_type == PUBLIC_FLOOD)
 	{
 		int blah = 0;
 		if (is_other_flood(channel, tmpnick, PUBLIC_FLOOD, &blah))
 		{
-			no_flood = 0;
-			flood_prot(tmpnick->nick, FromUserHost, "PUBLIC", flood_type, get_cset_int_var(channel->csets, PUBFLOOD_IGNORE_TIME_CSET), channel->channel);
+			flooding = 1;
+			flood_prot(tmpnick->nick, FromUserHost, flood_type, get_cset_int_var(channel->csets, PUBFLOOD_IGNORE_TIME_CSET), channel->channel);
 		}
 	}
 	else
-		no_flood = check_flooding(from, flood_type, ptr, NULL);
+		flooding = !check_flooding(from, flood_type, ptr, NULL);
 
-	if (sed == 1)
+	if (list_type == PUBLIC_LIST || list_type == PUBLIC_OTHER_LIST || list_type == PUBLIC_MSG_LIST)
 	{
-		if (do_hook(ENCRYPTED_PRIVMSG_LIST,"%s %s %s",from, to, ptr))
-			put_it("%s",convert_output_format(fget_string_var(FORMAT_ENCRYPTED_PRIVMSG_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, FromUserHost, to, ptr));
-			sed = 0;
-	}
-	else
-	{
-		int added_to_tab = 0;
-		if (list_type == PUBLIC_LIST || list_type == PUBLIC_OTHER_LIST || list_type == PUBLIC_MSG_LIST)
+		if (check_auto_reply(ptr))
 		{
-			if (check_auto_reply(ptr))
-			{
-				addtabkey(from, "msg", 1);
-				com_do_log = 1;
-				com_lines = 0;
-				ar_true = 1;
-				added_to_tab = 1;
-			}
+			addtabkey(from, "msg", 1);
+			ar_true = 1;
 		}
+	}
+
+	if (!flooding)
+	{
+		int do_beep = 0;
+
 		switch (list_type)
 		{
-		case PUBLIC_MSG_LIST:
-		{
-			if (!no_flood)
-				break;
-			if (do_hook(list_type, "%s %s %s", from, to, ptr))
-			{
-				logmsg(LOG_PUBLIC, from, 0, "%s %s", to, ptr);
-				put_it("%s",convert_output_format(fget_string_var(ar_true?FORMAT_PUBLIC_MSG_AR_FSET:FORMAT_PUBLIC_MSG_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, FromUserHost, to, ptr));
-				do_beep = 1;
-			}
-			break;
-		}
-		case MSG_GROUP_LIST:
-		{
-			if (!no_flood)
-				break;
-			if (do_hook(list_type, "%s %s %s", from, to, ptr))
-			{
-				logmsg(LOG_PUBLIC, from, 0,"%s %s", FromUserHost, ptr);
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_MSG_GROUP_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
-				do_beep = 1;
-			}
-			break;
-		}
-		case MSG_LIST:
-		{
-			if (!no_flood)
-				break;
-			set_server_recv_nick(from_server, from);
-#ifdef WANT_CDCC
-			if ((msgcdcc(from, to, ptr)) == NULL)
-				break;
-#endif
-			if (!strncmp(ptr, "PASS", 4) && change_pass(from, ptr))
-				break;
-			if (forwardnick)
-				send_to_server("NOTICE %s :*%s* %s", forwardnick, from, ptr);
-
-			if (do_hook(list_type, "%s %s", from, ptr))
-			{
-				if (get_server_away(from_server))
+			case PUBLIC_MSG_LIST:
+				if (do_hook(list_type, "%s %s %s", from, to, ptr))
 				{
-					do_beep = 0;
-					beep_em(get_int_var(BEEP_WHEN_AWAY_VAR));
-					set_int_var(MSGCOUNT_VAR, get_int_var(MSGCOUNT_VAR)+1);
-				}
-				else
+					logmsg(LOG_PUBLIC, from, 0, "%s %s", to, ptr);
+					put_it("%s",convert_output_format(fget_string_var(ar_true?FORMAT_PUBLIC_MSG_AR_FSET:FORMAT_PUBLIC_MSG_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, FromUserHost, to, ptr));
 					do_beep = 1;
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_MSG_FSET), "%s %s %s %s", update_clock(GET_TIME), from, FromUserHost, ptr));
-				if (!added_to_tab)
+				}
+				break;
+
+			case MSG_GROUP_LIST:
+				if (do_hook(list_type, "%s %s %s", from, to, ptr))
+				{
+					logmsg(LOG_PUBLIC, from, 0,"%s %s", FromUserHost, ptr);
+					put_it("%s", convert_output_format(fget_string_var(FORMAT_MSG_GROUP_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
+					do_beep = 1;
+				}
+				break;
+
+			case MSG_LIST:
+				set_server_recv_nick(from_server, from);
+#ifdef WANT_CDCC
+				if ((msgcdcc(from, to, ptr)) == NULL)
+					break;
+#endif
+				if (strbegins(ptr, "PASS") && change_pass(from, ptr))
+					break;
+				if (forwardnick)
+					send_to_server("NOTICE %s :*%s* %s", forwardnick, from, ptr);
+
+				if (do_hook(list_type, "%s %s", from, ptr))
+				{
+					if (get_server_away(from_server))
+					{
+						do_beep = 0;
+						beep_em(get_int_var(BEEP_WHEN_AWAY_VAR));
+						set_int_var(MSGCOUNT_VAR, get_int_var(MSGCOUNT_VAR)+1);
+					}
+					else
+						do_beep = 1;
+					put_it("%s", convert_output_format(fget_string_var(FORMAT_MSG_FSET), "%s %s %s %s", update_clock(GET_TIME), from, FromUserHost, ptr));
 					addtabkey(from, "msg", 0);
-				logmsg(LOG_MSG, from,  0,"%s %s", FromUserHost, ptr);
-			}
-			add_last_type(&last_msg[0], MAX_LAST_MSG, from, FromUserHost, to, ptr);
-			if (get_server_away(from_server) && get_int_var(SEND_AWAY_MSG_VAR))
-			{
-				if (!check_last_type(&last_msg[0], MAX_LAST_MSG, from, FromUserHost))
-					my_send_to_server(from_server, "NOTICE %s :%s", from, stripansicodes(convert_output_format(fget_string_var(FORMAT_SEND_AWAY_FSET), "%l %l %s", now, get_server_awaytime(from_server), get_int_var(MSGLOG_VAR)?"On":"Off")));
-			}
-			break;
-		}
-		case PUBLIC_LIST:
-		{
-			if (!no_flood)
+					logmsg(LOG_MSG, from,  0,"%s %s", FromUserHost, ptr);
+				}
+				add_last_type(&last_msg[0], MAX_LAST_MSG, from, FromUserHost, to, ptr);
+				if (get_server_away(from_server) && get_int_var(SEND_AWAY_MSG_VAR))
+				{
+					if (!check_last_type(&last_msg[0], MAX_LAST_MSG, from, FromUserHost))
+						my_send_to_server(from_server, "NOTICE %s :%s", from, stripansicodes(convert_output_format(fget_string_var(FORMAT_SEND_AWAY_FSET), "%l %l %s", now, get_server_awaytime(from_server), get_int_var(MSGLOG_VAR)?"On":"Off")));
+				}
 				break;
-               		annoy_kicks(list_type, to, from, ptr, tmpnick);
-			if (ar_true)
-				list_type = PUBLIC_AR_LIST;
-			if (do_hook(list_type, "%s %s %s", from, to, ptr))
-			{
-				logmsg(LOG_PUBLIC, from, 0,"%s %s", to, ptr);
-				do_logchannel(LOG_PUBLIC, channel, "%s", convert_output_format(fget_string_var((list_type == PUBLIC_AR_LIST)? FORMAT_PUBLIC_AR_FSET:FORMAT_PUBLIC_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
-				put_it("%s", convert_output_format(fget_string_var((list_type == PUBLIC_AR_LIST)? FORMAT_PUBLIC_AR_FSET:FORMAT_PUBLIC_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
-				do_beep = 1;
-			}
-			break;
-		}
-		case PUBLIC_OTHER_LIST:
-		{
-			if (!no_flood)
+
+			case PUBLIC_LIST:
+				annoy_kicks(list_type, to, from, ptr, tmpnick);
+				if (ar_true)
+					list_type = PUBLIC_AR_LIST;
+				if (do_hook(list_type, "%s %s %s", from, to, ptr))
+				{
+					logmsg(LOG_PUBLIC, from, 0,"%s %s", to, ptr);
+					do_logchannel(LOG_PUBLIC, channel, "%s", convert_output_format(fget_string_var((list_type == PUBLIC_AR_LIST)? FORMAT_PUBLIC_AR_FSET:FORMAT_PUBLIC_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
+					put_it("%s", convert_output_format(fget_string_var((list_type == PUBLIC_AR_LIST)? FORMAT_PUBLIC_AR_FSET:FORMAT_PUBLIC_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
+					do_beep = 1;
+				}
 				break;
-                	annoy_kicks(list_type, to, from, ptr, tmpnick);
-			if (ar_true)
-				list_type = PUBLIC_OTHER_AR_LIST;
-			if (do_hook(list_type, "%s %s %s", from, to, ptr))
-			{
-				logmsg(LOG_PUBLIC, from, 0,"%s %s", to, ptr);
-				do_logchannel(LOG_PUBLIC, channel, "%s", convert_output_format(fget_string_var(list_type==PUBLIC_OTHER_AR_LIST?FORMAT_PUBLIC_OTHER_AR_FSET:FORMAT_PUBLIC_OTHER_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
-				put_it("%s", convert_output_format(fget_string_var(list_type==PUBLIC_OTHER_AR_LIST?FORMAT_PUBLIC_OTHER_AR_FSET:FORMAT_PUBLIC_OTHER_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
-				do_beep = 1;
-			}
-			break;
-		} /* case */
+
+			case PUBLIC_OTHER_LIST:
+				annoy_kicks(list_type, to, from, ptr, tmpnick);
+				if (ar_true)
+					list_type = PUBLIC_OTHER_AR_LIST;
+				if (do_hook(list_type, "%s %s %s", from, to, ptr))
+				{
+					logmsg(LOG_PUBLIC, from, 0,"%s %s", to, ptr);
+					do_logchannel(LOG_PUBLIC, channel, "%s", convert_output_format(fget_string_var(list_type==PUBLIC_OTHER_AR_LIST?FORMAT_PUBLIC_OTHER_AR_FSET:FORMAT_PUBLIC_OTHER_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
+					put_it("%s", convert_output_format(fget_string_var(list_type==PUBLIC_OTHER_AR_LIST?FORMAT_PUBLIC_OTHER_AR_FSET:FORMAT_PUBLIC_OTHER_FSET), "%s %s %s %s", update_clock(GET_TIME), from, to, ptr));
+					do_beep = 1;
+				}
+				break;
 		} /* switch */
+
+		if ((beep_on_level & log_type) && do_beep)
+			beep_em(1);
+
+		grab_http(from, to, ptr);
 	}
 
-	if ((beep_on_level & log_type) && do_beep)
-		beep_em(1);
-
-	if (no_flood)
-		grab_http(from, to, ptr);
 	set_lastlog_msg_level(level);
 	reset_display_target();
 	doing_privmsg = 0;
@@ -785,94 +787,80 @@ static	void p_quit(char *from, char **ArgList)
 #endif
 }
 
+static int sping_reply(char *from, char *sping_dest, int server)
+{
+	char buff[50];
+	Sping *tmp = get_server_sping(server, sping_dest);
+
+	if (!tmp)
+		return 0;
+
+	snprintf(buff, sizeof buff, "%2.4f", time_since(&tmp->in_sping));
+
+	reset_display_target();
+	put_it("%s", convert_output_format("$G Server pong from %W$0%n $1 seconds", "%s %s", from, buff));
+	clear_server_sping(server, sping_dest);
+	return 1;
+}	
+
 static	void p_pong(char *from, char **ArgList)
 {
 	int is_server = 0;
-	int i;	
-
 	
-	if (!ArgList[0])
+	if (!ArgList[0] || !ArgList[1])
 		return;
+
 	is_server = wild_match("*.*", ArgList[0]);
-	if (in_server_ping && is_server)
+
+	if (check_ignore(from, FromUserHost, NULL, IGNORE_PONGS, NULL) == IGNORED)
+		return;
+
+	if (!is_server)
+		return;
+
+	if (strbegins(ArgList[1], "LAG!"))
 	{
-		int old_from_server = from_server;
-		for (i = 0; i < server_list_size(); i++)
-		{
-			if ((!my_stricmp(ArgList[0], get_server_name(i)) || !my_stricmp(ArgList[0], get_server_itsname(i))) && is_server_open(i))
+		/* PONG for lag check */
+		char *p, *q;
+		unsigned long cookie;
+		struct timeval timenow, timethen;
+
+		get_time(&timenow);
+		p = strchr(ArgList[1], '.');
+		if (p)
+		{			
+			*p++ = 0;
+			cookie = strtoul(ArgList[1] + 4, NULL, 10);
+
+			q = strchr(p, '.');
+			if (q)
 			{
-				int old_lag = get_server_lag(i);
-				from_server = i;
-				set_server_lag(i, now - get_server_lagtime(i));
-				in_server_ping--;
-				if (old_lag != get_server_lag(i))
-					status_update(1);
-				from_server = old_from_server;
-				return;
-			}
-		}
-		from_server = old_from_server;
-	}
-	if (check_ignore(from, FromUserHost, NULL, IGNORE_PONGS, NULL) != IGNORED)
-	{
-		if (!is_server)
-			return;
-		reset_display_target();
-		if (!ArgList[1])
-			say("%s: PONG received from %s", ArgList[0], from);
-		else if (!strncmp(ArgList[1], "LAG", 3))
-		{
-			char *p = empty_string;
-			char buff[50];
-			struct timeval timenow = {0};
-			struct timeval timethen;
-#ifdef HAVE_GETTIMEOFDAY
-			if ((p = strchr(ArgList[1], '.')))
-			{
-				*p++ = 0;
-				timethen.tv_usec = my_atol(p);
+				*q++ = 0;
+				timethen.tv_usec = my_atol(q);
 			} else
 				timethen.tv_usec = 0;
-			timethen.tv_sec = my_atol(ArgList[1]+3);
-#else
-			timethen.tv_sec = my_atol(ArgList[1]+3);
-#endif
-			get_time(&timenow);
-			sprintf(buff, "%2.4f", BX_time_diff(timethen, timenow));
-			put_it("%s", convert_output_format("$G Server pong from %W$0%n $1 seconds", "%s %s", ArgList[0], buff));
-			clear_server_sping(from_server, ArgList[0]);
+
+			timethen.tv_sec = my_atol(p);
+
+			server_lag_reply(from_server, cookie, timenow, timethen);
 		}
-		else if (!my_stricmp(ArgList[1], get_server_nickname(from_server)))
-		{
-			char buff[50];
-			Sping *tmp;
-			if ((tmp = get_server_sping(from_server, ArgList[0])))
-			{
-#ifdef HAVE_GETTIMEOFDAY
-				struct timeval timenow = {0};
-				get_time(&timenow);
-				sprintf(buff, "%2.4f", BX_time_diff(tmp->in_sping, timenow));
-				put_it("%s", convert_output_format("$G Server pong from %W$0%n $1 seconds", "%s %s", ArgList[0], buff));
-#else
-				sprintf(buff, "%2ld.x", now - tmp->in_sping);
-				put_it("%s", convert_output_format("$G Server pong from %W$0%n $1 seconds", "%s %s", ArgList[0], buff));
-#endif
-				clear_server_sping(from_server, ArgList[0]);
-				if (is_server_connected(from_server))
-				{
-					int old_lag = get_server_lag(from_server);
-					set_server_lag(from_server, now - get_server_lagtime(from_server));
-					if (old_lag != get_server_lag(from_server))
-						status_update(1);
-				}
-			}
-		}
-		else
-			say("%s: PING received from %s %s", ArgList[0], from, ArgList[1]);
 	}
-	return;
+	else if (!my_stricmp(ArgList[1], get_server_nickname(from_server)))
+	{
+		/* PONG from remote server */
+		sping_reply(ArgList[0], ArgList[0], from_server);	
+	}
+	else if (wild_match("*.*", ArgList[1]))
+	{
+		/* PONG from local server, possibly on behalf of remote server */
+		sping_reply(ArgList[0], ArgList[1], from_server);
+	}
+	else
+	{
+		reset_display_target();
+		say("%s: PONG received from %s %s", ArgList[0], from, ArgList[1]);
+	}
 }
-		
 
 static	void p_error(char *from, char **ArgList)
 {
@@ -925,45 +913,40 @@ static	void p_cap(char *from, char **ArgList)
 
 static	void p_authenticate(char *from, char **ArgList)
 {
-	char buf[512];
-	char *output = NULL;
-	char *nick, *pass;
-
 	/* "AUTHENTICATE command MUST be used before registration is complete" */
 	if (is_server_connected(from_server))
 		return;
 
 	if (!strcmp(ArgList[0], "+"))
 	{
-		nick = get_server_sasl_nick(from_server);
-		pass = get_server_sasl_pass(from_server);
+		/* Message is BASE64(nick\0nick\0pass) */
+		char buf[IRCD_BUFFER_SIZE];
+		char *output = NULL;
+		char *nick = get_server_sasl_nick(from_server);
+		char *pass = get_server_sasl_pass(from_server);
+		size_t nick_len = nick ? strlen(nick) + 1 : 0;	/* nick_len includes \0 */
+		size_t pass_len = pass ? strlen(pass) : 0;
 
 		/* "The client can abort an authentication by sending an asterisk as the data" */
-		if (!nick || !pass)
+		if (!nick || !pass || nick_len * 2 + pass_len > sizeof buf)
 		{
 			my_send_to_server(from_server, "AUTHENTICATE *");
 			return;
 		}
 
-		strlcpy(buf, nick, sizeof buf);
-		strlcpy(buf + strlen(nick) + 1, nick, sizeof buf);
-		strlcpy(buf + strlen(nick) * 2 + 2, pass, sizeof buf);
+		memcpy(buf, nick, nick_len);
+		memcpy(buf + nick_len, nick, nick_len);
+		memcpy(buf + nick_len * 2, pass, pass_len);
 
-		if (my_base64_encode(buf, strlen(nick) * 2 + strlen(pass) + 2, &output) != -1)
-		{
-			my_send_to_server(from_server, "AUTHENTICATE %s", output);
-// XXX			new_free(&output);
-			free(output);
-		}
-		else
-			my_send_to_server(from_server, "AUTHENTICATE *");
+		output = base64_encode(buf, nick_len * 2 + pass_len);
+		my_send_to_server(from_server, "AUTHENTICATE %s", output);
+		new_free(&output);
 	}
 }
 
 void add_user_who (WhoEntry *w, char *from, char **ArgList)
 {
 	char *userhost;
-	ChannelList *chan;
 	int op = 0, voice = 0;
 
 	/* Obviously this is safe. */
@@ -971,7 +954,7 @@ void add_user_who (WhoEntry *w, char *from, char **ArgList)
 	sprintf(userhost, "%s@%s", ArgList[1], ArgList[2]);
 	voice = (strchr(ArgList[5], '+') != NULL);
 	op = (strchr(ArgList[5], '@') != NULL);
-	chan = add_to_channel(ArgList[0], ArgList[4], from_server, op, voice, userhost, ArgList[3], ArgList[5], 0, ArgList[6] ? my_atol(ArgList[6]) : 0);
+	add_to_channel(ArgList[0], ArgList[4], from_server, op, voice, userhost, ArgList[3], ArgList[5], 0, ArgList[6] ? my_atol(ArgList[6]) : 0);
 #ifdef WANT_NSLOOKUP
 	if (get_int_var(AUTO_NSLOOKUP_VAR))
 		do_nslookup(ArgList[2], ArgList[4], ArgList[1], ArgList[0], from_server, auto_nslookup, NULL);
@@ -1094,8 +1077,7 @@ static	void p_channel(char *from, char **ArgList)
 #ifdef WANT_NSLOOKUP
 		char *host;
 #endif
-		user = alloca(strlen(FromUserHost)+1);
-		strcpy(user, FromUserHost);
+		user = LOCAL_COPY(FromUserHost);
 
 #ifdef WANT_NSLOOKUP
 		if ((host = strchr(user, '@')))
@@ -1134,8 +1116,6 @@ static	void p_channel(char *from, char **ArgList)
 
 			if (!its_me && chan && chan->have_op)
 			{
-				char lame_chars[] = "\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a";
-				register char *p;
 				if (get_cset_int_var(chan->csets, LAMELIST_CSET))
 				{
 					if (lame_list && find_in_list((List **)&lame_list, from, 0))
@@ -1148,16 +1128,13 @@ static	void p_channel(char *from, char **ArgList)
 				}
 				if (get_cset_int_var(chan->csets, LAMEIDENT_CSET))
 				{
-					for (p = FromUserHost; *p; p++)
+					/* This may be obsolete, I don't know of any servers that allow this */
+					static const char lame_chars[] = 
+						"\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a";
+					if (strpbrk(FromUserHost, lame_chars))
 					{
-						char *user, *host;
-						if (!strchr(lame_chars, *p))
-							continue;
-						user = LOCAL_COPY(FromUserHost);
-						host = strchr(FromUserHost, '@');
-						host++;
+						char *host = strchr(FromUserHost, '@') + 1;
 						send_to_server("MODE %s +b *!*@%s\r\nKICK %s %s :\002Lame Ident detected\002", chan->channel, cluster(host), chan->channel, from);
-						break;
 					}
 				}
 			}
@@ -1252,7 +1229,7 @@ static	void p_invite(char *from, char **ArgList)
 		}
 		if (!(chan = lookup_channel(invite_channel, from_server, 0)))
 			check_auto_join(from_server, from, invite_channel, ArgList[2]);
-		add_last_type(&last_invite_channel[0], 1, from, FromUserHost, ArgList[1], ArgList[2]?ArgList[2]:empty_string);
+		add_last_type(&last_invite_channel[0], 1, from, FromUserHost, NULL, ArgList[1]);
 		reset_display_target();
 	}
 }
@@ -1303,7 +1280,6 @@ static	void p_kill(char *from, char **ArgList)
 		set_server_reconnecting(from_server, 1);
 	    
 	close_server(from_server,empty_string);
-	clean_server_queues(from_server);
 	window_check_servers(from_server);
 	set_input_prompt(current_window, get_string_var(INPUT_PROMPT_VAR), 0);
 	if (serverkill)
@@ -1325,7 +1301,7 @@ static	void p_kill(char *from, char **ArgList)
 				ArgList[1] ? ArgList[1] : "(No Reason)"))
 			put_it("%s", convert_output_format(fget_string_var(FORMAT_KILL_FSET), "%s %s %s", update_clock(GET_TIME), from, ArgList[1]? ArgList[1] : "You have been Killed"));
 		if (get_int_var(CHANGE_NICK_ON_KILL_VAR))
-			fudge_nickname(from_server, 1);
+			fudge_nickname(from_server);
 		if (get_int_var(AUTO_RECONNECT_VAR))
 			servercmd (NULL, sc, empty_string, NULL);
 		logmsg(LOG_KILL, from, 0, "%s", ArgList[1]?ArgList[1]:"(No Reason)");
@@ -1345,10 +1321,8 @@ static	void p_nick(char *from, char **ArgList)
 {
 	int	one_prints = 0,
 		its_me = 0;
-ChannelList	*chan;
+	ChannelList	*chan;
 	char	*line;
-
-
 	
 	line = ArgList[0];
 	if (!my_stricmp(from, get_server_nickname(from_server)))
@@ -1357,7 +1331,7 @@ ChannelList	*chan;
   		its_me = 1;
 		nick_command_is_pending(from_server, 0);
 	}
-	if (!check_ignore(from, FromUserHost, NULL, IGNORE_NICKS, NULL))
+	if (check_ignore(from, FromUserHost, NULL, IGNORE_NICKS, NULL) == IGNORED)
 		goto do_nick_rename;
 	for (chan = get_server_channels(from_server); chan; chan = chan->next)
 	{
@@ -1443,11 +1417,9 @@ int found = 0;
 
 static void check_bitch_mode(char *from, char *uh, char *channel, char *line, ChannelList *chan)
 {
-NickList *nick;
-char *new_mode = NULL;
-char *n = NULL;
-time_t right_now;
-
+	NickList *nick;
+	char *new_mode = NULL;
+	char *n = NULL;
 	
 	if (!from || !chan || (chan && (!get_cset_int_var(chan->csets, BITCH_CSET) || !chan->have_op)))
 		return;
@@ -1464,7 +1436,6 @@ time_t right_now;
 		char type_mode = '%' , *this_nick, *list_nicks;
 		int found = 0;
 		list_nicks = LOCAL_COPY(n);
-		right_now = now;
 		for (p = new_mode; *p; p++)
 		{
 			switch(*p)
@@ -1490,6 +1461,32 @@ time_t right_now;
 	reset_display_target();
 }
 
+static void update_user_modes(int server, const char *modes)
+{
+	int	onoff = 1;
+
+	for (; *modes; modes++)
+	{
+		char c = *modes;
+
+		switch (c)
+		{
+			case '-':
+				onoff = 0;
+				break;
+			case '+':
+				onoff = 1;
+				break;
+			case 'o':
+			case 'O':
+				set_server_operator(server, onoff);
+				/* fallthrough */
+			default:
+				update_server_umode(server, c, onoff);
+		}
+	}
+}
+
 static	void p_mode(char *from, char **ArgList)
 {
 	char *target;
@@ -1512,7 +1509,6 @@ static	void p_mode(char *from, char **ArgList)
 
 	flag = check_ignore(from, FromUserHost, target, (smode?IGNORE_SMODES : IGNORE_MODES) | IGNORE_CRAP, NULL);
 
-	set_display_target(target, LOG_CRAP);
 	if (target && line)
 	{
 		strcpy(buffer, line);
@@ -1520,6 +1516,8 @@ static	void p_mode(char *from, char **ArgList)
 			strip_modes(from, target, line);
 		if (is_channel(target))
 		{
+			set_display_target(target, LOG_MODE_CHAN);
+
 #ifdef COMPRESS_MODES
 			if (chan2)
 				chan = (ChannelList *)find_in_list((List **)&chan2, target, 0);
@@ -1553,6 +1551,8 @@ static	void p_mode(char *from, char **ArgList)
 		}
 		else
 		{
+			set_display_target(target, LOG_MODE_USER);
+
 			if (flag != IGNORED && do_hook(MODE_LIST, "%s %s %s", from, target, line))
 			{
 				/* User mode changes where from != target don't occur on 
@@ -1561,7 +1561,7 @@ static	void p_mode(char *from, char **ArgList)
 				put_it("%s", convert_output_format(fget_string_var(fset), "%s %s %s %s %s", update_clock(GET_TIME), from, display_uh, target, line));
 			}
 			if (!my_stricmp(target, get_server_nickname(from_server)))
-				update_user_mode(line);
+				update_user_modes(from_server, line);
 			logmsg(LOG_MODE_USER, from, 0, "%s %s", target, line);
 		}
 		update_all_status(current_window, NULL, 0);
@@ -1643,30 +1643,24 @@ static void strip_modes (char *from, char *channel, char *line)
 
 static	void p_kick(char *from, char **ArgList)
 {
-	char	*channel,
-		*who,
-		*comment;
-	char	*chankey = NULL;
+	char *channel = ArgList[0];
+	char *target = ArgList[1];
+	char *comment = ArgList[2] ? ArgList[2] : "(no comment)";
+	char *chankey = NULL;
 	ChannelList *chan = NULL;
-	NickList *tmpnick = NULL;
+	NickList *from_nick = NULL;
 	int	t = 0;
 	
-
-	
-	channel = ArgList[0];
-	who = ArgList[1];
-	comment = ArgList[2] ? ArgList[2] : "(no comment)";
-
 	if ((chan = lookup_channel(channel, from_server, CHAN_NOUNLINK)))
-		tmpnick = find_nicklist_in_channellist(from, chan, 0);
+		from_nick = find_nicklist_in_channellist(from, chan, 0);
 	set_display_target(channel, LOG_CRAP);
-	if (channel && who && chan)
+	if (channel && target && chan)
 	{
-		update_stats(KICKLIST, tmpnick, chan, 0);
+		update_stats(KICKLIST, from_nick, chan, 0);
 #ifdef WANT_TCL
-		check_tcl_kick(from, FromUserHost, from, channel, who, comment);
+		check_tcl_kick(from, FromUserHost, from, channel, target, comment);
 #endif
-		if (!my_stricmp(who, get_server_nickname(from_server)))
+		if (!my_stricmp(target, get_server_nickname(from_server)))
 		{
 
 			Window *window = get_window_by_refnum(chan->refnum);/*chan->window;*/
@@ -1689,7 +1683,6 @@ static	void p_kick(char *from, char **ArgList)
 						if ((ptr = strchr(username, '@')))
 						{
 							*ptr = 0;
-							ptr = username;
 							ptr = clear_server_flags(username);
 						} else
 							ptr = username;
@@ -1707,45 +1700,45 @@ static	void p_kick(char *from, char **ArgList)
 						send_to_server("NICK %s", random_str(3,9));
 					break;
 			}
-			do_logchannel(LOG_KICK_USER, chan, "%s %s, %s %s %s", from, FromUserHost, who, channel, comment);
+			do_logchannel(LOG_KICK_USER, chan, "%s %s, %s %s %s", from, FromUserHost, target, channel, comment);
 			if (rejoin)
 				send_to_server("JOIN %s%s%s", channel, chankey? space : empty_string, chankey ? chankey: empty_string);
 			new_free(&chankey);
-			if (do_hook(KICK_LIST, "%s %s %s %s", who, from, channel, comment?comment:empty_string))
-				put_it("%s",convert_output_format(fget_string_var(FORMAT_KICK_USER_FSET),"%s %s %s %s %s",update_clock(GET_TIME),from, channel, who, comment));
-			remove_channel(channel, from_server);
+			if (do_hook(KICK_LIST, "%s %s %s %s", target, from, channel, comment?comment:empty_string))
+				put_it("%s",convert_output_format(fget_string_var(FORMAT_KICK_USER_FSET),"%s %s %s %s %s",update_clock(GET_TIME),from, channel, target, comment));
+			remove_channel(channel);
 			update_all_status(window ? window : current_window, NULL, 0);
 			update_input(UPDATE_ALL);
-			logmsg(LOG_KICK_USER, from, 0, "%s %s %s %s", FromUserHost, who, channel, comment);
+			logmsg(LOG_KICK_USER, from, 0, "%s %s %s %s", FromUserHost, target, channel, comment);
 			if (rejoin)
 				add_to_join_list(channel, from_server, window ? window->refnum : 0);
 		}
 		else
 		{
 			NickList *f_nick = NULL;
-			int itsme = !my_stricmp(get_server_nickname(from_server), from) ? 1: 0;
+			int itsme = !my_stricmp(get_server_nickname(from_server), from);
 
 			if ((check_ignore(from, FromUserHost, channel, IGNORE_KICKS, NULL) != IGNORED) && 
-			     do_hook(KICK_LIST, "%s %s %s %s", who, from, channel, comment))
-				put_it("%s",convert_output_format(fget_string_var(FORMAT_KICK_FSET),"%s %s %s %s %s",update_clock(GET_TIME),from, channel, who, comment));
+			     do_hook(KICK_LIST, "%s %s %s %s", target, from, channel, comment))
+				put_it("%s",convert_output_format(fget_string_var(FORMAT_KICK_FSET),"%s %s %s %s %s",update_clock(GET_TIME),from, channel, target, comment));
 			/* if it's me that's doing the kick don't flood check */
 			if (!itsme)
 			{
-				f_nick = find_nicklist_in_channellist(who, chan, 0);
-				if (chan->have_op && tmpnick && is_other_flood(chan, tmpnick, KICK_FLOOD, &t))
+				f_nick = find_nicklist_in_channellist(target, chan, 0);
+				if (chan->have_op && from_nick && is_other_flood(chan, from_nick, KICK_FLOOD, &t))
 				{
 					if (get_cset_int_var(chan->csets, KICK_ON_KICKFLOOD_CSET) > get_cset_int_var(chan->csets, DEOP_ON_KICKFLOOD_CSET))
 						send_to_server("MODE %s -o %s", chan->channel, from);
-					else if (!f_nick->kickcount++)
+					else if (!from_nick->sent_kick++)
 						send_to_server("KICK %s %s :\002Mass kick detected - (%d kicks in %dsec%s)\002", chan->channel, from, get_cset_int_var(chan->csets, KICK_ON_KICKFLOOD_CSET), t, plural(t));
 				} 
 #ifdef WANT_USERLIST
-				check_prot(from, who, chan, NULL, f_nick);
+				check_prot(from, target, chan, NULL, f_nick);
 #endif
 			}
-			remove_from_channel(channel, who, from_server, 0, NULL);
-			logmsg(LOG_KICK, from, 0, "%s %s %s %s", FromUserHost, who, channel, comment);
-			do_logchannel(LOG_KICK, chan, "%s %s %s %s %s", from, FromUserHost, who, channel, comment);
+			remove_from_channel(channel, target, from_server, 0, NULL);
+			logmsg(LOG_KICK, from, 0, "%s %s %s %s", FromUserHost, target, channel, comment);
+			do_logchannel(LOG_KICK, chan, "%s %s %s %s %s", from, FromUserHost, target, channel, comment);
 		}
 
 	}
@@ -1778,7 +1771,7 @@ static	void p_part(char *from, char **ArgList)
 		put_it("%s",convert_output_format(fget_string_var(FORMAT_LEAVE_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, FromUserHost, channel, ArgList[1]?ArgList[1]:empty_string));
 	if (!my_stricmp(from, get_server_nickname(from_server)))
 	{
-		remove_channel(channel, from_server);
+		remove_channel(channel);
 		remove_from_mode_list(channel, from_server);
 		remove_from_join_list(channel, from_server);
 		set_input_prompt(current_window, get_string_var(INPUT_PROMPT_VAR), 0);
@@ -1837,8 +1830,8 @@ protocol_command rfc1459[] = {
 { 	"CONNECT",	NULL,		NULL,		0,		0, 0},
 {	"ERROR",	p_error,	NULL,		0,		0, 0},
 {	"ERROR:",	p_error,	NULL,		0,		0, 0},
-{	"INVITE",	p_invite,	NULL,		0,		0, 0},
 {	"INFO",		NULL,		NULL,		0,		0, 0},
+{	"INVITE",	p_invite,	NULL,		0,		0, 0},
 {	"ISON",		NULL,		NULL,		PROTO_NOQUOTE,	0, 0},
 {	"JOIN",		p_channel,	NULL,		PROTO_DEPREC,	0, 0},
 {	"KICK",		p_kick,		NULL,		0,		0, 0},
@@ -1865,8 +1858,8 @@ protocol_command rfc1459[] = {
 {	"STATS",	NULL,		NULL,		0,		0, 0},
 {	"SUMMON",	NULL,		NULL,		0,		0, 0},
 {	"TIME",		NULL,		NULL,		0,		0, 0},
-{	"TRACE",	NULL,		NULL,		0,		0, 0},
 {	"TOPIC",	p_topic,	NULL,		0,		0, 0},
+{	"TRACE",	NULL,		NULL,		0,		0, 0},
 {	"USER",		NULL,		NULL,		0,		0, 0},
 {	"USERHOST",	NULL,		NULL,		PROTO_NOQUOTE,	0, 0},
 {	"USERS",	NULL,		NULL,		0,		0, 0},
@@ -1907,7 +1900,6 @@ void parse_server(char *orig_line)
 #ifdef WANT_DLL
 	RawDll	*raw = NULL;
 #endif
-	protocol_command *retval;
 	int	loc;
 	int	cnt;
 
@@ -1953,9 +1945,20 @@ void parse_server(char *orig_line)
 	strncpy(copy, line, BIG_BUFFER_SIZE);
 	BreakArgs(line, &from, ArgList, 0);
 
-	/* XXXX - i dont think 'from' can be null here.  */
+	/* XXXX - I don't think 'from' can be null here.  */
 	if (!(comm = (*ArgList++)) || !from || !*ArgList)
 		return;		/* Serious protocol violation -- ByeBye  */
+
+	/* Check for egregiously bad nicknames */
+#define islegal(c) (((c) >= 'A' && (c) <= '~') || \
+	((c) >= '0' && (c) <= '9') || (c) == '*' || (c & 0x80))
+
+	if (*from && (!islegal(*from) || strchr(from, ',')))
+	{
+		rfc1459_odd(from, comm, ArgList);
+		return;
+	}
+
 #ifdef WANT_TCL
 	if (check_tcl_raw(copy, comm))
 		return;
@@ -1993,8 +1996,7 @@ void parse_server(char *orig_line)
 		numbered_command(from, numeric, ArgList);
 	else
 	{
-		retval = (protocol_command *)find_fixed_array_item(
-			(void *)rfc1459, sizeof(protocol_command), 
+		find_fixed_array_item((void *)rfc1459, sizeof(protocol_command), 
 			num_protocol_cmds + 1, comm, &cnt, &loc);
 
 		if (cnt < 0 && rfc1459[loc].inbound_handler)

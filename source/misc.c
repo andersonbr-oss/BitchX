@@ -2,48 +2,14 @@
  *  Copyright Colten Edwards (c) 1996
  */
 #include "irc.h"
-static char cvsrevision[] = "$Id: misc.c 198 2012-05-28 13:52:18Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(misc_c)
-#include "struct.h"
 
-#include "server.h"
-#include "dcc.h"
-#include "commands.h"
-#include "encrypt.h"
-#include "vars.h"
-#include "ircaux.h"
-#include "lastlog.h"
-#include "window.h"
-#include "screen.h"
-#include "who.h"
-#include "hook.h"
-#include "input.h"
-#include "ignore.h"
-#include "keys.h"
-#include "names.h"
-#include "alias.h"
-#include "history.h"
-#include "funny.h"
-#include "ctcp.h"
-#include "output.h"
-#include "exec.h"
-#include "notify.h"
-#include "numbers.h"
-#include "status.h"
-#include "list.h"
-#include "timer.h"
-#include "userlist.h"
-#include "misc.h"
-#include "gui.h"
-#include "cdns.h"
-#include "flood.h"
-#include "parse.h"
-#include "whowas.h"
-#include "hash2.h"
-#include "cset.h"
-#include "if.h"
-#define MAIN_SOURCE
-#include "modval.h"
+#ifdef HAVE_LIBIPHLPAPI
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <iphlpapi.h>
+#endif
 
 #include <stdio.h>
 #include <ctype.h>
@@ -63,6 +29,45 @@ CVS_REVISION(misc_c)
 #include <sys/rusage.h>
 #endif
 
+#include "struct.h"
+
+#include "server.h"
+#include "dcc.h"
+#include "commands.h"
+#include "vars.h"
+#include "ircaux.h"
+#include "lastlog.h"
+#include "window.h"
+#include "screen.h"
+#include "who.h"
+#include "hook.h"
+#include "input.h"
+#include "ignore.h"
+#include "keys.h"
+#include "names.h"
+#include "alias.h"
+#include "history.h"
+#include "funny.h"
+#include "ctcp.h"
+#include "output.h"
+#include "exec.h"
+#include "notify.h"
+#include "status.h"
+#include "list.h"
+#include "timer.h"
+#include "userlist.h"
+#include "misc.h"
+#include "gui.h"
+#include "cdns.h"
+#include "flood.h"
+#include "parse.h"
+#include "whowas.h"
+#include "hash2.h"
+#include "cset.h"
+#include "if.h"
+#define MAIN_SOURCE
+#include "modval.h"
+
 #ifdef GUI
 extern int guiipc[2];
 extern int newscrollerpos, lastscrollerpos, lastscrollerwindow;
@@ -72,7 +77,6 @@ extern int newscrollerpos, lastscrollerpos, lastscrollerwindow;
 extern int user_count;
 extern int shit_count;
 extern int bot_count;
-extern int in_server_ping;
 
 int serv_action = 0;
 
@@ -165,19 +169,19 @@ BUILT_IN_COMMAND(do_uptime)
 	put_it("%s",convert_output_format("%G| %cTotal Users on Shitlist: %K[%R$0%K]","%d",shit_count));
 
 #else
-	put_it("%s",convert_output_format("%GÃšÃ„[ %WBitchX%gÃ„%wClient%gÃ„%RStatistics %G]Ã„Ã„Ã„Ã„---%gÃ„--Ã„Ã„%K-%gÃ„Ã„Ã„Ã„Ã„--%GÃ„--Ã„Ã„%K-%gÃ„Ã„Ã„Ã„Ã„Ã„Ã„--- %K--%g  -",NULL));
+	put_it("%s",convert_output_format("%GÚÄ[ %WBitchX%gÄ%wClient%gÄ%RStatistics %G]ÄÄÄÄ---%gÄ--ÄÄ%K-%gÄÄÄÄÄ--%GÄ--ÄÄ%K-%gÄÄÄÄÄÄÄ--- %K--%g  -",NULL));
 	put_it("%s",convert_output_format("%G| %CClient Version: %W$0 $1","%s %s", irc_version, internal_version));
-	put_it("%s",convert_output_format("%GÂ³ %CClient Running Since %W$0-","%s",my_ctime(start_time)));
+	put_it("%s",convert_output_format("%G³ %CClient Running Since %W$0-","%s",my_ctime(start_time)));
 	put_it("%s",convert_output_format("%G| %CClient Uptime: %W$0-","%s",convert_time(now-start_time)));
-	put_it("%s",convert_output_format("%GÂ³ %CCurrent UserName: %W$0-","%s", username));
+	put_it("%s",convert_output_format("%G³ %CCurrent UserName: %W$0-","%s", username));
 	put_it("%s",convert_output_format("%G: %CCurrent RealName: %W$0-","%s", realname));
 	put_it("%s",convert_output_format("%G. %CLast Recv Message: %W$0-","%s",last_msg[0].last_msg?last_msg[0].last_msg:"None"));
 	put_it("%s",convert_output_format("%G: %CLast Recv Notice: %W$0-","%s",last_notice[0].last_msg?last_notice[0].last_msg:"None"));
 	put_it("%s",convert_output_format("%G. %CLast Sent Msg: %W$0-","%s",last_sent_msg[0].last_msg?last_sent_msg[0].last_msg:"None"));
 	put_it("%s",convert_output_format("%G: %CLast Sent Notice: %W$0-","%s",last_sent_notice[0].last_msg?last_sent_notice[0].last_msg:"None"));
-	put_it("%s",convert_output_format("%GÂ³ %CLast Channel invited to: %R$0-","%s",invite_channel?invite_channel:"None"));
+	put_it("%s",convert_output_format("%G³ %CLast Channel invited to: %R$0-","%s",invite_channel?invite_channel:"None"));
 	put_it("%s",convert_output_format("%G| %cTotal Users on Userlist: %K[%R$0%K]","%d",user_count));
-	put_it("%s",convert_output_format("%GÂ³ %cTotal Users on Shitlist: %K[%R$0%K]","%d",shit_count));
+	put_it("%s",convert_output_format("%G³ %cTotal Users on Shitlist: %K[%R$0%K]","%d",shit_count));
 
 #endif
 }
@@ -236,25 +240,6 @@ BUILT_IN_COMMAND(extern_write)
 			break;
 	}
 	
-}
-
-
-int check_serverlag (void)
-{
-	int i;
-	time_t new_t = now;
-		
-	for (i = 0; i < server_list_size(); i++)
-	{
-		if (is_server_connected(i) && (new_t != get_server_lagtime(i)))
-		{
-			set_server_lagtime(i, new_t);
-			my_send_to_server(i, "PING %lu %s", get_server_lagtime(i), get_server_itsname(i) ? get_server_itsname(i): get_server_name(i));
-			in_server_ping++;
-			set_server_lag(i, -1);
-		}
-	}
-	return 0;
 }
 
 int timer_unban (void *args, char *sub)
@@ -327,11 +312,10 @@ UserList *user = NULL;
 
 BUILT_IN_COMMAND(addidle)
 {
-time_t default_idle = 10 * 60;
-char *channel = NULL, *p;
-time_t seconds = 0;
-ChannelList *tmp, *new = NULL;
-
+	time_t default_idle = 10 * 60;
+	char *channel = NULL, *p;
+	time_t seconds = 0;
+	ChannelList *tmp, *new = NULL;
 	
 	if ((p = next_arg(args, &args)))
 	{
@@ -353,24 +337,22 @@ ChannelList *tmp, *new = NULL;
 		new->max_idle = seconds;
 		new->check_idle = (my_strnicmp(command, "UN", 2) == 0) ? 0: 1;
 
+		tmp = lookup_channel(channel, from_server, CHAN_NOUNLINK);
 		if (!new->check_idle)
 		{
-			bitchsay("Idle checking turned %s for %s",on_off(new->check_idle), channel); 
-			if ((tmp = lookup_channel(channel, from_server, CHAN_NOUNLINK)))
+			bitchsay("Idle checking turned %s for %s", on_off(new->check_idle), channel); 
+			if (tmp)
 				tmp->check_idle = tmp->max_idle = 0;
 			new->max_idle = 0;
 		} 
 		else
 		{
-			if ((tmp = lookup_channel(channel, from_server, CHAN_NOUNLINK)))
+			bitchsay("Idle checking turned %s for %s %d mins", on_off(tmp->check_idle), channel, (int)(tmp->max_idle/60)); 
+			if (tmp)
 			{
-				if (new && new->check_idle)
-				{
-					tmp->max_idle = new->max_idle;
-					tmp->check_idle = new->check_idle;
-					add_timer(0, empty_string, get_int_var(IDLE_CHECK_VAR) * 1000, 1, timer_idlekick, channel, NULL, current_window->refnum, "idle-check");
-					bitchsay("Idle checking turned %s for %s %d mins",on_off(tmp->check_idle), channel, (int)(tmp->max_idle/60)); 
-				} 
+				tmp->max_idle = new->max_idle;
+				tmp->check_idle = new->check_idle;
+				add_timer(0, empty_string, get_int_var(IDLE_CHECK_VAR) * 1000, 1, timer_idlekick, channel, NULL, current_window->refnum, "idle-check");
 			}
 		}
 		new_free(&channel);
@@ -500,62 +482,43 @@ int count = 0;
 
 BUILT_IN_COMMAND(channel_stats)
 {
-ChannelList *new = NULL;
-char *channel = NULL;
-WhowasChanList *new1 = NULL;
-int numircops = 0;
-int usershere = 0;
-int usersaway = 0;
-int chanops = 0;
-int chanunop = 0;
-char *ircops = NULL;
-int server = -1;
-int max_hops = 0;
-
-NickList *l; 
-unsigned long	nick_mem = 0, 
-		ban_mem = 0; 
-BanList *b;
-
-
-	
+	ChannelList *new = NULL;
+	char *channel = NULL;
+	int numircops = 0;
+	int usershere = 0;
+	int usersaway = 0;
+	int chanops = 0;
+	int chanunop = 0;
+	char *ircops = NULL;
+	int server = -1;
+	int max_hops = 0;
+	NickList *l; 
+	unsigned long nick_mem = 0;
+	unsigned long ban_mem = 0; 
+	BanList *b;
 
 	if (args && *args)
 	{
 		channel = next_arg(args, &args);
-		if (my_strnicmp(channel, "-ALL", strlen(channel)))
+
+		if (!my_strnicmp(channel, "-ALL", strlen(channel)))
 		{
-			if (!(channel = make_channel(channel)))
-				return;
-			if (!(new = prepare_command(&server, channel, PC_SILENT)))
-				if ((channel && !(new1 = check_whowas_chan_buffer(channel, -1, 0))))
-					return;
-		}
-		else
-		{
-	
+			/* Accumulate stats from all joined channels on server */
 			int stats_ops= 0, stats_dops = 0, stats_bans = 0, stats_unbans = 0;
 			int stats_topics = 0, stats_kicks = 0, stats_pubs = 0, stats_parts = 0;
 			int stats_signoffs = 0, stats_joins = 0;
 			int total_nicks = 0, max_nicks = 0, total_bans = 0, max_bans = 0;
 			int stats_sops = 0, stats_sdops = 0, stats_sbans = 0, stats_sunbans = 0;	
-		
-			NickList *l; 
-			BanList *b;
 			unsigned long chan_mem = 0;
-			channel =  NULL;
+
+			channel = NULL;
 				
 			if (from_server != -1)
 			{
 				for (new = get_server_channels(from_server); new; new = new->next)
-				{		
-					if (!channel)
-						malloc_strcpy(&channel, new->channel);
-					else
-					{
-						malloc_strcat(&channel, ",");
-						malloc_strcat(&channel, new->channel);
-					}
+				{
+					m_s3cat(&channel, ",", new->channel);
+
 					for (l = next_nicklist(new, NULL); l; l = next_nicklist(new, l))
 					{
 						if (nick_isaway(l))
@@ -601,106 +564,112 @@ BanList *b;
 					stats_sunbans += new->stats_sunbans;						
 				}
 			}
-			if (!ircops)
-				malloc_strcat(&ircops, empty_string);
-if (do_hook(CHANNEL_STATS_LIST, "%s %s %s %lu %lu %lu %lu %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %d %s", 
-	channel, empty_string, empty_string,
-	nick_mem+chan_mem+ban_mem, nick_mem, 
-	(unsigned long)sizeof(ChannelList),ban_mem, 
-	stats_ops, stats_dops, stats_bans, stats_unbans,
-	stats_topics, stats_kicks, stats_pubs, stats_parts,
-	stats_signoffs, stats_joins, total_bans, max_bans,
-	stats_sops, stats_sdops,stats_sbans, stats_sunbans,
-	usershere, usersaway, chanops, chanunop,total_nicks,max_nicks,
-	numircops, max_hops, ircops))
-{
-put_it("%s", convert_output_format("$G %CInformation for channels %K: %W$0", "%s", channel)); 
-put_it("%s", convert_output_format("     MEM usage%K:%w Total%K:%w %c$0 bytes   %K[%cNicks $1 b Chan $2 b Bans $3 b%K]", "%d %d %d %d", (int)(nick_mem+chan_mem+ban_mem), (int)nick_mem, (int)sizeof(ChannelList), (int)ban_mem));
-put_it("%s", convert_output_format("Ops        %K[%W$[-5]0%K]%w  De-Ops     %K[%W$[-5]1%K]%w  Bans       %K[%W$[-5]2%K]%w  Unbans     %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_ops, stats_dops, stats_bans, stats_unbans));
-put_it("%s", convert_output_format("Topics     %K[%W$[-5]0%K]%w  Kicks      %K[%W$[-5]1%K]%w  Publics    %K[%W$[-5]2%K]%w  Parts      %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_topics, stats_kicks, stats_pubs, stats_parts));
-put_it("%s", convert_output_format("Signoffs   %C[%W$[-5]0%K]%w  Joins      %K[%W$[-5]1%K]%w  TotalBans  %K[%W$[-5]2%K]%w  MaxBans    %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_signoffs, stats_joins, total_bans, max_bans));
-put_it("%s", convert_output_format("ServOps    %K[%W$[-5]0%K]%w  ServDeop   %K[%W$[-5]1%K]%w  ServBans   %K[%W$[-5]2%K]%w  ServUB     %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_sops, stats_sdops,stats_sbans, stats_sunbans));
-put_it("%s", convert_output_format("Users Here %K[%W$[-5]0%K]%w  Users Away %K[%W$[-5]1%K]%w  Opped      %K[%W$[-5]2%K]%w  Unopped    %K[%W$[-5]3%K]%w", "%u %u %u %u", usershere, usersaway, chanops, chanunop));
-put_it("%s", convert_output_format("TotalNicks %K[%W$[-5]0%K]%w  MaxNicks   %K[%W$[-5]1%K]%w  ServerHops %K[%W$[-5]2%K]%w", "%d %d %d", total_nicks,max_nicks, max_hops));
-put_it("%s", convert_output_format("IRCops     %K[%W$[3]0%K]%w$1-", "%d %s", numircops, ircops));
-}
+
+			if (do_hook(CHANNEL_STATS_LIST,
+						"%s %s %s %lu %lu %lu %lu %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %d %s", 
+						channel, empty_string, empty_string,
+						nick_mem + chan_mem + ban_mem, nick_mem, 
+						chan_mem, ban_mem,
+						stats_ops, stats_dops, stats_bans, stats_unbans,
+						stats_topics, stats_kicks, stats_pubs, stats_parts,
+						stats_signoffs, stats_joins, total_bans, max_bans,
+						stats_sops, stats_sdops, stats_sbans, stats_sunbans,
+						usershere, usersaway, chanops, chanunop, total_nicks, max_nicks,
+						numircops, max_hops, ircops ? ircops : ""))
+			{
+				put_it("%s", convert_output_format("$G %CInformation for channels %K: %W$0", "%s", channel)); 
+				put_it("%s", convert_output_format("     MEM usage%K:%w Total%K:%w %c$0 bytes   %K[%cNicks $1 b Chan $2 b Bans $3 b%K]", "%d %d %d %d", (int)(nick_mem + chan_mem + ban_mem), (int)nick_mem, (int)chan_mem, (int)ban_mem));
+				put_it("%s", convert_output_format("Ops        %K[%W$[-5]0%K]%w  De-Ops     %K[%W$[-5]1%K]%w  Bans       %K[%W$[-5]2%K]%w  Unbans     %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_ops, stats_dops, stats_bans, stats_unbans));
+				put_it("%s", convert_output_format("Topics     %K[%W$[-5]0%K]%w  Kicks      %K[%W$[-5]1%K]%w  Publics    %K[%W$[-5]2%K]%w  Parts      %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_topics, stats_kicks, stats_pubs, stats_parts));
+				put_it("%s", convert_output_format("Signoffs   %K[%W$[-5]0%K]%w  Joins      %K[%W$[-5]1%K]%w  TotalBans  %K[%W$[-5]2%K]%w  MaxBans    %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_signoffs, stats_joins, total_bans, max_bans));
+				put_it("%s", convert_output_format("ServOps    %K[%W$[-5]0%K]%w  ServDeop   %K[%W$[-5]1%K]%w  ServBans   %K[%W$[-5]2%K]%w  ServUB     %K[%W$[-5]3%K]%w", "%u %u %u %u", stats_sops, stats_sdops,stats_sbans, stats_sunbans));
+				put_it("%s", convert_output_format("Users Here %K[%W$[-5]0%K]%w  Users Away %K[%W$[-5]1%K]%w  Opped      %K[%W$[-5]2%K]%w  Unopped    %K[%W$[-5]3%K]%w", "%u %u %u %u", usershere, usersaway, chanops, chanunop));
+				put_it("%s", convert_output_format("TotalNicks %K[%W$[-5]0%K]%w  MaxNicks   %K[%W$[-5]1%K]%w  ServerHops %K[%W$[-5]2%K]%w", "%d %d %d", total_nicks,max_nicks, max_hops));
+				put_it("%s", convert_output_format("IRCops     %K[%W$[3]0%K]%w$1-", "%d %s", numircops, ircops ? ircops : ""));
+			}
 			new_free(&ircops);
 			new_free(&channel);
 			return;		
 		}
 	}
-	else 
-	{
-		if (!(new = prepare_command(&server, channel, PC_SILENT)))
-			if ((channel && !(new1 = check_whowas_chan_buffer(channel, -1, 0))))
-				return;
-	}
 
-	if (!new && new1)
-		new = new1->channellist;
+	channel = make_channel(channel);
+	new = prepare_command(&server, channel, PC_SILENT);
+
 	if (!new)
 	{
-		bitchsay("Try joining a channel first");
-		return;
-	}		
-	if (new)
-	{
-		for (l = next_nicklist(new, NULL); l; l = next_nicklist(new, l))
+		if (channel)
 		{
-			nick_mem += sizeof(NickList);
-			if (nick_isaway(l))
-				usersaway++;
-			else
-				usershere++;
-			if (nick_isircop(l))
+			WhowasChanList *whowas_chan = check_whowas_chan_buffer(channel, -1, 0);
+
+			if (!whowas_chan)
 			{
-				numircops++;
-				malloc_strcat(&ircops, " (");
-				malloc_strcat(&ircops, l->nick);
-				malloc_strcat(&ircops, ")");
+				bitchsay("No stats available for %s", channel);
+				return;
 			}
-			if (nick_isop(l))
-				chanops++;
-			else
-				chanunop++;					
-			if (l->serverhops > max_hops)
-				max_hops = l->serverhops;
+
+			new = whowas_chan->channellist;
 		}
-		for (b = new->bans; b; b = b->next)
-			ban_mem += sizeof(BanList);
+		else
+		{
+			bitchsay("Try joining a channel first");
+			return;
+		}
 	}
-	if (!ircops)
-		malloc_strcat(&ircops, empty_string);
-	if (do_hook(CHANNEL_STATS_LIST, "%s %s %s %ld %ld %ld %ld %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %d %s", 
-		new->channel, my_ctime(new->channel_create.tv_sec), convert_time(now-new->join_time.tv_sec),
-		nick_mem+sizeof(ChannelList)+ban_mem, nick_mem, 
-		(unsigned long)sizeof(ChannelList),ban_mem, 
-		new->stats_ops, new->stats_dops, new->stats_bans, new->stats_unbans,
-		new->stats_topics, new->stats_kicks, new->stats_pubs, new->stats_parts,
-		new->stats_signoffs, new->stats_joins, new->totalbans, new->maxbans,
-		new->stats_sops, new->stats_sdops,new->stats_sbans, new->stats_sunbans,
-		usershere, usersaway, chanops, chanunop,new->totalnicks,new->maxnicks,
-		numircops, max_hops, ircops))
+
+	for (l = next_nicklist(new, NULL); l; l = next_nicklist(new, l))
 	{
-put_it("%s", convert_output_format("$G %CInformation for channel %K: %W$0", "%s", new->channel)); 
-put_it("%s", convert_output_format("$G %CChannel created %K: %W$0 $1 $2 $3%n in memory %W$4-", "%s %s", convert_time(now-new->channel_create.tv_sec), my_ctime(new->join_time.tv_sec)));
+		nick_mem += sizeof(NickList);
+		if (nick_isaway(l))
+			usersaway++;
+		else
+			usershere++;
+		if (nick_isircop(l))
+		{
+			numircops++;
+			malloc_strcat(&ircops, " (");
+			malloc_strcat(&ircops, l->nick);
+			malloc_strcat(&ircops, ")");
+		}
+		if (nick_isop(l))
+			chanops++;
+		else
+			chanunop++;					
+		if (l->serverhops > max_hops)
+			max_hops = l->serverhops;
+	}
+	for (b = new->bans; b; b = b->next)
+		ban_mem += sizeof(BanList);
 
-put_it("%s", convert_output_format("     MEM usage%K:%w Total%K:%w %c$0 bytes   %K[%cNicks $1 b Chan $2 b Bans $3 b%K]", "%d %d %d %d", (int)(nick_mem+sizeof(ChannelList)+ban_mem), (int)nick_mem, (int)sizeof(ChannelList), (int)ban_mem));
-put_it("%s", convert_output_format("Ops        %K[%W$[-5]0%K]%w  De-Ops     %K[%W$[-5]1%K]%w  Bans       %K[%W$[-5]2%K]%w  Unbans     %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_ops, new->stats_dops, new->stats_bans, new->stats_unbans));
-put_it("%s", convert_output_format("Topics     %K[%W$[-5]0%K]%w  Kicks      %K[%W$[-5]1%K]%w  Publics    %K[%W$[-5]2%K]%w  Parts      %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_topics, new->stats_kicks, new->stats_pubs, new->stats_parts));
-put_it("%s", convert_output_format("Signoffs   %K[%W$[-5]0%K]%w  Joins      %K[%W$[-5]1%K]%w  TotalBans  %K[%W$[-5]2%K]%w  MaxBans    %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_signoffs, new->stats_joins, new->totalbans, new->maxbans));
-put_it("%s", convert_output_format("ServOps    %K[%W$[-5]0%K]%w  ServDeop   %K[%W$[-5]1%K]%w  ServBans   %K[%W$[-5]2%K]%w  ServUB     %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_sops, new->stats_sdops,new->stats_sbans, new->stats_sunbans));
-put_it("%s", convert_output_format("Users Here %K[%W$[-5]0%K]%w  Users Away %K[%W$[-5]1%K]%w  Opped      %K[%W$[-5]2%K]%w  Unopped    %K[%W$[-5]3%K]%w", "%u %u %u %u", usershere, usersaway, chanops, chanunop));
-put_it("%s", convert_output_format("TotalNicks %K[%W$[-5]0%K]%w  MaxNicks   %K[%W$[-5]1%K]%w  ServerHops %K[%W$[-5]2%K]%w", "%d %d %d", new->totalnicks,new->maxnicks, max_hops));
-put_it("%s", convert_output_format("IRCops     %K[%W$[3]0%K]%w$1-", "%d %s", numircops, ircops));
+	if (do_hook(CHANNEL_STATS_LIST,
+				"%s %s %s %ld %ld %ld %ld %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %d %s", 
+				new->channel, my_ctime(new->channel_create.tv_sec), convert_time(time_since(&new->join_time)),
+				nick_mem+sizeof(ChannelList)+ban_mem, nick_mem, 
+				(unsigned long)sizeof(ChannelList),ban_mem, 
+				new->stats_ops, new->stats_dops, new->stats_bans, new->stats_unbans,
+				new->stats_topics, new->stats_kicks, new->stats_pubs, new->stats_parts,
+				new->stats_signoffs, new->stats_joins, new->totalbans, new->maxbans,
+				new->stats_sops, new->stats_sdops,new->stats_sbans, new->stats_sunbans,
+				usershere, usersaway, chanops, chanunop,new->totalnicks,new->maxnicks,
+				numircops, max_hops, ircops ? ircops : ""))
+	{
+		put_it("%s", convert_output_format("$G %CInformation for channel %K: %W$0", "%s", new->channel)); 
+		put_it("%s", convert_output_format("$G %CChannel created %K: %W$4-%n in memory %W$0 $1 $2 $3", "%s %s", convert_time(time_since(&new->join_time)), my_ctime(new->channel_create.tv_sec)));
+		put_it("%s", convert_output_format("     MEM usage%K:%w Total%K:%w %c$0 bytes   %K[%cNicks $1 b Chan $2 b Bans $3 b%K]", "%d %d %d %d", (int)(nick_mem+sizeof(ChannelList)+ban_mem), (int)nick_mem, (int)sizeof(ChannelList), (int)ban_mem));
+		put_it("%s", convert_output_format("Ops        %K[%W$[-5]0%K]%w  De-Ops     %K[%W$[-5]1%K]%w  Bans       %K[%W$[-5]2%K]%w  Unbans     %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_ops, new->stats_dops, new->stats_bans, new->stats_unbans));
+		put_it("%s", convert_output_format("Topics     %K[%W$[-5]0%K]%w  Kicks      %K[%W$[-5]1%K]%w  Publics    %K[%W$[-5]2%K]%w  Parts      %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_topics, new->stats_kicks, new->stats_pubs, new->stats_parts));
+		put_it("%s", convert_output_format("Signoffs   %K[%W$[-5]0%K]%w  Joins      %K[%W$[-5]1%K]%w  TotalBans  %K[%W$[-5]2%K]%w  MaxBans    %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_signoffs, new->stats_joins, new->totalbans, new->maxbans));
+		put_it("%s", convert_output_format("ServOps    %K[%W$[-5]0%K]%w  ServDeop   %K[%W$[-5]1%K]%w  ServBans   %K[%W$[-5]2%K]%w  ServUB     %K[%W$[-5]3%K]%w", "%u %u %u %u", new->stats_sops, new->stats_sdops,new->stats_sbans, new->stats_sunbans));
+		put_it("%s", convert_output_format("Users Here %K[%W$[-5]0%K]%w  Users Away %K[%W$[-5]1%K]%w  Opped      %K[%W$[-5]2%K]%w  Unopped    %K[%W$[-5]3%K]%w", "%u %u %u %u", usershere, usersaway, chanops, chanunop));
+		put_it("%s", convert_output_format("TotalNicks %K[%W$[-5]0%K]%w  MaxNicks   %K[%W$[-5]1%K]%w  ServerHops %K[%W$[-5]2%K]%w", "%d %d %d", new->totalnicks,new->maxnicks, max_hops));
+		put_it("%s", convert_output_format("IRCops     %K[%W$[3]0%K]%w$1-", "%d %s", numircops, ircops ? ircops : ""));
 
-put_it("%s", convert_output_format("  %CThere is %R$0%C limit and limit checking is %R$1-", "%s %s", new->limit ? ltoa(new->limit): "no", new->tog_limit?"Enabled":"Disabled"));
-put_it("%s", convert_output_format("  %CIdle user check is %K[%R$0-%K]", "%s", new->check_idle?"Enabled":"Disabled"));
-/*put_it("%s", convert_output_format("$G End of channel stats for $0", "%s", new->channel));*/
-			/* wtf is do_scan in the channel struct */
+		put_it("%s", convert_output_format("  %CThere is %R$0%C limit and limit checking is %R$1-", "%s %s", new->limit ? ltoa(new->limit): "no", new->tog_limit?"Enabled":"Disabled"));
+		put_it("%s", convert_output_format("  %CIdle user check is %K[%R$0-%K]", "%s", new->check_idle?"Enabled":"Disabled"));
+		/*put_it("%s", convert_output_format("$G End of channel stats for $0", "%s", new->channel));*/
+		/* wtf is do_scan in the channel struct */
 	}
 	new_free(&ircops);
-
 }
 
 void update_stats(int what, NickList *nick, ChannelList *chan, int splitter)
@@ -737,23 +706,18 @@ int t = 0;
 				chan->maxnicks = chan->totalnicks;
 				chan->maxnickstime = this_time;
 			}
-			if (!splitter)
+			if (!splitter && chan->have_op && is_other_flood(chan, nick, JOIN_FLOOD, &t) &&
+				get_cset_int_var(chan->csets, KICK_ON_JOINFLOOD_CSET) && !nick->sent_kick++)
 			{
-				if (chan->have_op && is_other_flood(chan, nick, JOIN_FLOOD, &t))
-				{
-					if (get_cset_int_var(chan->csets, JOINFLOOD_CSET) && get_cset_int_var(chan->csets, KICK_ON_JOINFLOOD_CSET) && !nick->kickcount++)
-					{
-						char *t1, *host, *banstr;
-						t1 = LOCAL_COPY(nick->host);
-						host = strchr(t1, '@');
-						*host++ = 0;
-						banstr = ban_it(nick->nick, t1, host, nick->ip);
-						send_to_server("MODE %s -o+b %s %s", chan->channel, nick->nick, banstr); 
-						send_to_server("KICK %s %s :\002Join flood\002 (%d joins in %dsecs of %dsecs)", chan->channel, nick->nick, get_cset_int_var(chan->csets, KICK_ON_JOINFLOOD_CSET)/*chan->set_kick_on_joinflood*/, t, get_cset_int_var(chan->csets, JOINFLOOD_TIME_CSET));
-						if (get_int_var(AUTO_UNBAN_VAR))
-							add_timer(0, empty_string, get_int_var(AUTO_UNBAN_VAR) * 1000, 1, timer_unban, m_sprintf("%d %s %s", from_server, chan->channel, banstr), NULL, current_window->refnum, "join-flood");
-					}
-				} 
+				char *t1, *host, *banstr;
+				t1 = LOCAL_COPY(nick->host);
+				host = strchr(t1, '@');
+				*host++ = 0;
+				banstr = ban_it(nick->nick, t1, host, nick->ip);
+				send_to_server("MODE %s -o+b %s %s", chan->channel, nick->nick, banstr); 
+				send_to_server("KICK %s %s :\002Join flood\002 (%d joins in %dsecs of %dsecs)", chan->channel, nick->nick, get_cset_int_var(chan->csets, KICK_ON_JOINFLOOD_CSET), t, get_cset_int_var(chan->csets, JOINFLOOD_TIME_CSET));
+				if (get_int_var(AUTO_UNBAN_VAR))
+					add_timer(0, empty_string, get_int_var(AUTO_UNBAN_VAR) * 1000, 1, timer_unban, m_sprintf("%d %s %s", from_server, chan->channel, banstr), NULL, current_window->refnum, "join-flood");
 			}
 			break;
 		}
@@ -821,7 +785,7 @@ int t = 0;
 			{
 				if (get_cset_int_var(chan->csets, DEOP_ON_DEOPFLOOD_CSET) < get_cset_int_var(chan->csets, KICK_ON_DEOPFLOOD_CSET))
 					send_to_server("MODE %s -o %s", chan->channel, nick->nick);
-				else if (!nick->kickcount++)
+				else if (!nick->sent_kick++)
 					send_to_server("KICK %s %s :\002De-op flood\002 (%d de-ops in %dsecs of %dsecs)", chan->channel, nick->nick, get_cset_int_var(chan->csets, KICK_ON_DEOPFLOOD_CSET), t, get_cset_int_var(chan->csets, DEOPFLOOD_TIME_CSET)); 
 			} 
 			break;
@@ -1078,19 +1042,6 @@ char *mircansi(unsigned char *line)
 }
 #endif
 
-char *stripansi(unsigned char *line)
-{
-register unsigned char    *cp;
-unsigned char *newline;
-	newline = m_strdup(line);        
-	for (cp = newline; *cp; cp++)
-		if ((*cp < 31 && *cp > 13))
-			if (*cp != 1 && *cp != 15 && *cp !=22 && *cp != 0x9b)
-				*cp = (*cp & 127) | 64;
-	return (char *)newline;
-}
-
-
 int check_split(char *nick, char *reason)
 {
 char *bogus = get_string_var(FAKE_SPLIT_PATS_VAR);
@@ -1227,82 +1178,37 @@ void check_auto_away(time_t idlet)
 /*char *logfile[] = { "tcl.log", "msg.log", NULL };*/
 
 /* putlog(level,channel_name,format,...);  */
-void putlog(int type, ...)
+void putlog(int type, const char *chname, const char *format, ...)
 {
 #ifdef PUBLIC_ACCESS
 		return;
 #else
-va_list va; 
-time_t	t;
-char	*format,
-	*chname,
-	*logfilen = NULL, 
-	s[BIG_BUFFER_SIZE+1],
-	s1[40],
-	s2[BIG_BUFFER_SIZE+1];
-FILE	*f; 
+	va_list va;
+	char *logfilen;
+	char ftime[40];
+	FILE *f;
+
 	if (!get_int_var(BOT_LOG_VAR))
 		return;
 	if (!(logfilen = get_string_var(BOT_LOGFILE_VAR)))
 		return;
-			
-	va_start(va, type); 
-	t = now;
-	strftime(s1, 30, "%I:%M%p", localtime(&t));
-	chname=va_arg(va,char *);
-	format=va_arg(va,char *);
-	vsprintf(s,format,va);
-	
-	if (!*s) 
-		strcpy(s2,empty_string);
-	else 
-		sprintf(s2,"[%s] %s",s1,s); 
+
+	strftime(ftime, sizeof ftime, "%I:%M%p", localtime(&now));
 
 	if (chname && *chname =='*')
 	{
-		if ((f=fopen(logfilen, "a+")) != NULL)
+		if ((f = fopen(logfilen, "a+")) != NULL)
 		{
-			fprintf(f,"%s\n",s2); 
+			va_start(va, format);
+			fprintf(f, "[%s] ", ftime);
+			vfprintf(f, format, va); 
+			fprintf(f, "\n");
+			va_end(va);
+
 			fclose(f);
 		}
 	}
 #endif
-}
-
-int rename_file (char *old_file, char **new_file)
-{
-	char *tmp = NULL;
-	char buffer[BIG_BUFFER_SIZE+4];
-	char *c = NULL;
-	FILE *fp;
-			
-
-	
-	c = alloca(10);
-	sprintf(c, "%03i.", getrandom(0, 999));
-	if (get_string_var(DCC_DLDIR_VAR))
-		malloc_sprintf(&tmp, "%s/%s", get_string_var(DCC_DLDIR_VAR), c);
-	else
-		malloc_sprintf(&tmp, "%s", c); 
-
-	malloc_strcat(&tmp, *new_file);
-	strmcpy(buffer, *new_file, BIG_BUFFER_SIZE);
-	while ((fp = fopen(tmp, "r")) != NULL)
-	{
-		fclose(fp);
-		sprintf(c, "%03i.", getrandom(0, 999));
-		if (get_string_var(DCC_DLDIR_VAR))
-			malloc_sprintf(&tmp, "%s/%s", get_string_var(DCC_DLDIR_VAR), c);
-		else
-			malloc_sprintf(&tmp, "%s", c); 
-		malloc_strcat(&tmp, buffer);
-	}
-	if (fp != NULL)
-		fclose(fp);
-	malloc_sprintf(new_file, "%s", c);
-	malloc_strcat(new_file, buffer);
-	new_free(&tmp);
-	return 0;
 }
 
 int isme(char *nick)
@@ -1314,7 +1220,7 @@ int isme(char *nick)
 enum REDIR_TYPES { PRIVMSG = 0, KICK, TOPIC, WALL, WALLOP, NOTICE, KBOOT, KILL, DCC, LIST};
 void userhost_ban(UserhostItem *stuff, char *nick1, char *args);
 
-int redirect_msg(char *to, enum REDIR_TYPES what, char *str, int showansi)
+static int redirect_msg(char *to, enum REDIR_TYPES what, char *str, int showansi)
 {
 char *new_str;
 	if (showansi)
@@ -1324,22 +1230,26 @@ char *new_str;
 	switch(what)
 	{
 		case PRIVMSG:
-			if (is_channel(to))
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_SEND_PUBLIC_FSET), "%s %s %s %s", update_clock(GET_TIME), to, get_server_nickname(from_server), new_str));
-			else if ((*to == '=') && dcc_activechat(to+1))
-				;
+			if (*to == '=')
+			{
+				to++;
+				if (dcc_activechat(to))
+					dcc_chat_transmit(to, new_str, new_str, 0);
+			}
 			else
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_SEND_MSG_FSET), "%s %s %s %s", update_clock(GET_TIME), to, get_server_nickname(from_server), new_str));
-			if ((*to == '=') && dcc_activechat(to+1))
-				dcc_chat_transmit(to+1, new_str, new_str, "PRIVMSG", 1);
-			else
+			{
+				if (is_channel(to))
+					put_it("%s", convert_output_format(fget_string_var(FORMAT_SEND_PUBLIC_FSET), "%s %s %s %s", update_clock(GET_TIME), to, get_server_nickname(from_server), new_str));
+				else
+					put_it("%s", convert_output_format(fget_string_var(FORMAT_SEND_MSG_FSET), "%s %s %s %s", update_clock(GET_TIME), to, get_server_nickname(from_server), new_str));
 				send_to_server("PRIVMSG %s :%s", to, new_str);
+			}
 			break;
 		case KILL:
 			send_to_server("KILL %s :%s", to, new_str);
 			break;
 		case KBOOT:
-			userhostbase(to, userhost_ban, 1, "%s %s %s", get_current_channel_by_refnum(0), to, empty_string);
+			userhostbase(to, userhost_ban, 1, "%s", get_current_channel_by_refnum(0));
 		case KICK:
 			send_to_server("KICK %s %s :%s", get_current_channel_by_refnum(0), to, new_str);
 			break;
@@ -1371,7 +1281,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 	char *channel = NULL; int count = -1;
 	LastMsg *t = NULL;
 	char *form = NULL;
-	char *sform;
 	int numargs = 5;
 	int size = 1;
 	int len = strlen(command);
@@ -1382,7 +1291,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 	{
 		t = &last_ctcp_reply[0];
 		form = fget_string_var(FORMAT_CTCP_REPLY_FSET);
-		sform = "%s %s %s %s %s";
 		if (len == 6 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1390,7 +1298,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 	{
 		t = &last_sent_ctcp[0];
 		form = fget_string_var(FORMAT_SEND_CTCP_FSET);
-		sform = "%s %s %s %s %s";
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1399,7 +1306,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		t = &last_dcc[0];
 		size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_DCC_CHAT_FSET);
-		sform = "%s %s %s %s";
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
 		numargs = 4;
@@ -1409,7 +1315,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		t = &last_sent_dcc[0];
 		size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_DCC_CHAT_FSET);
-		sform = "%s %s %s %s";
 		if (len > 5 && command[len-1] == 'T')
 			what = TOPIC;
 		numargs = 4;
@@ -1418,8 +1323,7 @@ BUILT_IN_COMMAND(do_dirlasttype)
 	{
 		t = &last_invite_channel[0];
 		form = fget_string_var(FORMAT_INVITE_FSET);
-		numargs = 4;
-		sform = "%s %s %s";
+		numargs = 3;
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1428,7 +1332,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		/* ??? */
 		t = &last_msg[0]; size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_RELM_FSET);
-		sform = "%s %s %s %s %s";
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1437,7 +1340,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		/* ??? */
 		t = &last_notice[0]; size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_RELN_FSET);
-		sform = "%s %s %s %s %s";
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1446,7 +1348,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		/* ??? */
 		t = &last_sent_msg[0]; size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_RELSM_FSET);
-		sform = "%s %s %s %s %s";
 		if (len > 5 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1454,9 +1355,8 @@ BUILT_IN_COMMAND(do_dirlasttype)
 	{
 		/* ??? */
 		t = &last_sent_notice[0]; size = MAX_LAST_MSG;
-		form = fget_string_var(FORMAT_SEND_NOTICE_FSET);
-		sform = "%s %s %s %s";
-		numargs = 4;
+		form = fget_string_var(FORMAT_RELSN_FSET);
+		numargs = 2;
 		if (len > 5 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1465,7 +1365,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		/* ??? */
 		t = &last_sent_topic[0];
 		form = fget_string_var(FORMAT_TOPIC_FSET);
-		sform = "%s %s %s";
 		numargs = 2;
 		if (len > 5 && command[len-1] == 'T')
 			what = TOPIC;
@@ -1475,7 +1374,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		/* ??? */
 		t = &last_sent_wall[0];
 		form = fget_string_var(FORMAT_WALLOP_FSET);
-		sform = "%s %s %s %s %s";
 		if (len > 5 && command[len-1] == 'T')
 			what = TOPIC;
 	}
@@ -1483,7 +1381,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 	{
 		t = &last_servermsg[0]; size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_RELS_FSET);
-		sform = "%s %s %s %s";
 		numargs = 4;
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
@@ -1493,7 +1390,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		/* ??? */
 		t = &last_topic[0];
 		form = fget_string_var(FORMAT_TOPIC_FSET);
-		sform = "%s %s %s";
 		numargs = 2;
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
@@ -1504,7 +1400,6 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		t = &last_wall[0]; 
 		size = MAX_LAST_MSG;
 		form = fget_string_var(FORMAT_WALLOP_FSET);
-		sform = "%s %s %s %s";
 		numargs = 4;
 		if (len > 4 && command[len-1] == 'T')
 			what = TOPIC;
@@ -1535,16 +1430,16 @@ BUILT_IN_COMMAND(do_dirlasttype)
 				switch(numargs)
 				{
 					case 2:
-						put_it("%2d %s", count, convert_output_format(form, sform, t[count].time, t[count].to, t[count].last_msg));
+						put_it("%2d %s", count, convert_output_format(form, "%s %s %s", t[count].time, t[count].to, t[count].last_msg));
 						break;
 					case 3:
-						put_it("%2d %s", count, convert_output_format(form, sform, t[count].time, t[count].from, t[count].last_msg));
+						put_it("%2d %s", count, convert_output_format(form, "%s %s %s", t[count].time, t[count].from, t[count].last_msg));
 						break;
 					case 4:
-						put_it("%2d %s", count, convert_output_format(form, sform, t[count].time, t[count].from, t[count].to, t[count].last_msg));
+						put_it("%2d %s", count, convert_output_format(form, "%s %s %s %s", t[count].time, t[count].from, t[count].to, t[count].last_msg));
 						break;
 					case 5:
-						put_it("%2d %s", count, convert_output_format(form, sform, t[count].time, t[count].from, t[count].uh, t[count].to, t[count].last_msg));
+						put_it("%2d %s", count, convert_output_format(form, "%s %s %s %s %s", t[count].time, t[count].from, t[count].uh, t[count].to, t[count].last_msg));
 				}
 			}
 			return;
@@ -1600,16 +1495,16 @@ BUILT_IN_COMMAND(do_dirlasttype)
 		switch(numargs)
 		{
 			case 2:
-				malloc_strcpy(&p, convert_output_format(form, sform, t[count].time, t[count].to, t[count].last_msg));
+				malloc_strcpy(&p, convert_output_format(form, "%s %s %s", t[count].time, t[count].to, t[count].last_msg));
 				break;
 			case 3:
-				malloc_strcpy(&p, convert_output_format(form, sform, t[count].time, t[count].from, t[count].last_msg));
+				malloc_strcpy(&p, convert_output_format(form, "%s %s %s", t[count].time, t[count].from, t[count].last_msg));
 				break;
 			case 4:
-				malloc_strcpy(&p, convert_output_format(form, sform, t[count].time, t[count].from, t[count].to, t[count].last_msg));
+				malloc_strcpy(&p, convert_output_format(form, "%s %s %s %s", t[count].time, t[count].from, t[count].to, t[count].last_msg));
 				break;
 			case 5:
-				malloc_strcpy(&p, convert_output_format(form, sform, t[count].time, t[count].from, t[count].uh, t[count].to, t[count].last_msg));
+				malloc_strcpy(&p, convert_output_format(form, "%s %s %s %s %s", t[count].time, t[count].from, t[count].uh, t[count].to, t[count].last_msg));
 		}
 		redirect_msg(channel, what, p, showansi);
 		new_free(&p);
@@ -1634,7 +1529,7 @@ BUILT_IN_COMMAND(ChanWallOp)
 	
 	char	buffer[BIG_BUFFER_SIZE + 1];
 	
-	if (!args || (args && !*args))
+	if (!args || !*args)
 		return;
 
 	if (get_current_channel_by_refnum(0))
@@ -1751,99 +1646,109 @@ void error_not_opped(const char *channel)
 	reset_display_target();
 }
 
-int freadln(FILE *stream, char *lin)
+/* Reads a single non-empty line from a file.  Ignores lines beginning with # */
+int freadln(FILE *stream, char *lin, size_t len)
 {
 	char *p;
 
 	do
-		p = fgets(lin, IRCD_BUFFER_SIZE/4, stream);
-	while (p && (*lin == '#'));
+		p = fgets(lin, len, stream);
+	while (p && (*lin == '#' || *lin == '\n'));
 
 	if (!p)
 		return 0;
+
 	chop(lin, 1);
-	if (!*lin)
-		return 0;
 	return 1;
 }
 
-char *randreason(char *filename)
+/* Open a file and read a random non-empty, non-comment line from it. */
+static char *fread_random(const char *filename, char *line, size_t len)
 {
-	int count, min, i;
-	FILE *bleah;
-	char *f = NULL;
-	static char buffer[IRCD_BUFFER_SIZE/4 + 1];
+	int count = 0;
+	int i = 0;
+	FILE *reason_file;
+	char *f = m_strdup(filename);
+	char buffer[2][IRCD_BUFFER_SIZE];
 
-	min = 1;
-	count = 0;
-
-	buffer[0] = '\0';
-	f = m_strdup(filename);
-	if (filename && (bleah = uzfopen(&f, get_string_var(LOAD_PATH_VAR), 0)))
+	/* This is an algorithm that lets us choose an evenly-distributed
+	 * random line with one pass through the file.  At line N, we replace
+	 * the previously chosen line with this line, with probability 1/N.
+	 */
+	if ((reason_file = uzfopen(&f, get_string_var(LOAD_PATH_VAR), 0)))
 	{
-		while (!feof(bleah))
-			if (freadln(bleah, buffer))
-				count++;
-		if (!count)
+		while (freadln(reason_file, buffer[i], sizeof buffer[i]))
 		{
-			strcpy(buffer, "No Reason");
-			new_free(&f);
-			return buffer;
+			count++;
+			if (getrandom(0, count - 1) == 0)
+				i = !i;
 		}
-		i = getrandom(1, count);
-		count = 0;
-		fclose(bleah);
-		bleah = uzfopen(&f, get_string_var(LOAD_PATH_VAR), 0);
-		while (!feof(bleah) && (count < i))
-			if (freadln(bleah, buffer))
-				count++;
-		fclose(bleah);
+		fclose(reason_file);
 	}
+
 	new_free(&f);
-	if (*buffer)
-		return buffer;
+
+	if (count > 0)
+	{
+		strlcpy(line, buffer[!i], len);
+		return line;
+	}
 	return NULL;
 }
 
-char *get_reason(char *nick, char *file)
+/* Read a random text format from a file, convert it and strip it.  A default
+   format is supplied if a format cannot be read from the file. 
+   arg0 and arg1 replace $0 and $1 in the format.
+ */
+static char *random_text(const char *filename, const char *arg0,
+	const char *arg1, const char *default_format)
 {
-	char *temp;
-	char *filename = NULL;
-	if (file && *file)
-		malloc_strcpy(&filename, file);
-	else
-		malloc_sprintf(&filename, "%s", DEFAULT_BITCHX_KICK_FILE);
-	temp = randreason(filename);
-	new_free(&filename);
-	if ((!temp || !*temp) && get_string_var(DEFAULT_REASON_VAR))
-		temp = get_string_var(DEFAULT_REASON_VAR);
-	return (stripansicodes(convert_output_format(temp, "%s %s", nick? nick: "error", get_server_nickname(from_server) )));
+	char line[IRCD_BUFFER_SIZE];
+	const char *format = fread_random(filename, line, sizeof line);
+
+	if (!format)
+		format = default_format;
+
+	return stripansicodes(convert_output_format(format, "%s %s", arg0, arg1));
+}	
+
+/* Get a random reason from a specific reason file, defaulting to the kick
+ * file if none passed.  Format it using target and nick to replace $0 and $1.
+ */
+char *get_reason(const char *target, const char *nick, const char *file)
+{
+	if (!file || !*file)
+		file = DEFAULT_BITCHX_KICK_FILE;
+
+	return random_text(file, target, nick, get_string_var(DEFAULT_REASON_VAR));
 }
 
-char *get_realname(char *nick)
+/* Get a random kick reason.  Format it using target and nick to replace $0
+ * and $1.
+ */
+char *get_kick_reason(const char *target, const char *nick)
 {
-	char *temp;
-	char *filename = NULL;
-
-	malloc_sprintf(&filename, "%s", DEFAULT_BITCHX_IRCNAME_FILE);
-	temp = randreason(filename);
-	new_free(&filename);
-	if ((!temp || !*temp))
-		temp = "Who cares?";
-	return (stripansicodes(convert_output_format(temp, "%s %s", nick? nick: "error", get_server_nickname(from_server) )));
+	return get_reason(target, nick, NULL);
 }
 
-char *get_signoffreason(char *nick)
+/* Get a random kill reason.  Format it using target and nick to replace $0
+ * and $1.
+ */
+char *get_kill_reason(const char *target, const char *nick)
 {
-	char *temp;
-	char *filename = NULL;
+    return random_text(DEFAULT_BITCHX_KILL_FILE, target, nick, get_string_var(DEFAULT_REASON_VAR));
+}
 
-	malloc_sprintf(&filename, "%s", DEFAULT_BITCHX_QUIT_FILE);
-	temp = randreason(filename);
-	new_free(&filename);
-	if (!temp || !*temp)
-		temp = "$0 has no reason";
-	return (stripansicodes(convert_output_format(temp, "%s %s", nick? nick: "error", get_server_nickname(from_server))));
+/* Get a random ircname.  Format it using nick to replace $0 and $1. */
+char *get_realname(const char *nick)
+{
+	return random_text(DEFAULT_BITCHX_IRCNAME_FILE, nick, nick, "Who cares?");
+}
+
+/* Get a quit reason.  Format it using nick to replace $0 and $1. */
+char *get_signoffreason(const char *nick)
+{
+	return random_text(DEFAULT_BITCHX_QUIT_FILE, nick, nick, "$0 has no reason");
 }
 
 #ifdef WANT_NSLOOKUP
@@ -1860,7 +1765,7 @@ struct in_addr ip;
 		{
 			if (rptr->re_he.h_addr_list[0].s_addr)
 			{
-				bcopy(&rptr->re_he.h_addr_list[0], (char *)&ip, sizeof(ip));
+				memcpy(&ip, &rptr->re_he.h_addr_list[0], sizeof ip);
 				nick->ip = m_strdup(inet_ntoa(ip));
 #ifdef WANT_USERLIST
 				check_auto(chan->channel, nick, chan);
@@ -1877,7 +1782,7 @@ struct in_addr ip;
 	return;
 }
 
-void print_ns_succede(struct reslist *rptr)
+static void print_ns_succeed(struct reslist *rptr)
 {
 char *u, *n, *h;
 char buffer[BIG_BUFFER_SIZE];
@@ -1894,7 +1799,7 @@ struct in_addr ip;
 			sprintf(buffer, "%s ", h);
 		for (i = 0; rptr->re_he.h_addr_list[i].s_addr; i++)
 		{
-			bcopy(&rptr->re_he.h_addr_list[i], (char *)&ip, sizeof(ip));
+			memcpy(&ip, &rptr->re_he.h_addr_list[i], sizeof ip);
 			BX_strpcat(buffer, "%s ", inet_ntoa(ip));
 			if (strlen(buffer) > 490)
 				break;
@@ -1912,7 +1817,7 @@ struct in_addr ip;
 			bitchsay("%s is %s (%s)", h, rptr->re_he.h_name ? rptr->re_he.h_name:"invalid hostname", (char *)inet_ntoa(rptr->re_he.h_addr_list[0]));
 		for (i = 0; rptr->re_he.h_addr_list[i].s_addr; i++)
 		{
-			bcopy(&rptr->re_he.h_addr_list[i], (char *)&ip, sizeof(ip));
+			memcpy(&ip, &rptr->re_he.h_addr_list[i], sizeof ip);
 			BX_strpcat(buffer, "[%s] ", inet_ntoa(ip));
 			if (strlen(buffer) > 490)
 				break;
@@ -1963,7 +1868,7 @@ void cdns_generic_callback(DNS_QUEUE *dns)
 	if(info->func)
 		info->func(info);
 	else if(dns->out)
-		print_ns_succede(info);
+		print_ns_succeed(info);
 	else
 		print_ns_fail(info);
 
@@ -2053,9 +1958,7 @@ static	struct	resstats {
 	int	re_timeouts;
 } ar_reinfo;
 
-#if 0
-#include <windows.h>
-#include <iphlpapi.h>
+#ifdef HAVE_LIBIPHLPAPI
 
 void ar_get_windows_dns(void)
 {
@@ -2109,7 +2012,7 @@ int	ar_init(int op)
 		ret = res_init();
 		(void)strcpy(ar_domainname, ar_dot);
 		(void)strncat(ar_domainname, _res.defdname, HOSTLEN-2);
-#if 0
+#ifdef HAVE_LIBIPHLPAPI
 		/* The Cygwin resolver library doesn't fill out _res.nsaddr_list
 		 * and sets _res.nscount to -1 if there's no /etc/resolv.conf file,
 		 * so we try fetching the first DNS server address ourselves. */
@@ -2360,7 +2263,7 @@ long	ar_timeout(time_t now, char *info, int size, void (*func)(struct reslist *)
 			{
 				ar_reinfo.re_timeouts++;
 				if (info && rptr->re_rinfo.ri_ptr)
-					bcopy(rptr->re_rinfo.ri_ptr, info,
+					memcpy(info, rptr->re_rinfo.ri_ptr,
 						MIN(rptr->re_rinfo.ri_size, size));
 				if (rptr->func)
 					(*rptr->func)(rptr);
@@ -2393,7 +2296,7 @@ long	ar_timeout(time_t now, char *info, int size, void (*func)(struct reslist *)
  * The return value is the number of messages successfully sent to 
  * nameservers or -1 if no successful sends.
  */
-static	int	ar_send_res_msg(char *msg, int len, int rcount)
+static	int	ar_send_res_msg(unsigned char *msg, int len, int rcount)
 {
 	register int	i;
 	int	sent = 0;
@@ -2479,7 +2382,7 @@ int	ar_delete(char *ptr, int size)
  */
 static	int	ar_query_name(char *name, int class, int type, struct reslist *rptr)
 {
-	static	char buf[MAXPACKET];
+	static unsigned char buf[MAXPACKET];
 	int	r,s;
 	HEADER	*hptr;
 
@@ -2515,24 +2418,21 @@ static	int	ar_query_name(char *name, int class, int type, struct reslist *rptr)
  */
 int	ar_gethostbyname(char *name, char *info, int size, char *nick, char *user, char *h, char *chan, int server, void (*func)(), char *command)
 {
-	char	host[HOSTLEN+1];
-	struct	resinfo	resi;
-	register struct resinfo *rp = &resi;
+	char host[HOSTLEN+1];
+	struct resinfo resi = { 0 };
 
 	if (size && info)
 	{
-		rp->ri_ptr = (char *)new_malloc(size+1);
+		resi.ri_ptr = new_malloc(size + 1);
 		if (*info)
-			bcopy(info, rp->ri_ptr, size);
-		rp->ri_size = size;
+			memcpy(resi.ri_ptr, info, size);
+		resi.ri_size = size;
 	}
-	else
-		memset((char *)rp, 0, sizeof(resi));
 	ar_reinfo.re_na_look++;
 	(void)strncpy(host, name, 64);
 	host[64] = '\0';
 
-	return (do_query_name(rp, host, NULL, nick, user, h, chan, server, func, command));
+	return do_query_name(&resi, host, NULL, nick, user, h, chan, server, func, command);
 }
 
 static	int	do_query_name(struct resinfo *resi, char *name, register struct reslist *rptr, char *nick, char *user, char *h, char *chan, int server, void (*func)(), char *command)
@@ -2580,20 +2480,17 @@ static	int	do_query_name(struct resinfo *resi, char *name, register struct resli
  */
 int	ar_gethostbyaddr(char *addr, char *info, int size, char *nick, char *user, char *h, char *chan, int server, void (*func)(), char *command)
 {
-	struct	resinfo	resi;
-	register struct resinfo *rp = &resi;
+	struct resinfo resi = { 0 };
 
 	if (size && info)
 	{
-		rp->ri_ptr = (char *)new_malloc(size+1);
+		resi.ri_ptr = new_malloc(size + 1);
 		if (*info)
-			bcopy(info, rp->ri_ptr, size);
-		rp->ri_size = size;
+			memcpy(resi.ri_ptr, info, size);
+		resi.ri_size = size;
 	}
-	else
-		memset((char *)rp, 0, sizeof(resi));
 	ar_reinfo.re_nu_look++;
-	return (do_query_number(rp, addr, NULL, nick, user, h, chan, server, func, command));
+	return do_query_number(&resi, addr, NULL, nick, user, h, chan, server, func, command);
 }
 
 /*
@@ -2657,12 +2554,12 @@ static	int	ar_resend_query(struct reslist *rptr)
  *
  * process an answer received from a nameserver.
  */
-static	int	ar_procanswer(struct reslist *rptr, HEADER *hptr, char *buf, char *eob)
+static int ar_procanswer(struct reslist *rptr, HEADER *hptr, unsigned char *buf, unsigned char *eob)
 {
-	char	*cp, **alias;
+	unsigned char *cp;
+	char **alias;
 	int	class, type, dlen, len, ans = 0, n;
 	unsigned int ttl, dr, *adr;
-	struct	hent	*hp;
 
 	cp = buf + HFIXEDSZ;
 	adr = (unsigned int *)rptr->re_he.h_addr_list;
@@ -2673,9 +2570,6 @@ static	int	ar_procanswer(struct reslist *rptr, HEADER *hptr, char *buf, char *eo
 	alias = rptr->re_he.h_aliases;
 	while (*alias)
 		alias++;
-
-	hp = &rptr->re_he;
-
 
 	/*
 	 * Skip over the original question.
@@ -2689,7 +2583,7 @@ static	int	ar_procanswer(struct reslist *rptr, HEADER *hptr, char *buf, char *eo
 		cp += dn_skipname(cp, eob) + QFIXEDSZ;
 #endif
 	/*
-	 * proccess each answer sent to us. blech.
+	 * process each answer sent to us. blech.
 	 */
 	while (hptr->ancount-- > 0 && cp < eob) {
 		n = dn_expand(buf, eob, cp, ar_hostbuf, sizeof(ar_hostbuf)-1);
@@ -2708,6 +2602,7 @@ static	int	ar_procanswer(struct reslist *rptr, HEADER *hptr, char *buf, char *eo
 		GETLONG(ttl, cp);
 		GETSHORT(dlen, cp);
 		rptr->re_type = type;
+		(void)ttl; /* unused */
 
 		switch(type)
 		{
@@ -2777,7 +2672,7 @@ static	int	ar_procanswer(struct reslist *rptr, HEADER *hptr, char *buf, char *eo
  */
 struct	hostent	*ar_answer(char *reip, int size, void (*func)(struct reslist *) )
 {
-	static	char	ar_rcvbuf[HFIXEDSZ + MAXPACKET];
+	static unsigned char ar_rcvbuf[HFIXEDSZ + MAXPACKET];
 	static	struct	hostent	ar_host;
 
 	HEADER	hptr;
@@ -2833,7 +2728,7 @@ struct	hostent	*ar_answer(char *reip, int size, void (*func)(struct reslist *) )
 		}
 		ar_reinfo.re_errors++;
 		/*
-		** If a bad error was returned, we stop here and dont send
+		** If a bad error was returned, we stop here and don't send
 		** send any more (no retries granted).
 		*/
 		if (h_errno != TRY_AGAIN)
@@ -3020,7 +2915,7 @@ int s;
 			ar_lookup--;
 		return when;
 	}
-	if ((hp = ar_answer((char *)&ar_del, sizeof(ar_del), print_ns_succede)))
+	if ((hp = ar_answer((char *)&ar_del, sizeof(ar_del), print_ns_succeed)))
 	{
 		char **s;
 		ar_lookup--;
@@ -3096,27 +2991,26 @@ void userhost_nsl(UserhostItem *stuff, char *nick, char *args)
 {
 	char *nsl = NULL;
 
-	if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
 	{
 		say("No information for %s", nick);
 		return;
 	}
-	if(args)
+	if (args)
 	{
-		nsl = LOCAL_COPY(args);
-		next_arg(nsl, &nsl);
+		next_arg(args, &nsl);
 	}
-	nsl = do_nslookup(stuff->host, stuff->nick, stuff->user, NULL, from_server, NULL, (nsl && *nsl) ? nsl : NULL);
+	do_nslookup(stuff->host, stuff->nick, stuff->user, NULL, from_server, NULL, (nsl && *nsl) ? nsl : NULL);
 }
 #endif
 
 BUILT_IN_COMMAND(nslookup)
 {
 #ifdef WANT_NSLOOKUP
-	char	*host, 
-		*hostname, 
-		*cmd = NULL;
+	char *host;
+	char *cmd = NULL;
 	int count = 0;
+
 	while ((host = next_arg(args, &args)))
 	{
 		if (count == 0)
@@ -3128,7 +3022,7 @@ BUILT_IN_COMMAND(nslookup)
 			if (host && !my_stricmp(host, "cmd"))
 			{
 				if (!(cmd = next_expr(&args, '{')))
-					bitchsay("Need {...} for -CMD arguement");
+					bitchsay("Need {...} for -CMD argument");
 				else
 					host = next_arg(args, &args);
 			}
@@ -3138,7 +3032,7 @@ BUILT_IN_COMMAND(nslookup)
 		if (!strchr(host, '.'))
 			userhostbase(host, userhost_nsl, 1, "%s%s%s", host, cmd ? space:empty_string, cmd?cmd:empty_string);
 		else
-			hostname = do_nslookup(host, NULL, NULL, NULL, from_server, NULL, cmd ? cmd : NULL);
+			do_nslookup(host, NULL, NULL, NULL, from_server, NULL, cmd ? cmd : NULL);
 		count++;
 	}
 #else
@@ -3177,6 +3071,7 @@ char *cluster (char *hostname)
 	if (!hostname)
 		return NULL;
 
+	*result = 0;
 	atsign = strchr(hostname, '@');
 	if (atsign) {
 		if (*hostname == '~') {
@@ -3186,17 +3081,13 @@ char *cluster (char *hostname)
 			
 			if (ident_len <= 9) {
 				/* copy ident@ */
-				strmcpy(result, hostname, ident_len + 1);
+				strncat(result, hostname, ident_len + 1);
 			} else {
-				strmcpy(result, hostname, 8);
-				result[8] = '*';
-				result[9] = '@';
-				result[10] = '\0';
+				strncat(result, hostname, 8);
+				strcat(result, "*@");
 			}
 		}
 		hostname = atsign + 1;
-	} else {
-		*result = 0;
 	}
 
 	strlcpy(temphost, hostname, sizeof temphost);
@@ -3509,7 +3400,11 @@ int BX_add_socketread(int s, int port, unsigned long flags, char *server, void (
 		set_socket_read(&rd, &rd);
 	}
 	if (s >= FD_SETSIZE)
+	{
+		yell("File descriptor limit reached, dropping new socket.");
+		close(s);
 		return -1;
+	}
 	if (s > sock_manager.max_fd)
 		sock_manager.max_fd = s;
 	sock_manager.count++;
@@ -3592,13 +3487,13 @@ int check_dcc_socket(int s)
 	return 0;
 }
 
-int BX_write_sockets(int s, unsigned char *str, int len, int nl)
+int BX_write_sockets(int s, char *str, int len, int nl)
 {
 	if (s < 1)
 		return -1;
 	if (nl)
 	{
-		unsigned char *buf;
+		char *buf;
 		buf = alloca(strlen(str)+4);
 		strcpy(buf, str);
 		strcat(buf, "\r\n");
@@ -3608,7 +3503,7 @@ int BX_write_sockets(int s, unsigned char *str, int len, int nl)
 	return write(s, str, len);
 }
 
-int BX_read_sockets(int s, unsigned char *str, int len)
+int BX_read_sockets(int s, char *str, int len)
 {
 	if (s < 1)
 		return -1;
@@ -3663,133 +3558,13 @@ SocketList *BX_get_socket(int s)
 	return NULL;
 }
 
-extern int dgets_errno;
-
-void read_netfinger(int s)
-{
-char tmpstr[BIG_BUFFER_SIZE+1];
-register unsigned char *p = tmpstr;
-	*tmpstr = 0;
-	switch(dgets(tmpstr, s, 0, BIG_BUFFER_SIZE, NULL))
-	{
-		case 0:
-			break;
-		case -1:
-			if (do_hook(SOCKET_LIST, "%d %d %s Remote closed connection", s, sock_manager.sockets[s].port, sock_manager.sockets[s].server))
-			{
-				if (dgets_errno == -1)
-					bitchsay("Remote closed connection");
-			}
-			close_socketread(s);
-			break;
-		default:
-		{
-			chop(tmpstr, 1);
-			while (*p)
-			{
-				switch(*p)
-				{
-					case 0210:
-					case 0211:
-					case 0212:
-					case 0214:
-						*p -= 0200;
-						break;
-					case 0x9b:
-					case '\t':
-						break;
-					case '\n':
-					case '\r':
-						*p = '\0';
-						break;
-					default:
-						if (!isprint(*p))
-							*p = (*p & 0x7f) | 0x40;
-						break;
-				}
-				p++;
-			}
-			if (do_hook(SOCKET_LIST, "%d %d %s %s", s, sock_manager.sockets[s].port, sock_manager.sockets[s].server, tmpstr))
-				put_it("%s", tmpstr);
-		}
-	}
-}
-
-void netfinger (char *name)
-{
-	char *host = NULL;
-	unsigned short port = 79;
-	int s;
-	
-	if (name)
-	{
-		if ((host = strrchr(name, '@')))
-			*host++ = 0;
-		else
-			host = name;
-	}
-	if (!host || !*host)
-	{
-		say("Invalid @host or user@host.");
-		return;
-	}
-
-	if (name && *name)
-	{	
-		if ((s = connect_by_number(host, &port, SERVICE_CLIENT, PROTOCOL_TCP, 1)) < 0)
-		{
-			bitchsay("Finger connect error on %s@%s", name?name:empty_string, host);
-			return;
-		}
-		if ((add_socketread(s, port, 0, name, read_netfinger, NULL)) > -1)
-		{
-			write_sockets(s, name, strlen(name), 1);
-			add_sockettimeout(s, 120, NULL);
-		} else
-			close_socketread(s);
-	}
-	return;
-}
-
-void start_finger (UserhostItem *stuff, char *nick, char *args)
-{
-	char *finger_userhost = NULL;
-	char *str;
-	if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
-	{
-		say("No information for %s", nick);
-		return;
-	}
-	finger_userhost = m_opendup(stuff->user, "@", stuff->host, NULL);
-	str = finger_userhost;
-	str = clear_server_flags(finger_userhost);
-	say("Launching finger for %s (%s)", nick, finger_userhost);
-	netfinger(str);
-	new_free(&finger_userhost);
-}
-
-BUILT_IN_COMMAND(finger)
-{
-	char *userhost;
-
-	if ((userhost = next_arg(args, &args)))
-	{
-		if (!strchr(userhost, '@'))
-		{
-			userhostbase(userhost, start_finger, 1, "%s", userhost);
-			return;
-		}
-		netfinger(userhost);
-	}
-}
-
 static void handle_socket_connect(int rc)
 {
 struct servent *serv;
 struct sockaddr_foobar	addr;
 struct hostent *host;
 char buf[128], *hostname = buf;
-        int             address_len;
+        socklen_t             address_len;
 
 	address_len = sizeof(struct sockaddr_foobar);
         if ((getpeername(rc, (struct sockaddr *) &addr, &address_len)) != -1)
@@ -3816,7 +3591,7 @@ char buf[128], *hostname = buf;
 	close_socketread(rc);
 }
 
-static int scan(char *remote_host, int low_port, int high_port, struct sockaddr_foobar *host)
+static int scan(char *remote_host, int low_port, int high_port)
 {
 	unsigned short int port;
 	int rc;
@@ -3836,25 +3611,23 @@ static int scan(char *remote_host, int low_port, int high_port, struct sockaddr_
 
 void userhost_scanport(UserhostItem *stuff, char *nick, char *args)
 {
-char	*t;
-int	low_port = 0,
-	high_port = 0;
-struct	sockaddr_foobar *host; /* gee, and what's this one for? */
+	char *t;
+	int	low_port = 0, high_port = 0;
 
-        if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
-        {
-        	bitchsay("No such nick [%s] found", nick);
-                return;
-        }
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
+	{
+		bitchsay("No such nick [%s] found", nick);
+		return;
+	}
 	next_arg(args, &args);
 	t = next_arg(args, &args);
 	low_port = atol(t);
 	t = next_arg(args, &args);
 	high_port = atol(t);	
-	if ((host = resolv(stuff->host)))
+	if (resolv(stuff->host))
 	{
 		bitchsay("Scanning %s ports %d to %d", stuff->host, low_port, high_port);
-		scan(stuff->host, low_port, high_port, host);
+		scan(stuff->host, low_port, high_port);
 		return;
 	}
 	bitchsay("Cannot resolv host %s for %s", stuff->host, stuff->nick);
@@ -3862,11 +3635,9 @@ struct	sockaddr_foobar *host; /* gee, and what's this one for? */
 
 BUILT_IN_COMMAND(findports)
 {
-char *remote_host;
-int low_port = 6660;
-int high_port = 7000;
-struct sockaddr_foobar *host;
-
+	char *remote_host;
+	int low_port = 6660;
+	int high_port = 7000;
 	
 	if (args && *args)
 	{
@@ -3886,10 +3657,10 @@ struct sockaddr_foobar *host;
 		}
 		if (strchr(remote_host, '.') || strchr(remote_host, ':'))
 		{
-			if ((host = resolv(remote_host)))
+			if (resolv(remote_host))
 			{
 				bitchsay("Scanning %s's tcp ports %d through %d",remote_host, low_port,high_port);
-				scan(remote_host, low_port, high_port, host);
+				scan(remote_host, low_port, high_port);
 			} else
 				bitchsay("No such host %s", remote_host);
 		}
@@ -3899,42 +3670,46 @@ struct sockaddr_foobar *host;
 	return;
 }
 
-void userhost_ignore (UserhostItem *stuff, char *nick1, char *args)
+void userhost_ignore (UserhostItem *uhi, char *nick1, char *args)
 {
 	char *p, *arg;
-	char *nick = NULL, *user = NULL, *host = NULL;
+	char *userhost_buf = NULL;
+	char *nick, *user, *host;
 	int old_window_display;
 	char ignorebuf[BIG_BUFFER_SIZE+1];
-	Ignore *igptr, *igtmp;
 	WhowasList *whowas;
 
-	arg = next_arg(args, &args);
-	if (!stuff || !stuff->nick || !nick1 || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick1))
+	if (uhi && uhi->nick && strcmp(uhi->user, "<UNKNOWN>") && !my_stricmp(uhi->nick, nick1))
 	{
-                if ((whowas = check_whowas_nick_buffer(nick1, arg, 0)))
-		{
-			bitchsay("Using WhoWas info for %s of %s ", arg, nick1);
-			user = host; host = strchr(host, '@'); *host++ = 0;
-			nick = whowas->nicklist->nick;
-		}
-		else
-		{                                                                                                                
-			say("No match for user %s", nick1);
-			return;
-		}
+		nick = uhi->nick;
+		user = uhi->user;
+		host = uhi->host;
+	}
+	else if ((whowas = check_whowas_nick_buffer(nick1, NULL)))
+	{
+		nick = whowas->nicklist->nick;
+		user = userhost_buf = m_strdup(whowas->nicklist->host);
+		host = strchr(user, '@');
+		*host++ = 0;
+		bitchsay("Using WhoWas info for (un)ignore of %s", nick1);
 	}
 	else
 	{
-		user = clear_server_flags(stuff->user);
-		host = stuff->host; nick = stuff->nick;
+		say("No match for user %s", nick1);
+		return;
 	}
+	user = clear_server_flags(user);
+
+	arg = next_arg(args, &args);
 	if (!arg || !*arg || !my_stricmp(arg, "+HOST"))
 		sprintf(ignorebuf, "*!*@%s ALL -CRAP -PUBLIC", cluster(host));
 	else if (!my_stricmp(arg, "+USER"))
 		sprintf(ignorebuf, "*%s@%s ALL -CRAP -PUBLIC", user, cluster(host));
 	else if (!my_stricmp(arg, "-USER") || !my_stricmp(arg, "-HOST"))
 	{
+		Ignore *igptr, *igtmp;
 		int found = 0;
+
 		if (!my_stricmp(arg, "-HOST"))
 			sprintf(ignorebuf, "*!*@%s", cluster(host));
 		else
@@ -3958,6 +3733,7 @@ void userhost_ignore (UserhostItem *stuff, char *nick1, char *args)
 		}
 		if (!found)
 			bitchsay("No ignore matching %s found", nick);
+		new_free(&userhost_buf);
 		return;
 	}
 	old_window_display = window_display;
@@ -3973,6 +3749,7 @@ void userhost_ignore (UserhostItem *stuff, char *nick1, char *args)
 	if ((p = strchr(ignorebuf, ' ')))
 		*p = 0;
 	say("Now ignoring ALL except CRAP and PUBLIC from %s", ignorebuf);
+	new_free(&userhost_buf);
 	return;
 }
 
@@ -4016,13 +3793,12 @@ char *newusername = NULL;
 		fprintf(outfile,"%s", newusername);
 #endif
 		fclose(outfile);
+		new_free(&p);
+		new_free(&q);
 #endif
-		strmcpy(username, newusername, NAME_LEN);
+		strlcpy(username, newusername, sizeof username);
 		if (subargs && *subargs)
-                        strmcpy(realname, subargs, REALNAME_LEN);
-#ifdef IDENT_FAKE
-		new_free(&p); new_free(&q);
-#endif
+                        strlcpy(realname, subargs, sizeof realname);
 		reconnect_cmd(NULL, newusername, NULL, NULL);
 	}
 	else
@@ -4259,8 +4035,8 @@ int	count = 0,
 				{
 					if (!isme(nicks->nick))
 						my_send_to_server(server, "KILL %s :%s (%i", nicks->nick,
-							       args && *args ? args : get_reason(nicks->nick, NULL),
-							       count + 1);
+							args && *args ? args : get_kill_reason(nicks->nick, 
+							get_server_nickname(from_server)), count + 1);
 					else
 						count--;
 					break;
@@ -4338,8 +4114,8 @@ int	count = 0,
 			if (!isme(nicks->nick))
 			{
 				my_send_to_server(server, "KILL %s :%s (%i", nicks->nick,
-					       args && *args ? args : get_reason(nicks->nick, NULL),
-					       count);
+					args && *args ? args : get_kill_reason(nicks->nick, 
+					get_server_nickname(from_server)), count);
 			}
 			else
 				count--;
@@ -4388,55 +4164,6 @@ int	count = 0,
 
 }
 
-int caps_fucknut (register unsigned char *crap)
-{
-	int total = 0, allcaps = 0;
-/* removed from ComStud client */
-	while (*crap)
-	{
-		if (isalpha(*crap))
-		{
-			total++;
-			if (isupper(*crap))
-				allcaps++;
-		}
-		crap++;
-	}
-	if (total > 12)
-	{
-		if ( ((unsigned int)(((float) allcaps / (float) total) * 100) >= 75))
-			return (1);
-	}
-	return (0);
-}
-
-int char_fucknut (register unsigned char *crap, char looking, int max)
-{
-	int total = strlen(crap), allchar = 0;
-
-	while (*crap)
-	{
-		if ((*crap == looking))
-		{
-			crap++;
-			while(*crap && *crap != looking)
-			{
-				allchar++;
-				crap++;
-			}
-		}
-		if (*crap)
-			crap++;
-	}
-	if (total > 12)
-	{
-		if ( ((unsigned int)(((float) allchar / (float) total) * 100)) >= 75)
-			return (1);
-	}
-	return (0);
-}
-
-
 static char *make_timestamp(int do_timestamp, char *timestr)
 {
 static char time_str[61];
@@ -4451,7 +4178,6 @@ static char time_str[61];
 	return empty_string;	
 }
 
-static int cparse_recurse = -1;
 #ifndef BITCHX_LITE
 #define MAX_RECURSE 5
 #else
@@ -4459,133 +4185,122 @@ static int cparse_recurse = -1;
 #endif
 #define RECURSE_CPARSE
 
-/* One buffer for each recursive invocation.  We also keep track of the 
- * buffer size, so that it can be resized when necessary.
- */
-static char *cof_buffer[MAX_RECURSE + 1] = { NULL };
-static size_t cof_buffer_sz[MAX_RECURSE + 1 ] = { 0 };
-#define COF_BUFFER_HEADROOM 100
-#define COF_BUFFER_FREE(p) (cof_buffer[cparse_recurse] + cof_buffer_sz[cparse_recurse] - (p)) 
-
 char *convert_output_format_raw(const char *format, const char *str, va_list args)
 {
-char buffer2[5*BIG_BUFFER_SIZE+1];
-enum color_attributes this_color = BLACK;
-char *s;
-char *copy = NULL;
-char *tmpc = NULL;
-register char *p;
-int old_who_level = who_level;
-int bold = 0;
-
 #ifdef WANT_CHELP
-extern int in_chelp;
+	extern int in_chelp;
 #endif
+	static int cparse_recurse = -1;
+	/* One buffer for each recursive invocation.  We also keep track of the 
+	 * buffer size, so that it can be resized when necessary.
+	 */
+	static char *cof_buffer[MAX_RECURSE + 1] = { NULL };
+	static size_t cof_buffer_sz[MAX_RECURSE + 1 ] = { 0 };
+#define COF_BUFFER_HEADROOM 100
+#define COF_BUFFER_FREE(p) (cof_buffer[cparse_recurse] + cof_buffer_sz[cparse_recurse] - (p))
+	static const char color_mod[] = "kbgcrmywKBGCRMYWn";
 
-int arg_flags;
-char color_mod[] = "kbgcrmywKBGCRMYWn"; 
-char *c_mod = color_mod;
-int do_timestamp = get_int_var(TIMESTAMP_VAR);
-char *timestamp_str = get_string_var(TIMESTAMP_STRING_VAR);
+	char buffer2[5 * BIG_BUFFER_SIZE + 1] = "";
+	enum color_attributes this_color = BLACK;
+	char *s;
+	char *copy = NULL;
+	char *tmpc = NULL;
+	const char *p;
+	int old_who_level = who_level;
+	int bold = 0;
+	int arg_flags;
+	int do_timestamp = get_int_var(TIMESTAMP_VAR);
+	char *timestamp_str = get_string_var(TIMESTAMP_STRING_VAR);
 
 	if (!format)
 		return empty_string;
 	copy = LOCAL_COPY(format);
-	
 
-    cparse_recurse++;
-
-	if (cparse_recurse > MAX_RECURSE)
+	if (cparse_recurse >= MAX_RECURSE)
 	{
 		yell("cparse_recurse() recursed too many times!  this should never happen!");
 		return empty_string;
 	}
+    cparse_recurse++;
 
-	*buffer2 = 0;
-	if (str)
+	p = str;
+	while (p && *p)
 	{
-		memset(buffer2, 0, sizeof buffer2);
-		p = (char *)str;
-		while(p && *p)
+		if (*p == '%')
 		{
-			if (*p == '%')
+			switch(*++p)
 			{
-				switch(*++p)
-				{
-				case 's':
-				{
-					char *q, *s = (char *)va_arg(args, char *);
+			case 's':
+			{
+				char *q, *s = (char *)va_arg(args, char *);
 #ifdef RECURSE_CPARSE
-					char buff[(5 * BIG_BUFFER_SIZE)+1];
-					q = buff;
-					while (s && *s)
-					{
-						if (*s == '%')
-							*q++ = '%';
-						else if (*s == '$')
-							*q++ = '$';
-						*q++ = *s++;
-					}
-					*q = 0;
-					if (*buff)
-						strcat(buffer2, buff);
+				char buff[(5 * BIG_BUFFER_SIZE)+1];
+				q = buff;
+				while (s && *s)
+				{
+					if (*s == '%')
+						*q++ = '%';
+					else if (*s == '$')
+						*q++ = '$';
+					*q++ = *s++;
+				}
+				*q = 0;
+				if (*buff)
+					strcat(buffer2, buff);
 #else
-					if (s)
-						strcat(buffer2, s);
+				if (s)
+					strcat(buffer2, s);
 #endif
-					break;
-				}
-				case 'd':
-				{
-					int d = (int) va_arg(args, int);
-					strlcat(buffer2, ltoa((long)d), 5 * BIG_BUFFER_SIZE);
-					break;
-				}
-				case 'c':
-				{
-					char c = (char )va_arg(args, int);
-#ifdef RECURSE_CPARSE
-                    if (c == '%')
-                        buffer2[strlen(buffer2)] = '%';
-                    else if (c == '$')
-                        buffer2[strlen(buffer2)] = '$';
-#endif
-					buffer2[strlen(buffer2)] = c;
-					break;
-				}
-				case 'u':
-				{
-					unsigned int d = (unsigned int) va_arg(args, unsigned int);
-					strlcat(buffer2, ltoa(d), 5 * BIG_BUFFER_SIZE);
-					break;
-				}
-				case 'l':
-				{
-					unsigned long d = (unsigned long) va_arg(args, unsigned long);
-					strlcat(buffer2, ltoa(d), 5 * BIG_BUFFER_SIZE);
-					break;
-				}
-				case '%':
-				{
-					buffer2[strlen(buffer2)] = '%';
-					p++;
-					break;
-				}
-				default:
-					strlcat(buffer2, "%", 5 * BIG_BUFFER_SIZE);
-					buffer2[strlen(buffer2)] = *p;
-				}
-				p++;
-			} 
-			else 
-			{
-				buffer2[strlen(buffer2)] = *p;
-				p++;
+				break;
 			}
+			case 'd':
+			{
+				int d = (int) va_arg(args, int);
+				strlcat(buffer2, ltoa((long)d), 5 * BIG_BUFFER_SIZE);
+				break;
+			}
+			case 'c':
+			{
+				char c = (char )va_arg(args, int);
+#ifdef RECURSE_CPARSE
+				if (c == '%')
+					buffer2[strlen(buffer2)] = '%';
+				else if (c == '$')
+					buffer2[strlen(buffer2)] = '$';
+#endif
+				buffer2[strlen(buffer2)] = c;
+				break;
+			}
+			case 'u':
+			{
+				unsigned int d = (unsigned int) va_arg(args, unsigned int);
+				strlcat(buffer2, ltoa(d), 5 * BIG_BUFFER_SIZE);
+				break;
+			}
+			case 'l':
+			{
+				unsigned long d = (unsigned long) va_arg(args, unsigned long);
+				strlcat(buffer2, ltoa(d), 5 * BIG_BUFFER_SIZE);
+				break;
+			}
+			case '%':
+			{
+				buffer2[strlen(buffer2)] = '%';
+				p++;
+				break;
+			}
+			default:
+				strlcat(buffer2, "%", 5 * BIG_BUFFER_SIZE);
+				buffer2[strlen(buffer2)] = *p;
+			}
+			p++;
 		}
-	} 
-	else if (str)
-		strlcpy(buffer2, str, 5 * BIG_BUFFER_SIZE);
+		else
+		{
+			buffer2[strlen(buffer2)] = *p;
+			p++;
+		}
+	}
 
     if (!cof_buffer[cparse_recurse])
     {
@@ -4617,12 +4332,17 @@ char *timestamp_str = get_string_var(TIMESTAMP_STRING_VAR);
 			char *cs;
 			tmpc++;
 			this_color = BLACK;
+			if (*tmpc == '\0')
+			{
+				*s++ = '%';
+				continue;
+			}
 			if (*tmpc == '%')
 			{
 				*s++ = *tmpc++;
 				continue;
 			}
-			else if (isdigit((unsigned char)*tmpc))
+			if (isdigit((unsigned char)*tmpc))
 			{
 				char background_mod[] = "01234567";
 				char *blah = background_mod;
@@ -4643,7 +4363,7 @@ char *timestamp_str = get_string_var(TIMESTAMP_STRING_VAR);
 				}
 			}
 			else if ((cs = strchr(color_mod, *tmpc)))
-				this_color = (cs - c_mod);
+				this_color = (cs - color_mod);
 			else if (*tmpc == 'F')
 				this_color = BLINK_COLOR;
 			else if (*tmpc == 'U')
@@ -4699,6 +4419,11 @@ char *timestamp_str = get_string_var(TIMESTAMP_STRING_VAR);
 		{
 			char *new_str = NULL;
 			tmpc++;
+			if (*tmpc == '\0')
+			{
+				*s++ = '$';
+				continue;
+			}
 			if (*tmpc == '$')
 			{
 				*s++ = *tmpc++;
@@ -4764,23 +4489,25 @@ char *BX_convert_output_format(const char *format, const char *str, ...)
 	return s;
 }
 
+#ifdef GUI
+/* This cut-down version of convert_output_format is used by the GUI menu functions. */
 #define RAW_BUFFER_SIZE (MAX_RECURSE * BIG_BUFFER_SIZE * 2)
 char *convert_output_format2(const char *str)
 {
-unsigned char buffer[RAW_BUFFER_SIZE+1];
-unsigned char buffer2[RAW_BUFFER_SIZE+1];
-register unsigned char *s;
-char *copy = NULL;
-char *tmpc = NULL;
-int arg_flags;
+	char buffer[RAW_BUFFER_SIZE+1];
+	char buffer2[RAW_BUFFER_SIZE+1];
+	char *s;
+	char *copy = NULL;
+	char *tmpc = NULL;
+	int arg_flags;
 
 	if (!str)
 		return m_strdup(empty_string);
 
 	memset(buffer, 0, BIG_BUFFER_SIZE);
-        strlcpy(buffer2, str, RAW_BUFFER_SIZE);
+	strlcpy(buffer2, str, RAW_BUFFER_SIZE);
 	copy = tmpc = buffer2;
-        s = buffer;
+	s = buffer;
 	while (*tmpc)
 	{
 		if (*tmpc == '$')
@@ -4796,7 +4523,7 @@ int arg_flags;
 #else
 				strlcat(s, new_str, RAW_BUFFER_SIZE);
 #endif
-                        s = s + (strlen(new_str));
+			s += strlen(new_str);
 			new_free(&new_str);
 			if (!tmpc) break;
 			continue;
@@ -4807,24 +4534,33 @@ int arg_flags;
 	*s = 0;
 	return m_strdup(buffer);
 }
+#endif /* GUI */
 
-void add_last_type (LastMsg *array, int size, char *from, char *uh, char *to, char *str)
+void add_last_type(LastMsg *array, int size, const char *from, const char *uh, const char *to, const char *msg)
 {
-int i;
-	for (i = size - 1; i > 0; i--)
+	int i = size - 1;
+	LastMsg new_msg = array[i];	/* Re-use allocations from last entry */
+
+	malloc_strcpy(&new_msg.last_msg, msg);
+	malloc_strcpy(&new_msg.from, from);
+	malloc_strcpy(&new_msg.to, to);
+	malloc_strcpy(&new_msg.uh, uh);
+	malloc_strcpy(&new_msg.time, update_clock(GET_TIME));
+
+	for (; i > 0; i--)
 	{
-		
-		malloc_strcpy(&array[i].last_msg, array[i - 1].last_msg);
-		malloc_strcpy(&array[i].from, array[i - 1].from);
-		malloc_strcpy(&array[i].uh, array[i - 1].uh);
-		malloc_strcpy(&array[i].to, array[i - 1].to);
-		malloc_strcpy(&array[i].time, array[i - 1].time);
+		array[i].last_msg = array[i - 1].last_msg;
+		array[i].from = array[i - 1].from;
+		array[i].uh = array[i - 1].uh;
+		array[i].to = array[i - 1].to;
+		array[i].time = array[i - 1].time;
 	}
-	malloc_strcpy(&array->last_msg, str);
-	malloc_strcpy(&array->from, from);
-	malloc_strcpy(&array->to, to);
-	malloc_strcpy(&array->uh, uh);
-	malloc_strcpy(&array->time, update_clock(GET_TIME));
+
+	array[0].last_msg = new_msg.last_msg;
+	array[0].from = new_msg.from;
+	array[0].uh = new_msg.uh;
+	array[0].to = new_msg.to;
+	array[0].time = new_msg.time;
 }
 
 int check_last_type(LastMsg *array, int size, char *from, char *uh)
@@ -4897,8 +4633,7 @@ ChannelList *chan = NULL;
 		
 		if (!channel) {		
 			if (flags != PC_SILENT) {
-				if (current_window)
-					message_to(current_window->refnum);
+				message_to(current_window->refnum);
 				bitchsay("You're not on a channel!");
 				message_to(0);
 			}
@@ -4910,8 +4645,7 @@ ChannelList *chan = NULL;
 	if (!(chan = lookup_channel(channel, server, 0)))
 	{
 		if (flags != PC_SILENT) {
-			if (current_window)
-				message_to(current_window->refnum);
+			message_to(current_window->refnum);
 			bitchsay("You're not on the channel: %s", channel);
 			message_to(0);
 		}
@@ -4929,14 +4663,15 @@ ChannelList *chan = NULL;
 
 char *BX_make_channel (char *chan)
 {
-static char buffer[IRCD_BUFFER_SIZE+1];
-	*buffer = 0;
+	static char buffer[IRCD_BUFFER_SIZE+1];
+
 	if (!chan)
 		return NULL;
-        if (*chan != '#' && *chan != '&' && *chan != '+' && *chan != '!')
-		snprintf(buffer, IRCD_BUFFER_SIZE-2, "#%s", chan);
+	if (*chan != '#' && *chan != '&' && *chan != '+' && *chan != '!')
+		snprintf(buffer, sizeof buffer, "#%s", chan);
 	else
-		strmcpy(buffer, chan, IRCD_BUFFER_SIZE-1);
+		strlcpy(buffer, chan, sizeof buffer);
+
 	return buffer;
 }
 
@@ -5019,6 +4754,7 @@ static const struct {
 	{"CR", "Costa Rica" },
 	{"CU", "Cuba" },
 	{"CV", "Cape Verde" },
+	{"CW", "Curacao" },
 	{"CX", "Christmas Island" },
 	{"CY", "Cyprus" },
 	{"CZ", "Czech Republic" },
@@ -5176,6 +4912,7 @@ static const struct {
 	{"ST", "Sao Tome and Principe" },
 	{"SU", "Former USSR (pHEAR)" },
 	{"SV", "El Salvador" },
+	{"SX", "Sint Maarten" },
 	{"SY", "Syria" },
 	{"SZ", "Swaziland" },
 	{"TC", "Turks and Caicos Islands" },

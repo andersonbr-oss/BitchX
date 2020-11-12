@@ -18,15 +18,12 @@
  * Copyright(c) 1999
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT
- * $Id: cdns.c 3 2008-02-25 09:49:14Z keaston $
+ * $Id$
  */
-
-#include <sys/types.h>
-#include <netinet/in.h>
 
 #include "cdns.h"
 #include "irc.h"	/* To pick up our next #define checks */
-static char cvsrevision[] = "$Id: cdns.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(cdns_c)
 #include "commands.h"
 

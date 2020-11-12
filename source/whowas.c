@@ -11,7 +11,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: whowas.c 77 2009-10-16 12:35:56Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(whowas_c)
 #include "struct.h"
 
@@ -24,7 +24,6 @@ CVS_REVISION(whowas_c)
 #include "names.h"
 #include "alias.h"
 #include "output.h"
-#include "numbers.h"
 #include "status.h"
 #include "screen.h"
 #include "commands.h"
@@ -77,35 +76,28 @@ extern	WhowasList *check_whowas_buffer(char *nick, char *userhost, char *channel
 	return tmp;
 }
 
-
-extern	WhowasList * check_whowas_nick_buffer(char *nick, char *channel, int unlink)
+/* Search the whowas buffer for a nick and channel combination.  NULL channel matches any channel. */
+WhowasList *check_whowas_nick_buffer(const char *nick, const char *channel)
 {
-	WhowasList *tmp = NULL, *last = NULL;
+	WhowasList *tmp = NULL;
+
 	for (tmp = next_userhost(&whowas_userlist_list, NULL); tmp; tmp = next_userhost(&whowas_userlist_list, tmp))
 	{
-		if (!my_stricmp(tmp->nicklist->nick, nick) && !my_stricmp(tmp->channel, channel))
+		if (!my_stricmp(tmp->nicklist->nick, nick) &&
+			(!channel || !my_stricmp(tmp->channel, channel)))
 		{
-			if (unlink)
-			{
-				last = find_userhost_channel(tmp->nicklist->host, tmp->channel, 1, &whowas_userlist_list);
-				tmp = NULL;
-			}
-			return last?last:tmp;
+			return tmp;
 		}
 	}
 	for (tmp = next_userhost(&whowas_reg_list, NULL); tmp; tmp = next_userhost(&whowas_reg_list, tmp))
 	{
-		if (!my_stricmp(tmp->nicklist->nick, nick) && !my_stricmp(tmp->channel, channel))
+		if (!my_stricmp(tmp->nicklist->nick, nick) &&
+			(!channel || !my_stricmp(tmp->channel, channel)))
 		{
-			if (unlink)
-			{
-				last = find_userhost_channel(tmp->nicklist->host, tmp->channel, 1, &whowas_reg_list);
-				tmp = NULL;
-			}
-			return last?last:tmp;
+			return tmp;
 		}
 	}
-	return( NULL );
+	return NULL;
 }
 
 extern	WhowasList * check_whosplitin_buffer(char *nick, char *userhost, char *channel, int unlink)
@@ -237,13 +229,14 @@ WhowasList *tmp;
 /* Used to rehash whowas listings for new shitlist entries */
 void sync_whowas_addshit(ShitList *added)
 {
-WhowasList *tmp;
-char user[BIG_BUFFER_SIZE];
+	WhowasList *tmp;
+	char user[BIG_BUFFER_SIZE];
+
 	for (tmp = next_userhost(&whowas_userlist_list, NULL); tmp; tmp = next_userhost(&whowas_userlist_list, tmp))
 	{
 		if (check_channel_match(added->channels, tmp->channel)) 
 		{
-			sprintf(user, "%s!%s", tmp->nicklist->nick, tmp->nicklist->host);
+			snprintf(user, sizeof user, "%s!%s", tmp->nicklist->nick, tmp->nicklist->host);
 			if (wild_match(added->filter, user))
 				tmp->nicklist->shitlist = added;
 		}
@@ -252,7 +245,7 @@ char user[BIG_BUFFER_SIZE];
 	{
 		if (check_channel_match(added->channels, tmp->channel))
 		{
-			sprintf(user, "%s!%s", tmp->nicklist->nick, tmp->nicklist->host);
+			snprintf(user, sizeof user, "%s!%s", tmp->nicklist->nick, tmp->nicklist->host);
 			if (wild_match(added->filter, user))
 				tmp->nicklist->shitlist = added;
 		}

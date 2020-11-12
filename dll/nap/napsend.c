@@ -65,7 +65,7 @@ char *mime_type[] = {	"x-wav", "x-aiff", "x-midi", "x-mod", "x-mp3", /* 0-4 */
 char *audio[] = {".wav", ".aiff", ".mid", ".mod", ".mp3", ""};
 char *image[] = {".jpg", ".gif", ""};
 char *video[] = {".mpg", ".dat", ""};
-char *application[] = {".tar.gz" ".tar.Z", ".Z", ".gz", ".arc", ".bz2", ".zip", ""};
+char *application[] = {".tar.gz", ".tar.Z", ".Z", ".gz", ".arc", ".bz2", ".zip", ""};
 
 char *find_mime_type(char *fn)
 {
@@ -259,7 +259,7 @@ char *make_mp3_string(FILE *fp, Files *f, char *fs, char *dirbuff)
 					*s++ = *fs;
 					break;
 				case 'b':
-					sprintf(s, "%*u", prec, f->bitrate);
+					sprintf(s, "%*d", prec, f->bitrate);
 					break;
 				case 's':
 					if (!prec) prec = 3;
@@ -287,7 +287,7 @@ char *make_mp3_string(FILE *fp, Files *f, char *fs, char *dirbuff)
 					sprintf(s, "%*.*f", prec, fl, ((double)f->freq) / ((double)1000.0));
 					break;
 				case 'h':
-					sprintf(s, "%*u", prec, f->freq);
+					sprintf(s, "%*d", prec, f->freq);
 					break;
 				default:
 					*s++ = *fs;
@@ -315,7 +315,7 @@ char *make_mp3_string(FILE *fp, Files *f, char *fs, char *dirbuff)
 		fs++;
 	}
 	if (fp && *buffer)
-		fprintf(fp, buffer);
+		fputs(buffer, fp);
 	return buffer;
 }
 
@@ -364,7 +364,7 @@ char *fs = NULL;
 	*dir = 0;
 	for (new = fserv_files; new; new = new->next)
 	{
-		if (!pattern || (pattern && wild_match(pattern, new->filename)))
+		if (!pattern || wild_match(pattern, new->filename))
 		{
 			char *p;
 			p = base_name(new->filename);
@@ -605,17 +605,14 @@ double compute_tpf(AUDIO_HEADER *fr)
 }
 
 
-long get_bitrate(int fdes, time_t *mp3_time, unsigned int *freq_rate, unsigned long *filesize, int *stereo, long *id3, int *mime_type)
+long get_bitrate(int fdes, time_t *mp3_time, int *freq_rate, unsigned long *filesize, int *stereo, long *id3, int *mime_type)
 {
-
-
 	AUDIO_HEADER header = {0};
 	unsigned long btr = 0;
 	struct stat	st;
-	unsigned long	head;
-
-unsigned char	buf[1025];
-unsigned char	tmp[5];
+	unsigned long head;
+	unsigned char buf[1025];
+	unsigned char tmp[5];
 			
 	if (freq_rate)
 		*freq_rate = 0;
@@ -627,15 +624,15 @@ unsigned char	tmp[5];
 	memset(tmp, 0, sizeof(tmp));
 	read(fdes, tmp, 4);
 
-	if (!strcmp(tmp, "PK\003\004")) /* zip magic */
+	if (!memcmp(tmp, "PK\003\004", 4)) /* zip magic */
 		return 0;
-	if (!strcmp(tmp, "PE") || !strcmp(tmp, "MZ")) /* windows Exe magic */
+	if (!memcmp(tmp, "PE", 2) || !memcmp(tmp, "MZ", 2)) /* windows Exe magic */
 		return 0;
-	if (!strcmp(tmp, "\037\235")) /* gzip/compress */
+	if (!memcmp(tmp, "\037\235", 2)) /* gzip/compress */
 		return 0;
-	if (!strcmp(tmp, "\037\213") || !strcmp(tmp, "\037\036") || !strcmp(tmp, "BZh")) /* gzip/compress/bzip2 */
+	if (!memcmp(tmp, "\037\213", 2) || !memcmp(tmp, "\037\036", 2) || !memcmp(tmp, "BZh", 3)) /* gzip/compress/bzip2 */
 		return 0;
-	if (!strcmp(tmp, "\177ELF")) /* elf binary */
+	if (!memcmp(tmp, "\177ELF", 4)) /* elf binary */
 		return 0;
 		
 	head = convert_to_header(tmp);
@@ -684,7 +681,7 @@ unsigned char	tmp[5];
 		lseek(fdes, 0, SEEK_SET);
 		*id3 = 0;
 		rc = read(fdes, buff, 128);
-		if (!strncmp(buff, "ID3", 3))
+		if (rc == 128 && !strncmp(buff, "ID3", 3))
 		{
 			struct id3v2 {
 				char tag[3];
@@ -728,8 +725,6 @@ md5_state_t state;
 char buffer[BIG_BUFFER_SIZE+1];
 struct stat st;
 unsigned long size = DEFAULT_MD5_SIZE;
-int di = 0;
-int rc;
 
 #if !defined(WINNT) && !defined(__EMX__)
 	char *m;
@@ -753,7 +748,9 @@ int rc;
 #if defined(WINNT) || defined(__EMX__)
 	while (size)
 	{
+		int rc;
 		unsigned char md5_buff[8 * NAP_BUFFER_SIZE+1];
+
 		rc = (size >= (8 * NAP_BUFFER_SIZE)) ?  8 * NAP_BUFFER_SIZE : size;
 		rc = read(r, md5_buff, rc);
 		md5_append(&state, (unsigned char *)md5_buff, rc);
@@ -771,11 +768,13 @@ int rc;
 		md5_finish(digest, &state);
 		munmap(m, size);
 #endif
-		memset(buffer, 0, 200);
-		for (di = 0, rc = 0; di < 16; ++di, rc += 2)
-			snprintf(&buffer[rc], BIG_BUFFER_SIZE, "%02x", digest[di]);
-		strcat(buffer, "-");
-		strcat(buffer, ltoa(st.st_size));
+		snprintf(buffer, sizeof buffer, 
+			"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x-%ld",
+			digest[0], digest[1], digest[2], digest[3],
+			digest[4], digest[5], digest[6], digest[7], 
+			digest[8], digest[9], digest[10], digest[11],
+			digest[12], digest[13], digest[14], digest[15],
+			(long)st.st_size);
 	}
 	return m_strdup(buffer);
 }
@@ -862,8 +861,9 @@ unsigned int scan_mp3_dir(char *path, int recurse, int reload, int share, int se
 			count++;
 			if (share && (nap_socket != -1))
 			{
-				sprintf(buffer, "\"%s\" %s %lu %u %u %lu", new->filename, 
-					new->checksum, new->filesize, new->bitrate, new->freq, new->time);
+				sprintf(buffer, "\"%s\" %s %lu %d %d %ld", new->filename, 
+					new->checksum, new->filesize, new->bitrate, new->freq, 
+					(long)new->time);
 				send_ncommand(CMDS_ADDFILE, convertnap_dos(buffer));
 				statistics.shared_files++;
 				statistics.shared_filesize += new->filesize;
@@ -971,9 +971,9 @@ Files *new;
 	{
 		for (new = fserv_files; new; new = new->next)
 		{
-			fprintf(fp, "\"%s\" %s %lu %u %u %lu\n",
+			fprintf(fp, "\"%s\" %s %lu %d %d %ld\n",
 				new->filename, new->checksum, new->filesize, 
-				new->bitrate, new->freq, new->time);
+				new->bitrate, new->freq, (long)new->time);
 			count++;
 		}
 		fclose(fp);
@@ -1121,8 +1121,9 @@ Files	*new;
 		
 		if (new->freq && new->bitrate)
 		{
-			sprintf(buffer, "\"%s\" %s %lu %u %u %lu", name, 
-				new->checksum, new->filesize, new->bitrate, new->freq, new->time);
+			sprintf(buffer, "\"%s\" %s %lu %d %d %ld", name, 
+				new->checksum, new->filesize, new->bitrate, new->freq, 
+				(long)new->time);
 			cmd = CMDS_ADDFILE;
 		}
 		else
@@ -1520,20 +1521,16 @@ SocketList *s;
 
 void nap_firewall_start(int snum)
 {
-GetFile *gf;
-unsigned char buffer[NAP_BUFFER_SIZE+1];
-SocketList *s;
-	s = get_socket(snum);
+	GetFile *gf;
+	char buffer[NAP_BUFFER_SIZE+1];
+	SocketList *s = get_socket(snum);
+
 	if (!s || !(gf = (GetFile *)get_socketinfo(snum)))
 		return;
 	if ((read(snum, buffer, 4)) < 1)
 		return;
 	
-#if 0
-	sprintf(buffer, "%s \"%s\" %lu", gf->nick, gf->filename, gf->filesize);
-	write(snum, convertnap_dos(buffer), strlen(buffer));
-#endif
-	if (*buffer && !strcmp(buffer, "SEND"))
+	if (!memcmp(buffer, "SEND", 4))
 		s->func_read = napfirewall_pos;	
 	else
 		close_socketread(snum);
@@ -1541,15 +1538,14 @@ SocketList *s;
 
 void napfile_read(int snum)
 {
-GetFile *gf;
-unsigned char buffer[NAP_BUFFER_SIZE+1];
-int rc;
-SocketList *s;
-	s = get_socket(snum);
+	GetFile *gf;
+	int rc;
+	SocketList *s = get_socket(snum);
+
 	if (!(gf = (GetFile *)get_socketinfo(snum)))
 	{
-		unsigned char buff[2*NAP_BUFFER_SIZE+1];
-		unsigned char fbuff[2*NAP_BUFFER_SIZE+1];
+		char buff[2*NAP_BUFFER_SIZE+1];
+		char fbuff[2*NAP_BUFFER_SIZE+1];
 		char *nick, *filename, *args;
 		
 		alarm(10);
@@ -1579,7 +1575,6 @@ SocketList *s;
 			|| !(gf = find_in_getfile(&napster_sendqueue, 0, nick, NULL, fbuff, -1, NAP_UPLOAD)) 
 			|| (gf->write == -1))
 		{
-			memset(buff, 0, 80);
 			if (!gf)
 				sprintf(buff, "0INVALID REQUEST");
 			else
@@ -1588,7 +1583,7 @@ SocketList *s;
 				if ((gf = find_in_getfile(&napster_sendqueue, 1, nick, NULL, fbuff, -1, NAP_UPLOAD)))
 					gf->socket = snum;
 			}
-			write(snum, buff, strlen(buffer));
+			write(snum, buff, strlen(buff));
 			nap_finished_file(snum, gf);
 			return;
 		}
@@ -1602,7 +1597,6 @@ SocketList *s;
 		gf->socket = snum;
 		lseek(gf->write, SEEK_SET, gf->resume);
 		set_socketinfo(snum, gf);
-		memset(buff, 0, 80);
 		sprintf(buff, "%lu", gf->filesize);
 		write(snum, buff, strlen(buff));
 		s->func_write = s->func_read;
@@ -1622,10 +1616,10 @@ SocketList *s;
 
 void naplink_handleconnect(int snum)
 {
-unsigned char buff[2*NAP_BUFFER_SIZE+1];
-SocketList *s;
-int rc;
-	memset(buff, 0, sizeof(buff) - 1);
+	char buff[2*NAP_BUFFER_SIZE+1] = { 0 };
+	SocketList *s;
+	int rc;
+
 	switch ((rc = recv(snum, buff, 4, MSG_PEEK)))
 	{
 
@@ -1670,7 +1664,7 @@ int rc;
 void naplink_handlelink(int snum)
 {
 struct  sockaddr_in     remaddr;
-int sra = sizeof(struct sockaddr_in);
+socklen_t sra = sizeof(struct sockaddr_in);
 int sock = -1;
 	if ((sock = accept(snum, (struct sockaddr *) &remaddr, &sra)) > -1)
 	{

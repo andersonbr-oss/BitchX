@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: funny.c 130 2011-05-16 13:16:25Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(funny_c)
 #include "struct.h"
 
@@ -21,9 +21,7 @@ CVS_REVISION(funny_c)
 #include "names.h"
 #include "server.h"
 #include "lastlog.h"
-#include "ircterm.h"
 #include "output.h"
-#include "numbers.h"
 #include "parse.h"
 #include "status.h"
 #include "misc.h"
@@ -92,9 +90,10 @@ static	int funny_widelist_names(WideList **left, WideList **right)
 void funny_print_widelist(void)
 {
 	int	i;
-	char	buffer1[BIG_BUFFER_SIZE];
-	char	buffer2[BIG_BUFFER_SIZE];
-	char	*ptr;
+	char buffer1[BIG_BUFFER_SIZE];
+	char buffer2[BIG_BUFFER_SIZE];
+	char *ptr;
+	int cols;
 
 	if (!wide_list)
 		return;
@@ -107,13 +106,15 @@ void funny_print_widelist(void)
 		(int (*) (const void *, const void *)) funny_widelist_users);
 
 	set_display_target(NULL, LOG_CRAP);
+	cols = window_columns(target_window);
+
 	*buffer1 = '\0';
 	for (i = 1; i < wl_elements; i++)
 	{
-		sprintf(buffer2, "%s(%d) ", wide_list[i]->channel,
+		snprintf(buffer2, sizeof buffer2, "%s(%d) ", wide_list[i]->channel,
 				wide_list[i]->users);
 		ptr = strchr(buffer1, '\0');
-		if (strlen(buffer1) + strlen(buffer2) > current_term->TI_cols - 5)
+		if (strlen(buffer1) + strlen(buffer2) + 5 > cols)
 		{
 			if (do_hook(WIDELIST_LIST, "%s", buffer1))
 				put_it("%s", convert_output_format(fget_string_var(FORMAT_WIDELIST_FSET), "%s %s", update_clock(GET_TIME), buffer1));
@@ -149,11 +150,11 @@ void funny_list(char *from, char **ArgList)
 	if (last_width != get_int_var(CHANNEL_NAME_WIDTH_VAR))
 	{
 		if ((last_width = get_int_var(CHANNEL_NAME_WIDTH_VAR)) != 0)
-			snprintf(format, 25, "%%s %%-%u.%us %%-5s %%s", /*thing_ansi,*/
+			snprintf(format, sizeof format, "%%s %%-%u.%us %%-5s %%s", /*thing_ansi,*/
 				(unsigned char) last_width,
 				(unsigned char) last_width);
 		else
-			snprintf(format, 25, "%%s %%s %%-5s %%s"/*, thing_ansi*/);
+			snprintf(format, sizeof format, "%%s %%s %%-5s %%s"/*, thing_ansi*/);
 	}
 	channel = ArgList[0];
 	user_cnt = ArgList[1];
@@ -235,8 +236,8 @@ void print_funny_names(char *line)
                     fget_string_var(FORMAT_NAMES_BANNER_FSET), NULL, NULL), 
                     sizeof buffer);
 
-            /* Seperate the nick and the possible status presets that might 
-             * preceede it. */
+            /* Separate the nick and the possible status presets that might
+             * precede it. */
             nick = t + strspn(t, "@%+~-");
             nick_format = fget_string_var(isme(nick) ? 
                 FORMAT_NAMES_NICK_ME_FSET : FORMAT_NAMES_NICK_FSET);
@@ -320,20 +321,16 @@ int user_count = 0;
 			print_funny_names(line);
 		} 
 		if ((user_count == 1) && (*line == '@'))
-		{
-			ChannelList *chan;
-			if ((chan = lookup_channel(channel, from_server, CHAN_NOUNLINK)))
-				if ((ptr = get_cset_str_var(chan->csets, CHANMODE_CSET)))
-					my_send_to_server(from_server, "MODE %s %s", channel, ptr);
-		}
-		got_info(channel, from_server, GOTNAMES);
+			got_info(channel, from_server, GOTNAMES | GOTNEW);
+		else
+			got_info(channel, from_server, GOTNAMES);
 		reset_display_target();
 		return;
 	}
 	if (last_width != get_int_var(CHANNEL_NAME_WIDTH_VAR))
 	{
 		if ((last_width = get_int_var(CHANNEL_NAME_WIDTH_VAR)) != 0)
-			sprintf(format, "%%s: %%-%u.%us %%s",
+			snprintf(format, sizeof format, "%%s: %%-%u.%us %%s",
 				(unsigned char) last_width,
 				(unsigned char) last_width);
 		else
@@ -408,52 +405,8 @@ void funny_mode(char *from, char **ArgList)
 	{
 		set_display_target(channel, LOG_CRAP);
 		if (do_hook(current_numeric, "%s %s %s", from, channel, mode))
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_MODE_CHANNEL_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, *FromUserHost ? FromUserHost:"ÿ", channel, mode));
+			put_it("%s", convert_output_format(fget_string_var(FORMAT_MODE_CHANNEL_FSET), "%s %s %s %s %s", update_clock(GET_TIME), from, *FromUserHost ? FromUserHost:" ", channel, mode));
 		reset_display_target();
 	}
 }
 
-void update_user_mode(char *modes)
-{
-	int	onoff = 1;
-	char	*p_umodes = get_possible_umodes(from_server);
-
-	for (; *modes; modes++)
-	{
-		if (*modes == '-')
-			onoff = 0;
-		else if (*modes == '+')
-			onoff = 1;
-
-		else if   ((*modes >= 'a' && *modes <= 'z')
-			|| (*modes >= 'A' && *modes <= 'Z'))
-		{
-			size_t 	idx;
-			int 	c = *modes;
-
-			idx = ccspan(p_umodes, c);
-			if (p_umodes[idx] == 0)
-				ircpanic("Invalid user mode referenced");
-			set_server_flag(from_server, idx, onoff);
-
-			if (c == 'o' || c == 'O')
-				set_server_operator(from_server, onoff);
-#if 0
-			char c = tolower(*modes);
-			size_t idx = (size_t) (strchr(umodes, c) - umodes);
-
-			set_server_flag(from_server, USER_MODE << idx, onoff);
-
-			if (c == 'o' || c == 'O')
-				set_server_operator(from_server, onoff);
-#endif
-		}
-	}
-}
-
-void	reinstate_user_modes (void)
-{
-	char *modes = get_umode(from_server);
-	if (modes && *modes)
-		send_to_server("MODE %s +%s", get_server_nickname(from_server), modes);
-}

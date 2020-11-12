@@ -9,7 +9,7 @@
 #define __modules_c
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: modules.c 87 2010-06-26 08:18:34Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(modules_c)
 #include "struct.h"
 #include "alias.h"
@@ -37,13 +37,12 @@ CVS_REVISION(modules_c)
 #include "status.h"
 #include "window.h"
 #include "tcl_bx.h"
-#include "ircterm.h"
 #define MAIN_SOURCE
 #include "modval.h"
 
+IrcCommandDll *dll_commands = NULL;
 IrcVariableDll *dll_variable = NULL;
 extern void *default_output_function;
-extern DCC_dllcommands dcc_dllcommands;
 extern void *default_status_output_function;
 
 Function_ptr global_table[NUMBER_OF_GLOBAL_FUNCTIONS] = { NULL };
@@ -78,12 +77,7 @@ extern int BX_read_sockets();
 extern int identd;
 extern int doing_notice;
 
-extern int (*dcc_open_func) (int, int, unsigned long, int);
-extern int (*dcc_output_func) (int, int, char *, int);
-extern int (*dcc_input_func)  (int, int, char *, int, int);
-extern int (*dcc_close_func) (int, unsigned long, int);
-
-int (*serv_open_func) (int, unsigned long, int);
+extern int (*serv_open_func) (int, unsigned long, int);
 extern int (*serv_output_func) (int, int, char *, int);
 extern int (*serv_input_func)  (int, char *, int, int, int);
 extern int (*serv_close_func) (int, unsigned long, int);
@@ -202,7 +196,7 @@ static int already_done = 0;
 	
 /* words.c reg.c */
 	global_table[STRSEARCH]			= (Function_ptr) BX_strsearch;
-	global_table[MOVE_TO_ABS_WORD]		= (Function_ptr) BX_move_to_abs_word;
+	global_table[MOVE_TO_WORD]		= (Function_ptr) BX_move_to_word;
 	global_table[MOVE_WORD_REL]		= (Function_ptr) BX_move_word_rel;
 	global_table[EXTRACT]			= (Function_ptr) BX_extract;
 	global_table[EXTRACT2]			= (Function_ptr) BX_extract2;
@@ -249,7 +243,6 @@ static int already_done = 0;
 	global_table[ADD_TO_SERVER_LIST]	= (Function_ptr) BX_add_to_server_list;
 	global_table[BUILD_SERVER_LIST]		= (Function_ptr) BX_build_server_list;
 	global_table[DISPLAY_SERVER_LIST]	= (Function_ptr) BX_display_server_list;
-	global_table[CREATE_SERVER_LIST]	= (Function_ptr) BX_create_server_list;
 	global_table[PARSE_SERVER_INFO]		= (Function_ptr) BX_parse_server_info;
 	global_table[SERVER_LIST_SIZE]		= (Function_ptr) BX_server_list_size;
 /* misc server/nickname functions */
@@ -263,7 +256,7 @@ static int already_done = 0;
 	global_table[RESET_NICKNAME]		= (Function_ptr) BX_reset_nickname;
 /* various set server struct functions */
 	global_table[SET_SERVER_COOKIE]		= (Function_ptr) BX_set_server_cookie;
-	global_table[SET_SERVER_FLAG]		= (Function_ptr) BX_set_server_flag;
+	global_table[UPDATE_SERVER_UMODE]	= (Function_ptr) BX_update_server_umode;
 	global_table[SET_SERVER_MOTD]		= (Function_ptr) BX_set_server_motd;
 	global_table[SET_SERVER_OPERATOR]	= (Function_ptr) BX_set_server_operator;
 	global_table[SET_SERVER_ITSNAME]	= (Function_ptr) BX_set_server_itsname;
@@ -282,8 +275,7 @@ static int already_done = 0;
 	global_table[GET_SERVER_MOTD]		= (Function_ptr) BX_get_server_motd;
 	global_table[GET_SERVER_OPERATOR]	= (Function_ptr) BX_get_server_operator;
 	global_table[GET_SERVER_VERSION]	= (Function_ptr) BX_get_server_version;
-	global_table[GET_SERVER_FLAG]		= (Function_ptr) BX_get_server_flag;
-	global_table[GET_POSSIBLE_UMODES]	= (Function_ptr) BX_get_possible_umodes;
+	global_table[GET_SERVER_UMODE]		= (Function_ptr) BX_get_server_umode;
 	global_table[GET_SERVER_PORT]		= (Function_ptr) BX_get_server_port;
 	global_table[GET_SERVER_LAG]		= (Function_ptr) BX_get_server_lag;
 	global_table[GET_SERVER2_8]		= (Function_ptr) BX_get_server2_8;
@@ -550,11 +542,13 @@ static int already_done = 0;
 	global_table[SET_DLLINT_VAR]		= (Function_ptr) BX_set_dllint_var;
 	global_table[GET_DLLSTRING_VAR]		= (Function_ptr) BX_get_dllstring_var;
 	global_table[SET_DLLSTRING_VAR]		= (Function_ptr) BX_set_dllstring_var;
+	global_table[SAVE_DLLVAR]			= (Function_ptr) BX_save_dllvar;
 #else
 	global_table[GET_DLLINT_VAR]		= (Function_ptr) null_function;
 	global_table[SET_DLLINT_VAR]		= (Function_ptr) null_function;
 	global_table[GET_DLLSTRING_VAR]		= (Function_ptr) null_function;
 	global_table[SET_DLLSTRING_VAR]		= (Function_ptr) null_function;
+	global_table[SAVE_DLLVAR]			= (Function_ptr) null_function;
 #endif
 	global_table[GET_INT_VAR]		= (Function_ptr) BX_get_int_var;
 	global_table[SET_INT_VAR]		= (Function_ptr) BX_set_int_var;
@@ -620,6 +614,8 @@ static int already_done = 0;
 	global_table[GET_ACTIVE_COUNT]		= (Function_ptr) BX_get_active_count;
 	global_table[DCC_FILESEND]		= (Function_ptr) BX_dcc_filesend;
 	global_table[DCC_RESEND]		= (Function_ptr) BX_dcc_resend;
+	global_table[DCC_CHAT_SOCKETREAD]		= (Function_ptr) BX_dcc_chat_socketread;
+	global_table[DCC_SEND_SOCKETREAD]		= (Function_ptr) BX_dcc_send_socketread;
 
 /* cdcc.c */
 	global_table[GET_NUM_QUEUE]		= (Function_ptr) BX_get_num_queue;
@@ -660,18 +656,8 @@ static int already_done = 0;
 	global_table[OUTPUT_SCREEN]		= (Function_ptr) &output_screen;
 	global_table[SCREEN_LIST]		= (Function_ptr) &screen_list;
 	global_table[DOING_NOTICE]      = (Function_ptr) &doing_notice;
-	global_table[SENT_NICK]         = 0;	/* No longer used */
-	global_table[LAST_SENT_MSG_BODY]    = 0;	/* No longer used */
                                 
 	global_table[IRCLOG_FP]			= (Function_ptr) &irclog_fp;
-#ifdef WANT_DLL
-	global_table[DLL_FUNCTIONS]		= (Function_ptr) &dll_functions;
-	global_table[DLL_NUMERIC]		= (Function_ptr) &dll_numeric_list;
-	global_table[DLL_COMMANDS]		= (Function_ptr) &dll_commands;
-	global_table[DLL_WINDOW]		= (Function_ptr) &dll_window;
-	global_table[DLL_VARIABLE]		= (Function_ptr) &dll_variable;
-	global_table[DLL_CTCP]			= (Function_ptr) &dll_ctcp;
-#endif
 	global_table[WINDOW_DISPLAY]		= (Function_ptr) &window_display;
 	global_table[STATUS_UPDATE_FLAG]	= (Function_ptr) &status_update_flag;
 	global_table[TABKEY_ARRAY]		= (Function_ptr) &tabkey_array;
@@ -716,32 +702,62 @@ int BX_check_module_version(unsigned long number)
 }
 
 #ifdef WANT_DLL
-char *BX_get_dllstring_var(char *typestr)
+IrcCommandDll *find_dll_command(const char *com, int *cnt)
 {
-IrcVariableDll *dll = NULL;
-	if (typestr)
-		dll = (IrcVariableDll *) find_in_list((List **)&dll_variable, typestr, 0);
-	return (dll?dll->string:NULL);
+	const size_t len = com ? strlen(com) : 0;
+	IrcCommandDll *first_match = NULL;
+
+	*cnt = 0;
+
+	if (len)
+	{
+		IrcCommandDll *cmd;
+
+		for (cmd = dll_commands; cmd; cmd = cmd->next)
+		{
+			if (!my_strnicmp(com, cmd->name, len))
+			{
+				if (!first_match)
+					first_match = cmd;
+				(*cnt)++;
+			}
+		}
+
+		if (first_match && strlen(first_match->name) == len)
+			*cnt *= -1;
+	}
+
+	return first_match;
 }
 
+static IrcVariableDll *lookup_dllvar(char *name)
+{
+	IrcVariableDll *dll = NULL;
+
+	if (name)
+		dll = (IrcVariableDll *)find_in_list((List **)&dll_variable, name, 0);
+
+	return dll;
+}
+
+char *BX_get_dllstring_var(char *typestr)
+{
+	IrcVariableDll *dll = lookup_dllvar(typestr);
+	return dll ? dll->string : NULL;
+}
 
 int BX_get_dllint_var(char *typestr)
 {
-IrcVariableDll *dll = NULL;
-	if (typestr)
-		dll = (IrcVariableDll *) find_in_list((List **)&dll_variable, typestr, 0);
-	return (dll?dll->integer:-1);
+	IrcVariableDll *dll = lookup_dllvar(typestr);
+	return dll ? dll->integer : -1;
 }
 
 void BX_set_dllstring_var(char *typestr, char *string)
 {
-	if (typestr)
+	IrcVariableDll *dll = lookup_dllvar(typestr);
+
+	if (dll)
 	{
-		IrcVariableDll *dll = NULL;
-		if (typestr)
-			dll = (IrcVariableDll *) find_in_list((List **)&dll_variable, typestr, 0);
-		if (!dll)
-			return;
 		if (string)
 			malloc_strcpy(&dll->string, string);
 		else
@@ -751,14 +767,38 @@ void BX_set_dllstring_var(char *typestr, char *string)
 
 void BX_set_dllint_var(char *typestr, unsigned int value)
 {
-	if (typestr)
+	IrcVariableDll *dll = lookup_dllvar(typestr);
+
+	if (dll)
 	{
-		IrcVariableDll *dll = NULL;
-		if (typestr)
-			dll = (IrcVariableDll *) find_in_list((List **)&dll_variable, typestr, 0);
-		if (!dll)
-			return;
 		dll->integer = value;
+	}
+}
+
+void BX_save_dllvar(FILE *fp, char *var)
+{
+	IrcVariableDll *dll = lookup_dllvar(var);
+
+	if (dll)
+	{
+		switch (dll->type)
+		{
+			case BOOL_TYPE_VAR:
+				fprintf(fp, "SET %s %s\n", dll->name, dll->integer ? "ON" : "OFF");
+				break;
+			case CHAR_TYPE_VAR:
+				fprintf(fp, "SET %s %c\n", dll->name, dll->integer);
+				break;
+			case INT_TYPE_VAR:
+				fprintf(fp, "SET %s %d\n", dll->name, dll->integer);
+				break;
+			case STR_TYPE_VAR:
+				if (dll->string)
+					fprintf(fp, "SET %s %s\n", dll->name, dll->string);
+				else
+					fprintf(fp, "SET -%s\n", dll->name);
+				break;
+		}
 	}
 }
 
@@ -775,11 +815,11 @@ BUILT_IN_COMMAND(dll_load)
 	void *handle = NULL;
 #endif
     
-char *filename = NULL;
-Irc_PackageInitProc *proc1Ptr;
-Irc_PackageVersionProc *proc2Ptr;
-char *f, *p, *procname = NULL;
-int code = 0;
+	char *filename = NULL;
+	Irc_PackageInitProc *proc1Ptr;
+	Irc_PackageVersionProc *proc2Ptr;
+	char *f, *p, *procname = NULL;
+	int code = 0;
 
 	if (command)
 	{
@@ -830,23 +870,22 @@ int code = 0;
 		
 	}
 
-	procname  = m_strdup(p);
+	procname = m_strdup(p);
 	if ((p = strchr(procname, '.')))
 		*p = 0;
 
 	p = procname;
-	*p = toupper(*p);
+	*p = toupper((unsigned char)*p);
 	p++;
-	while (p && *p)
+	while (*p)
 	{
-		*p = tolower(*p);
+		*p = tolower((unsigned char)*p);
 		p++;
 	}
 
-	if (!procname || find_in_list((List **)&install_pack, procname, 0))
+	if (find_in_list((List **)&install_pack, procname, 0))
 	{
-		if (procname)
-			bitchsay("Module [%s] Already installed", procname);
+		bitchsay("Module [%s] Already installed", procname);
 		new_free(&f);
 		new_free(&procname);
 		return;
@@ -895,7 +934,7 @@ int code = 0;
 #else
 	if (!(proc1Ptr = (Irc_PackageInitProc *) dlsym(handle, (char *) procname)))
 #endif
-		bitchsay("UnSuccessful module load");
+		bitchsay("Unsuccessful module load [%s]", procname);
 	else
 		code = (proc1Ptr)(&dll_commands, global_table);
 
@@ -957,9 +996,9 @@ int code = 0;
 	else 
 	{
 		if (code == INVALID_MODVERSION)
-			bitchsay("Error module version is wrong for [%s]", procname);
+			bitchsay("Module ABI version is wrong for [%s].  This likely means that the module needs to be recompiled.", procname);
 		else
-			bitchsay("Error initiliziing module [%s:%d]", procname, code);
+			bitchsay("Error initializing module [%s:%d]", procname, code);
 		if (handle)
 #if defined(__EMX__)
 			DosFreeModule(handle);
@@ -1158,6 +1197,11 @@ register	List2	*tmp;
 	return NULL;
 }
 
+static int cmp_dcc_dllcmd_module(List *node, char *name)
+{
+	const DCC_dllcommands *dllcmd = (DCC_dllcommands *)node;
+	return strcasecmp(dllcmd->module, name);
+}
 
 int BX_remove_module_proc(unsigned int mod_type, char *modname, char *procname, char *desc)
 {
@@ -1274,7 +1318,7 @@ int count = 0;
 		case DCC_PROC:
 		{
 			DCC_dllcommands *ptr;
-			while ((ptr = (DCC_dllcommands *)remove_module((List2 **)&dcc_dllcommands, modname)))
+			while ((ptr = (DCC_dllcommands *)remove_from_list_ext((List **)&dcc_dllcommands, modname, cmp_dcc_dllcmd_module)))
 			{
 				new_free(&ptr->name);
 				new_free(&ptr->module);

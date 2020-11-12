@@ -12,7 +12,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: commands.c 206 2012-06-13 12:34:32Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(commands_c)
 
 /* These headers are for the local-address-finding routines. */
@@ -24,11 +24,10 @@ CVS_REVISION(commands_c)
 #else /* IPV6 */
 
 #include <sys/ioctl.h>
-#include <sys/socket.h>
 
-#ifndef SIOCGIFCONF
+#ifdef HAVE_SYS_SOCKIO_H
 #include <sys/sockio.h>
-#endif /* SIOCGIFCONF */
+#endif /* HAVE_SYS_SOCKIO_H */
 
 /* Some systems call it SIOCGIFCONF, some call it OSIOCGIFCONF */
 #if defined(OSIOCGIFCONF)
@@ -86,6 +85,7 @@ CVS_REVISION(commands_c)
 #include "hash2.h"
 #include "cset.h"
 #include "notice.h"
+#include "module.h"
 
 #ifdef TRANSLATE
 #include "translat.h"
@@ -118,7 +118,6 @@ extern	int	doing_notice;
 
 static	void	oper_password_received (char *, char *);
 
-int	no_hook_notify = 0;
 int	load_depth = -1;
 
 extern char	cx_function[];
@@ -153,21 +152,9 @@ static	WaitCmd	*start_wait_list = NULL,
 char	lame_wait_nick[] = "***LW***";
 char	wait_nick[] = "***W***";
 
-#ifdef WANT_DLL
-	IrcCommandDll *find_dll_command (char *, int *);
-	IrcCommandDll *dll_commands = NULL;
-#endif
-
-
 AJoinList *ajoin_list = NULL;
 
-/*
- * irc_command: all the availble irc commands:  Note that the first entry has
- * a zero length string name and a null server command... this little trick
- * makes "/ blah blah blah" to always be sent to a channel, bypassing queries,
- * etc.  Neato.  This list MUST be sorted.
- */
-
+BUILT_IN_COMMAND(obits);
 BUILT_IN_COMMAND(debug_user);
 BUILT_IN_COMMAND(debugmsg);
 BUILT_IN_COMMAND(debughook);
@@ -188,6 +175,7 @@ BUILT_IN_COMMAND(do_mtopic);
 BUILT_IN_COMMAND(xevalcmd);
 BUILT_IN_COMMAND(send_kline);
 BUILT_IN_COMMAND(show_revisions);
+BUILT_IN_COMMAND(ctcp_simple);
 
 #ifdef GUI
 BUILT_IN_COMMAND(os2popupmenu);
@@ -203,14 +191,16 @@ BUILT_IN_COMMAND(os2submenu);
 BUILT_IN_COMMAND(pmcodepage);
 #endif
 
-#ifdef WANT_CHAN_NICK_SERV
-BUILT_IN_COMMAND(e_server);
-#endif
-
 #ifdef ALLOW_DETACH
 BUILT_IN_COMMAND(detachcmd);
 #endif
 
+/*
+ * irc_command: all the available IRC commands.  Note that the first entry has
+ * a zero length string name and a null server command... this little trick
+ * makes "/ blah blah blah" to always be sent to a channel, bypassing queries,
+ * etc.  Neato.  This list MUST be sorted.
+ */
 
 char relay_help[] = "%R[%n-list|-kick|-wall|-wallop|-msg|-notice|-topic|-kboot|-ansi|-kill|-help%R]%n %Y<%n#|channel|nick%Y> <%nchannel|nick%Y>";
 char scripting_command[] = "- Scripting command";
@@ -251,7 +241,7 @@ IrcCommand irc_command[] =
 	{ "BHELP",	"BHELP",	chelp,			0,	"%Y<%nhelp%W|%nindex%W|%nother%Y>%n\n - BitchX help command" },
 #endif
 	{ "BIND",	NULL,		bindcmd,		0,	"- Command to bind a key to a function" },
-	{ "BK",		NULL,		kickban,		SERVERREQ,	"%Y<%Cnick%Y>%n %R[%nreason%R]%n\n- Deops, bans and kicks %Y<%Cnick%Y>%n for %R[%nreason%R]%n" },
+	{ "BK",		"BK",		kickban,		SERVERREQ,	"%Y<%Cnick%Y>%n %R[%nreason%R]%n\n- Deops, bans and kicks %Y<%Cnick%Y>%n for %R[%nreason%R]%n" },
 	{ "BKI",	"BKI",		kickban,		SERVERREQ,	"%Y<%Cnick%Y>%n %R[%nreason%R]%n\n- Deops, bans, kicks and ignores %Y<%Cnick%Y>%n for %R[%nreason%R]%n" },
 	{ "BLESS",	NULL,		blesscmd,		0,	scripting_command },
 	{ "BREAK",	NULL,		breakcmd,		0,	NULL },
@@ -275,9 +265,7 @@ IrcCommand irc_command[] =
 	{ "CDVOL",	NULL,		cd_volume,		0,	NULL },
 #endif
 	{ "CHANNEL",	"JOIN",		e_channel,		SERVERREQ,	"- Shows information on the channels, modes and server you are on" },
-#ifdef WANT_CHAN_NICK_SERV
-	{ "CHANSERV",	"CHANSERV",	send_comm,		0,	NULL },
-#endif
+	{ "CHANSERV",	"CHANSERV",	send_comm,		SERVERREQ,	"- Network services command" },
 	{ "CHANST",	NULL,		channel_stats,		SERVERREQ,	"%Y<%n-ALL%Y> %R[%Bchannel%R]%n\n- Shows statistics on current channel or %R[%Bchannel%R]%n" },
 	{ "CHAT",	"Chat",		chat,			SERVERREQ,	"%Y<%nNick%Y>%n\n- Attempts to dcc chat nick" },
 	{ "CHATOPS",	"CHATOPS",	e_wall,			SERVERREQ,	NULL },
@@ -304,7 +292,7 @@ IrcCommand irc_command[] =
 #ifdef __EMXPM__
         { "CODEPAGE",	"CODEPAGE",	pmcodepage,		0,	"OS/2 - Changes the current VIO Codepage" },
 #endif
-	{ "CONNECT",	"CONNECT",	send_comm,		0,	"%Y<%nserver1%Y>%n %Y<%nport%Y>%n %R[%nserver2%R]%n\n%Y*%n Requires irc operator status" },
+	{ "CONNECT",	"CONNECT",	send_comm,		SERVERREQ,	"%Y<%nserver1%Y>%n %Y<%nport%Y>%n %R[%nserver2%R]%n\n%Y*%n Requires irc operator status" },
 	{ "CONTINUE",	NULL,		continuecmd,		0,	NULL },
 #ifndef BITCHX_LITE
 	{ "CSAY",	"Csay",		csay,			0,	"%Y<%ntext%Y>%n" },
@@ -372,7 +360,7 @@ IrcCommand irc_command[] =
 #ifdef GUI
 	{ "FILEDIALOG",	NULL,		filedialog,		0,	"GUI - File dialog" },
 #endif
-	{ "FINGER",	NULL,		finger,			0,	"%Y<%Cnick%Y>%n\n- Fetches finger info on %Y<%Cnick%Y>%n" },
+	{ "FINGER",	"FINGER",	ctcp_simple,	0,	"%Y<%Cnick%Y>%n\n- Sends a CTCP FINGER query to %Y<%Cnick%Y>%n" },
 	{ "FK",		"FK",		masskick,		SERVERREQ,	"%Y<%Cnick%G!%nuser%Y@%nhostname%Y>%n%R[%nreason%R]%n\nFinds clienTs matching %Y<%Cnick%G!%nuser%Y@%nhostname%Y>%n and immediately kicks them from current channel for %R[%nreason%R]%n" },
 	{ "FLUSH",	NULL,		flush,			0,	"- Flush ALL server output" },
 #ifdef GUI
@@ -392,10 +380,8 @@ IrcCommand irc_command[] =
 	{ "GONE",	"Gone",		away,			SERVERREQ,	"%R[%nreason%R]%n\n- Sets you away on server if %R[%nreason%R]%n else sets you back. Does not announce to your channels." },
 	{ "HASH",	"HASH",		send_comm,		SERVERREQ,	"Server command"},
 	{ "HELP",	NULL,		help,			0,	NULL },
-#ifdef WANT_CHAN_NICK_SERV
 	{ "HELPOP",	"HELPOP",	send_comm,		SERVERREQ,	NULL },
-	{ "HELPSERV",	"HELPSERV",	send_comm,		SERVERREQ,	NULL },
-#endif
+	{ "HELPSERV",	"HELPSERV",	send_comm,		SERVERREQ,	"- Network services command" },
 	{ "HISTORY",	NULL,		history,		0,	"- Shows recently typed commands" },
 	{ "HOOK",	NULL,		hookcmd,		0,	scripting_command },
 	{ "HOP",		"h",		doop,			SERVERREQ,	"%Y<%Cnick%Y>%n\n- Gives %Y<%Cnick%Y>%n +h" },
@@ -412,9 +398,6 @@ IrcCommand irc_command[] =
 	{ "INPUT",	"Input",	inputcmd,		0,	scripting_command  },
 	{ "INPUT_CHAR", "Input_Char",	inputcmd,		0,	scripting_command },
 	{ "INVITE",	"INVITE",	do_invite,		SERVERREQ,	"%Y<%Cnick%Y>%n %R[%Bchannel%R]%n\n- Invites %Y<%Cnick%Y>%n to current channel or %R[%Bchannel%R]%n" },
-#ifdef WANT_CHAN_NICK_SERV
-	{ "IRCIIHELP",	"IRCIIHELP",	send_comm,		SERVERREQ,	NULL },
-#endif
 	{ "IRCHOST",	"HOSTNAME",	e_hostname,		0,	"%Y<%nhostname%Y>%n\n- Shows list of possible hostnames with option to change it on virtual hosts"  },
 	{ "IRCNAME",	NULL,		realname_cmd,		0,	NULL },
 	{ "IRCUSER",	NULL,		set_username,		0,	"<username>\n- Changes your <username>" },
@@ -463,9 +446,7 @@ IrcCommand irc_command[] =
 	{ "MDOP",	NULL,		massdeop,		SERVERREQ,	"- Mass deops current channel" },
 	{ "MDVOICE",	"MDVoice",	massdeop,		SERVERREQ,	"- Mass de-voices current channel" },
 	{ "ME",		NULL,		me,			SERVERREQ,	"<action>\n- Sends an action to current channel" },
-#ifdef WANT_CHAN_NICK_SERV
-	{ "MEMOSERV",	"MEMOSERV",	send_comm,		SERVERREQ,	NULL },
-#endif
+	{ "MEMOSERV",	"MEMOSERV",	send_comm,		SERVERREQ,	"- Network services command" },
 #ifdef GUI
 	{ "MENU",	NULL,		os2menu,		0,	"GUI - Creates or removes a menu" },
 	{ "MENUITEM",	NULL,		os2menuitem,		0,	"GUI - Adds a menuitem to a menu" },
@@ -490,25 +471,22 @@ IrcCommand irc_command[] =
 	{ "NEWNICK",	NULL,		newnick,		0,	NULL },
 	{ "NEWUSER",	NULL,		newuser,		0,	NULL },
 	{ "NICK",	"NICK",		e_nick,			0,	"-Changes nick to specified nickname" },
-#ifdef WANT_CHAN_NICK_SERV
-	{ "NICKSERV",	"NICKSERV",	send_comm,		SERVERREQ,	NULL },
-#endif
+	{ "NICKSERV",	"NICKSERV",	send_comm,		SERVERREQ,	"- Network services command" },
 	{ "NOCHAT",	"NoChat",	chat,			0,	"%Y<%nnick%Y>%n\n- Kills chat reqest from %Y<%nnick%Y>" },
 	{ "NOPS",	"Nops",		users,			0,	"%R[%Bchannel%R]%n\n- Shows, in a full format, all the nicks without ops in %R[%Bchannel%R]%n or channel" },
 	{ "NOTE",	"NOTE",		send_comm,		SERVERREQ,	NULL },
 	{ "NOTICE",	"NOTICE",	e_privmsg,		0,	"%Y<%Cnick%G|%Bchannel%Y> %Y<%ntext%Y>%n\n- Sends a notice to %Y<%Cnick%G|%Bchannel%Y> with %Y<%ntext%Y>%n" },
 	{ "NOTIFY",	NULL,		notify,			0,	"%Y<%Cnick|+|-nick%Y>%n\n- Adds/displays/removes %Y<%Cnick%Y>%n to notify list" },
-	{ "NSLOOKUP",	"NSLookup",	nslookup,		0,	"%Y<%nhostname%Y>%n\n- Returns the IP adress and IP number for %Y<%nhostname%Y>%n" },
+	{ "NSLOOKUP",	"NSLookup",	nslookup,		0,	"%Y<%nhostname%Y>%n\n- Looks up the IP addresses for %Y<%nhostname%Y>%n" },
 	{ "NWHOIS",	NULL,		nwhois,			0,	"%Y<%Cnick|channel%Y>%n\n- Shows internal statistics for %Y<%Cnick%Y>%n" },
 	{ "NWHOWAS",	NULL,		whowas,			0,	"- Displays internal whowas info for all channels. This information expires after 20 minutes for users on internal list, 10 minutes for others" },
+	{ "OBITS",	NULL,		obits,			0,	"- Displays obituaries for some BitchX friends who have left us" },
 	{ "OFFERS",	"Offers",	do_offers,		0,	NULL },
 	{ "ON",		NULL,		oncmd,			0,	scripting_command },
 	{ "OOPS",	NULL,		do_oops,		SERVERREQ,	"%Y<%Cnick%Y>%n\n- Sends a oops message to last recipient of a message and sends the correct message to %Y<%Cnick%Y>%n" },
 	{ "OP",		"o",		doop,			SERVERREQ,	"%Y<%Cnick%Y>%n\n- Gives %Y<%Cnick%Y>%n +o" },
 	{ "OPER",	"OPER",		oper,			SERVERREQ,	"%Y*%n Requires irc operator status\n%Y<%Cnick%Y>%n %R[%npassword%R]%n" },
-#ifdef WANT_CHAN_NICK_SERV
-	{ "OPERSERV",	"OPERSERV",	send_comm,		SERVERREQ,	NULL },
-#endif
+	{ "OPERSERV",	"OPERSERV",	send_comm,		SERVERREQ,	"- Network services command" },
 	{ "OPERWALL",	"OPERWALL",	e_wall,			0,	NULL },
 	{ "ORIGNICK",	"OrigNick",	orig_nick,		0,	"%Y<%Cnick%Y>%n\n- Attempts to regain a nick that someone else has taken from you." },
 	{ "OSTAT",	NULL, 		serv_stat,		0,	"-Displays some internal statistics gathered about the server" },
@@ -517,7 +495,7 @@ IrcCommand irc_command[] =
 #endif
 	{ "P",		"Ping",		pingcmd,		0,	"%Y<%nnick%Y>%n\n- Pings %Y<%nnick%Y>" },
 	{ "PARSEKEY",	NULL,		parsekeycmd,		0,	scripting_command },
-	{ "PART",	"PART",		send_2comm,		0,	"- Leaves %Y<%nchannel%Y>%n" },
+	{ "PART",	"PART",		send_2comm,		SERVERREQ,	"- Leaves %Y<%nchannel%Y>%n" },
 	{ "PARTALL",	"PARTALL",	do_getout,		0,	"- Leaves all channels" },
 	{ "PASTE",	NULL,		pastecmd,		0,	NULL },
 	{ "PAUSE",	NULL,		e_pause,		0,	scripting_command },
@@ -532,7 +510,7 @@ IrcCommand irc_command[] =
 #endif
 	{ "PRETEND",	NULL,		pretend_cmd,		0,	scripting_command },
 #ifdef GUI
-        { "PROPERTIES", NULL,           pmprop,                 0,      "GUI - Properies Dialog" },
+        { "PROPERTIES", NULL,           pmprop,                 0,      "GUI - Properties Dialog" },
 #endif
 	{ "PS",		"ps",		exec_cmd,		0,	"- Displays process table" },
 	{ "PURGE",	NULL,		purge,			0,	"<variable>\n- Removes all traces of variable(s) specified"},
@@ -548,7 +526,7 @@ IrcCommand irc_command[] =
 	{ "READLOG",	"ReadLog",	readlog,		0,	"- Displays current away log" },
 	{ "RECONNECT",	NULL,		reconnect_cmd,		0,	"- Reconnects you to current server" },
 	{ "REDIRECT",	NULL,		redirect,		0,	"%Y<%Cnick%G|%Bchannel%Y> <command>\n- Redirects <command> to %Y<%Cnick%G|%Bchannel%Y>" },
-	{ "REHASH",	"REHASH",	send_comm,		0,	"%Y*%n Requires irc operator status\n- Rehashs ircd.conf for new configuration" },
+	{ "REHASH",	"REHASH",	send_comm,		SERVERREQ,	"%Y*%n Requires irc operator status\n- Rehashs ircd.conf for new configuration" },
 	{ "REINIT",	NULL,		init_vars,		0,	"- Reinitializes internal variables" },
 	{ "REINITSTAT",	NULL,		init_window_vars,	0,	"- Reinitializes window variables" },
 
@@ -594,18 +572,19 @@ IrcCommand irc_command[] =
 	{ "REPEAT", 	NULL, 		repeatcmd,		0,	"%Y<%ntimes%Y>%n %Y<%ncommand%Y>%n\n- Repeats %Y<%ntimes%Y>%n %Y<%ncommand%Y>%n" },
 	{ "REQUEST",	NULL,		ctcp,			0,	"%Y<%Cnick%G|%Bchannel%Y>%n %Y<%nrequest%Y>%n\n- Sends CTCP %Y<%nrequest%Y>%n to %Y<%Cnick%G|%Bchannel%Y>%n" },
 	{ "RESET",	NULL,		reset,			0,	"- Fixes flashed terminals" },
-	{ "RESTART",	"RESTART",	send_comm,		0,	"%Y*%n Requires irc operator status\n- Restarts server" },
+	{ "RESTART",	"RESTART",	send_comm,		SERVERREQ,	"%Y*%n Requires irc operator status\n- Restarts server" },
 	{ "RETURN",	NULL,		returncmd,		0,	NULL },
 	{ "REVISIONS",	NULL,  	show_revisions,	0,	"- Shows CVS revisions of source files." },
 	/* nuxx requested this command */
-	{ "RMAP",	"MAP",		send_2comm,		0,	"- Sends out a /map command to the server%n" },
-	{ "RPING",	"RPING",	send_comm,		0,	NULL },
+	{ "RMAP",	"MAP",		send_2comm,		SERVERREQ,	"- Sends out a /map command to the server%n" },
+	{ "RPING",	"RPING",	send_comm,		SERVERREQ,	NULL },
 	{ "SAVE",	"SaveAll",	savelists,		0,	"- Saves ~/.BitchX/BitchX.sav" },
 	{ "SAVEIRC",	NULL,		save_settings,		0,	"- Saves ~/.bitchxrc" },
 	{ "SAVELIST",	NULL, 		savelists,		0,	"- Saves ~/.BitchX/BitchX.sav" },
 	{ "SAY",	empty_string,	do_send_text,		0,	"-%Y<%ntype%Y>%n Says whatever you write" },
 	{ "SC",		"NAMES",	do_mynames,		0,	NULL },
 	{ "SCAN",	"scan",		do_scan,		0,	"%R[%Bchannel%R]%n\n- Scans %R[%Bchannel%R]%n or current channel for all nicks" },
+	{ "SCANB",	"ScanB",	do_scan,		0,	"%R[%Bchannel%R]%n\n- Scans %R[%Bchannel%R]%n or current channel for bots" },
 	{ "SCANF",	"ScanF",	do_scan,		0,	"%R[%Bchannel%R]%n\n- Scans %R[%Bchannel%R]%n or current channel for friends" },
 	{ "SCANI",	"ScanI",	do_scan,		0,	"%R[%Bchannel%R]%n\n- Scans %R[%Bchannel%R]%n or current channel for ircops" },
 	{ "SCANN",	"ScanN",	do_scan,		0,	"%R[%Bchannel%R]%n\n- Scans %R[%Bchannel%R]%n or current channel for non-ops" },
@@ -615,7 +594,7 @@ IrcCommand irc_command[] =
 	{ "SEND",	NULL,		do_send_text,		0,	NULL },
 	{ "SENDLINE",	empty_string,	sendlinecmd,		0,	NULL },
 	{ "SERVER",	NULL,		servercmd,		0,	"%Y<%nserver%Y>%n\n- Changes to %Y<%nserver%Y>%n" },
-	{ "SERVLIST",	"SERVLIST",	send_comm,		0,	"- Displays available services" },
+	{ "SERVLIST",	"SERVLIST",	send_comm,		SERVERREQ,	"- Displays available services" },
 	{ "SET",	NULL,		setcmd,			0,	"- Set Variables" },
 	{ "SETAR",	NULL,		set_autoreply,		0,	"%Y<%n-|d|pat1 pat2 ..%Y>%n\n- Adds or removes from your auto-response" },
 	{ "SETENV",	NULL,		setenvcmd,		0,	NULL },
@@ -628,22 +607,19 @@ IrcCommand irc_command[] =
 	{ "SHOWLOCK",	"ShowLock",	mode_lock,		0,	"- Show the mode lock on the channel" },
 	{ "SHOWSPLIT",	NULL,		linklook,		0,	"- Shows split servers" },
 	{ "SHOWWORDKICK",NULL,		show_word_kick,		0,	"- Shows the internal banned word list" },
-
-#ifdef WANT_CHAN_NICK_SERV
-	{ "SILENCE",	"SILENCE",	send_comm,		0,	NULL },
-#endif
+	{ "SILENCE",	"SILENCE",	send_comm,		SERVERREQ,	"%R[%n+nick|-nick%R]%n\n- Server-side ignore" },
 	{ "SLEEP",	NULL,		sleepcmd,		0,	scripting_command },
 	{ "SPAM",	NULL,		spam,			0,	NULL },
 	{ "SPING",	"Sping",	sping,			0,	"%Y<%nserver|.|-clear%Y>%n\n- Checks how lagged you are to %Y<%nserver%Y>%n" },
-	{ "SQUERY",	"SQUERY",	send_2comm,		0,	"%Y<%nservice%Y> <%ntext%Y>%n\n - Sends %Y<%ntext%Y>%n to %Y<%nservice%Y>%n" },
-	{ "SQUIT",	"SQUIT",	send_2comm,		0,	"%Y<%nserver1%Y>%n %R[%nserver2%R]%n\n%Y*%n Requires irc operator status\n- Disconnects %Y<%nserver1%Y>%n from current server or %R[%nserver2%R]%n" },
+	{ "SQUERY",	"SQUERY",	send_2comm,		SERVERREQ,	"%Y<%nservice%Y> <%ntext%Y>%n\n - Sends %Y<%ntext%Y>%n to %Y<%nservice%Y>%n" },
+	{ "SQUIT",	"SQUIT",	send_2comm,		SERVERREQ,	"%Y<%nserver1%Y>%n %R[%nserver2%R]%n\n%Y*%n Requires irc operator status\n- Disconnects %Y<%nserver1%Y>%n from current server or %R[%nserver2%R]%n" },
 	{ "STACK",	NULL,		stackcmd,		0,	scripting_command },
 	{ "STATS",	"STATS",	do_stats,		0,	NULL },
 	{ "STUB",	"Stub",		stubcmd,		0,	"(alias|assign) <name> <file> [<file ...]" },
 #ifdef GUI
         { "SUBMENU",	NULL,		os2submenu,		0,      "GUI - Adds a submenu to a menu" },
 #endif
-	{ "SUMMON",	"SUMMON",	send_comm,		0,	"%Y<%nuser%Y> %R[%nserver%R [%nchannel%R]]%n\n- calls %Y<%nuser%Y>%n on %R[%nserver%R]%n to %R[%nchannel%R]%n" },
+	{ "SUMMON",	"SUMMON",	send_comm,		SERVERREQ,	"%Y<%nuser%Y> %R[%nserver%R [%nchannel%R]]%n\n- calls %Y<%nuser%Y>%n on %R[%nserver%R]%n to %R[%nchannel%R]%n" },
 	{ "SV",		"Sv",		show_version,		0,	"%R[%nnick|#channel%R]%n\nShow Client Version information" },
 	{ "SWALLOP",	"SWALLOPS",	e_wall,			0,	NULL },
 #ifdef WANT_OPERVIEW
@@ -655,7 +631,7 @@ IrcCommand irc_command[] =
 	{ "TBK",	"TBK",		kickban,		0,	"%Y<%Cnick%Y>%n %R[%ntime%R]%n\n- Deops, bans and kicks %Y<%Cnick%Y>%n for %R[%ntime%R]%n" },
 	{ "TCL",	NULL,		tcl_command,		0,	"<-version> <command>" },
 	{ "TIGNORE",	NULL,		tignore,		0,	NULL },
-	{ "TIME",	"TIME",		send_comm,		0,	"- Shows time and date of current server" },
+	{ "TIME",	"TIME",		send_comm,		SERVERREQ,	"- Shows time and date of current server" },
 	{ "TIMER",	"TIMER",	timercmd,		0,	NULL },
 	{ "TKB",	"TKB",		kickban,		0,	"%Y<%Cnick%Y>%n %R[%ntime%R]%n\n- Deops, kicks, and bans %Y<%Cnick%Y>%n for %R[%ntime%R]%n" },
 	{ "TKLINE",	"TKLINE",	send_kline,		0,	"%Y<%nuser%y@%nhost%Y> <%nreason%Y>%n\n%Y*%n Requires irc operator status\n- Adds a temporary K-line" },
@@ -708,19 +684,19 @@ IrcCommand irc_command[] =
 #ifdef WANT_USERLIST
 	{ "USERLIST",	NULL,		showuserlist,		0,	NULL },
 #endif
-	{ "USERS",	"USERS",	send_comm,		0,	"%R[%nserver%R]%n\n- Show users on %R[%nserver%R]%n (as finger @host)" },
+	{ "USERS",	"USERS",	send_comm,		SERVERREQ,	"%R[%nserver%R]%n\n- Show users on %R[%nserver%R]%n (as finger @host)" },
 #ifdef WANT_USERLIST
 	{ "USERSHOW",	"UserShow",	set_user_info,		0,	NULL },
 #endif
 	{ "USLEEP",	NULL,		usleepcmd,		0,	NULL },
 	{ "USRIP",	"USRIP",	usripcmd,		0,	NULL },
-	{ "VER",	"Version",	ctcp_version,		0,	NULL },
+	{ "VER",	"VERSION",	ctcp_simple,		0,	"%Y<%Cnick%Y>%n\n- Sends a CTCP VERSION query to %Y<%Cnick%Y>%n" },
 	{ "VERSION",	"VERSION",	version1,		0,	NULL },
 	{ "VOICE",	"v",	doop,			0,	NULL },
 	{ "W",		"W",		whocmd,			0,	NULL },
 	{ "WAIT",	NULL,		waitcmd,		0,	scripting_command },
 	{ "WALL",	"WALL",		ChanWallOp,		0,	NULL },
-	{ "WALLCHOPS",	"WALLCHOPS",	send_2comm,		0,	NULL },
+	{ "WALLCHOPS",	"WALLCHOPS",	send_2comm,		SERVERREQ,	NULL },
 	{ "WALLMSG",	NULL,		ChanWallOp,		0,	NULL },
 	{ "WALLOPS",	"WALLOPS",	e_wall,			0,	NULL },
 	{ "WATCH",	"WATCH",	watchcmd,		0,	NULL },
@@ -802,31 +778,31 @@ Mailing list is at <bitchx-devel@lists.sourceforge.net>\n";
 	put_it("[0;30;47m          Ananda, Hybrid, Reefa, BlackJac, GenX, MHacker, PSiLiCON,         [0m");
 	put_it("[0;30;47m          hop, Sheik, psykotyk, oweff, icetrey, Power, sideshow, Raistlin,  [0m");   
 	put_it("[0;30;47m          [Nuke], Rosmo and Bark0de!                                        [0m");
-	put_it("[0;30;47m A special thanks to ccm.net for co-locating BitchX.com                     [0m");
+	put_it("[0;30;47m                                                                            [0m");
 	put_it("[0;30;47m Mailing list is at <bitchx-devel@lists.sourceforge.net>                    [0m");
 	put_it(empty_string);
 #else
-	put_it("[35m    √ú√ú√ú√ú√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√ü√õ√õ[1;45m¬∞¬±¬≤[0;35;40m  [1;45m¬≤¬±[0;35;40m√ü[1;32m√ú[42m¬±¬≤[40m√ú[0;35;40m [1;45m¬≤[40m√û[0m");
-	put_it("[35m [1;31m√ú√ü[0m   [1;35;45m¬≤[0;35;40m√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ[1;31;41m¬≤[40m√ü[0m   [1;35;45m¬≤[0;35;40m√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ[1;31;41m¬≤[40m√ü[0m   [1;35;45m¬∞[0;35;40m√õ√õ√õ√õ√õ√õ√õ√õ√ü√ü[1;32m√ú√ù[0;35;40m√û√õ√õ[1;45m¬∞¬±[0;35;40m  [1m√ü[0;32;40m√ú[1;42m¬∞¬±¬≤√õ[40m√ü[0;35;40m [1;45m¬±[0;35;40m√û[0m");
-	put_it("[35m√û[1;31;41m¬±[0m    [35m√ú[1;31m√ú[0;32;40m   [35m√ü√õ[1;31;41m¬≤[40m√ü[0;32;40m  [1;35m√ú[45m¬≤[31;41m¬±[0m    [35m√ú√ú√ú√ú[1;45m√ü[0;35;40m√õ√õ[1;31;45m√ú[40m√ü[0;32;40m   [35m√ú[1;31m√ú[0;32;40m  [1;35m √ü[45m√ú[31;41m¬±[0m    [35m√ú[1;31m√ú[0;32;40m   √ú√ú√ú√ú[1;42m¬∞¬±¬≤[0m [35m√õ√õ√õ√õ[1;45m¬∞[0;35;40m [32m√ú[1;42m¬∞¬±[0;32;40m√ü√ü[1m√ü[35m√ú[45m¬≤[0;35;40m [1;45m¬∞[0;35;40m√û[0m");
-	put_it("[35m√õ[1;31;41m¬∞[0m    [1;35;45m¬∞[31;41m√õ[0m    [1;35;45m [31m√ú√ú[0;35;40m√ü√ü√ü√õ[1;31;41m¬∞[0m    [1;35;45m¬∞[31;41m√õ[40m√ü[0;32;40m   [1;35;45m¬∞[31;41m√õ[0m    [1;35;45m¬∞[31;41m¬≤[0m    [1;35;45m¬≤[31;41m¬∞[0m    [1;35;45m¬∞[31;41m√õ[0m    [35m√ú[32m√ü√ü√ü√ü[1;42m¬±¬≤[40m√ú[0;35;40m√ü[1;45m¬∞[0;35;40m√ü[32m√ú√ü√ü[1;35m√ú√ú[45m¬≤[40m√ù[0;35;40m [1;45m¬≤¬±[0;35;40m √õ√û[0m");
-	put_it("[35m√õ[1;31;41m [0m    [1;35;45m¬±[31;41m¬≤[0m    [1;35;45m¬∞[31;41m¬≤[0m    [1;35;45m¬∞[31;41m [0m    [1;35;45m¬±[31;41m¬≤[0m    [1;35;45m¬±[31;41m¬≤[0m    [1;35;45m¬±[31m√ú[0;35;40m√ü√ü√ü√ü[1;45m√ú[31;41m [0m    [1;35;45m¬±[31;41m¬≤[0m    [1;35;45m¬∞[0;35;40m√õ√õ√õ√õ√ú√ú√ú[32m√ü[1m√æ[0;32;40m√ú[35m√æ  [1;45m¬≤¬±¬±[0;35;40m√ù [1;45m¬±¬∞[0;35;40m √õ[1;30m√û[0m");
-	put_it("[35m√õ[31;45m¬≤[0m    [1;35;45m¬≤[31;41m¬±[0m    [1;35;45m¬±[31;41m¬±[0m    [1;35;45m¬±[0;31;45m¬≤[0m    [1;35;45m¬≤[31;41m¬±[0m    [1;35;45m¬≤[31;41m¬±[0m    [1;35;45m¬≤[31;41m¬±[0m    [1;35;45m¬±[0;31;45m¬≤[0m    [1;35;45m¬≤[31;41m¬±[0m    [1;35;45m¬±[0;35;40m√õ√õ√õ√õ√õ√ü[32m√ú√ü[35m√ú√ú[1;32m√ü√ú√ú[0;32;40m√ú[35m√ü√ü√ù [1;45m¬∞[0;35;40m√ã √õ√û[0m");
-	put_it("[35m√õ[31;45m¬±[0m    [1;35;45m√õ[31;41m¬∞[0m    [1;35;45m¬≤[31;41m¬∞[0m    [1;35;45m¬≤[0;31;45m¬±[0m    [1;35;45m√õ[31;41m¬∞[0m    [1;35;45m√õ[31;41m¬∞[0m    [1;35;45m√õ[31;41m¬∞[0m    [1;35;45m¬≤[0;31;45m¬±[0m    [1;35;45m√õ[31;41m¬∞[0m    [1;35;45m¬≤[0;35;40m√õ√õ√õ√ü[32m√ú[1;42m¬∞[0;32;40m√ù[35m√û√õ[1;30;45m¬∞[0;35;40m√ù[1;32m√û√õ[42m¬≤¬±¬∞[0;32;40m√ú√ú√ú[35m√ü √õ√û[0m");
-	put_it("[35m√õ[31;45m¬∞[0m    [1;35m√ü[0;31;40m√ü[1;34m   [35m√ú[45m√õ[31;41m [0m   [1;35m√ú[45m√õ[0;31;45m√ü[40m√ú[1;34m   [35m√ü[0;31;40m√ü[1;34m   [35m√ú[45m√ü[0;31;45m√ü[40m√ú[1;34m   [35m√ü[0;31;40m√ü[1;34m   [35m√ú[45m√ü[0;31;45m¬∞[0m   [1;35m√ú[45m√õ[31;41m [0m   [1;35m√ú[45m√õ[0;35;40m√õ√ü[1;32m√ú[42m¬±¬∞[0;32;40m√õ[0m [35m√õ√õ√õ√õ[34m [1;32;42m¬≤¬±¬±[0;32;40m√õ[1;42m¬∞[0;32;40m√õ√õ√õ√ú√ú[1;30m√û[0m");
-	put_it("[35m√û√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√ü[1;32m√ú[42m¬≤¬±¬∞[0;32;40m√õ√ù[35m√û√õ[1;30;45m¬∞[0;35;40m√õ[1;30;45m¬∞[0;35;40m [34m [1;32;42m¬±¬∞¬∞[0;32;40m√õ√õ√õ√ü√ü[1;30m√ú[0;35;40m√û");
-	put_it(" √ü√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√ù[1;32m√û[42m¬≤¬±¬∞[0;32;40m√õ√õ[0m [35m√õ√õ√õ[1;30;45m¬∞¬±[0;35;40m  [34m [1;32;42m¬∞[0;32;40m√ü√ü[35m [1;30m√ú[45m¬≤[0;35;40m [1;30;45m¬≤[40m√û[0;35;40m");
-	put_it("    √ü√ü√ü√ü√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√õ√ú[1;32m√ü[0;32;40m√ü√ü√ü[35m√ú[30;45mrE[35;40m√õ[1;30;45m¬∞¬±¬≤[0;35;40m  [1;30;45m¬≤[40m√ú[45m¬≤[40m√ù[0;35;40m [1;30;45m¬≤¬±[0;35;40m [1;30;45m¬±[40m√û[0m");
+	put_it("[35m    ‹‹‹‹€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ﬂ€€[1;45m∞±≤[0;35;40m  [1;45m≤±[0;35;40mﬂ[1;32m‹[42m±≤[40m‹[0;35;40m [1;45m≤[40mﬁ[0m");
+	put_it("[35m [1;31m‹ﬂ[0m   [1;35;45m≤[0;35;40m€€€€€€€€€€€€[1;31;41m≤[40mﬂ[0m   [1;35;45m≤[0;35;40m€€€€€€€€€€€€€€€€€€[1;31;41m≤[40mﬂ[0m   [1;35;45m∞[0;35;40m€€€€€€€€ﬂﬂ[1;32m‹›[0;35;40mﬁ€€[1;45m∞±[0;35;40m  [1mﬂ[0;32;40m‹[1;42m∞±≤€[40mﬂ[0;35;40m [1;45m±[0;35;40mﬁ[0m");
+	put_it("[35mﬁ[1;31;41m±[0m    [35m‹[1;31m‹[0;32;40m   [35mﬂ€[1;31;41m≤[40mﬂ[0;32;40m  [1;35m‹[45m≤[31;41m±[0m    [35m‹‹‹‹[1;45mﬂ[0;35;40m€€[1;31;45m‹[40mﬂ[0;32;40m   [35m‹[1;31m‹[0;32;40m  [1;35m ﬂ[45m‹[31;41m±[0m    [35m‹[1;31m‹[0;32;40m   ‹‹‹‹[1;42m∞±≤[0m [35m€€€€[1;45m∞[0;35;40m [32m‹[1;42m∞±[0;32;40mﬂﬂ[1mﬂ[35m‹[45m≤[0;35;40m [1;45m∞[0;35;40mﬁ[0m");
+	put_it("[35m€[1;31;41m∞[0m    [1;35;45m∞[31;41m€[0m    [1;35;45m [31m‹‹[0;35;40mﬂﬂﬂ€[1;31;41m∞[0m    [1;35;45m∞[31;41m€[40mﬂ[0;32;40m   [1;35;45m∞[31;41m€[0m    [1;35;45m∞[31;41m≤[0m    [1;35;45m≤[31;41m∞[0m    [1;35;45m∞[31;41m€[0m    [35m‹[32mﬂﬂﬂﬂ[1;42m±≤[40m‹[0;35;40mﬂ[1;45m∞[0;35;40mﬂ[32m‹ﬂﬂ[1;35m‹‹[45m≤[40m›[0;35;40m [1;45m≤±[0;35;40m €ﬁ[0m");
+	put_it("[35m€[1;31;41m [0m    [1;35;45m±[31;41m≤[0m    [1;35;45m∞[31;41m≤[0m    [1;35;45m∞[31;41m [0m    [1;35;45m±[31;41m≤[0m    [1;35;45m±[31;41m≤[0m    [1;35;45m±[31m‹[0;35;40mﬂﬂﬂﬂ[1;45m‹[31;41m [0m    [1;35;45m±[31;41m≤[0m    [1;35;45m∞[0;35;40m€€€€‹‹‹[32mﬂ[1m˛[0;32;40m‹[35m˛  [1;45m≤±±[0;35;40m› [1;45m±∞[0;35;40m €[1;30mﬁ[0m");
+	put_it("[35m€[31;45m≤[0m    [1;35;45m≤[31;41m±[0m    [1;35;45m±[31;41m±[0m    [1;35;45m±[0;31;45m≤[0m    [1;35;45m≤[31;41m±[0m    [1;35;45m≤[31;41m±[0m    [1;35;45m≤[31;41m±[0m    [1;35;45m±[0;31;45m≤[0m    [1;35;45m≤[31;41m±[0m    [1;35;45m±[0;35;40m€€€€€ﬂ[32m‹ﬂ[35m‹‹[1;32mﬂ‹‹[0;32;40m‹[35mﬂﬂ› [1;45m∞[0;35;40mÀ €ﬁ[0m");
+	put_it("[35m€[31;45m±[0m    [1;35;45m€[31;41m∞[0m    [1;35;45m≤[31;41m∞[0m    [1;35;45m≤[0;31;45m±[0m    [1;35;45m€[31;41m∞[0m    [1;35;45m€[31;41m∞[0m    [1;35;45m€[31;41m∞[0m    [1;35;45m≤[0;31;45m±[0m    [1;35;45m€[31;41m∞[0m    [1;35;45m≤[0;35;40m€€€ﬂ[32m‹[1;42m∞[0;32;40m›[35mﬁ€[1;30;45m∞[0;35;40m›[1;32mﬁ€[42m≤±∞[0;32;40m‹‹‹[35mﬂ €ﬁ[0m");
+	put_it("[35m€[31;45m∞[0m    [1;35mﬂ[0;31;40mﬂ[1;34m   [35m‹[45m€[31;41m [0m   [1;35m‹[45m€[0;31;45mﬂ[40m‹[1;34m   [35mﬂ[0;31;40mﬂ[1;34m   [35m‹[45mﬂ[0;31;45mﬂ[40m‹[1;34m   [35mﬂ[0;31;40mﬂ[1;34m   [35m‹[45mﬂ[0;31;45m∞[0m   [1;35m‹[45m€[31;41m [0m   [1;35m‹[45m€[0;35;40m€ﬂ[1;32m‹[42m±∞[0;32;40m€[0m [35m€€€€[34m [1;32;42m≤±±[0;32;40m€[1;42m∞[0;32;40m€€€‹‹[1;30mﬁ[0m");
+	put_it("[35mﬁ€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ﬂ[1;32m‹[42m≤±∞[0;32;40m€›[35mﬁ€[1;30;45m∞[0;35;40m€[1;30;45m∞[0;35;40m [34m [1;32;42m±∞∞[0;32;40m€€€ﬂﬂ[1;30m‹[0;35;40mﬁ");
+	put_it(" ﬂ€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€›[1;32mﬁ[42m≤±∞[0;32;40m€€[0m [35m€€€[1;30;45m∞±[0;35;40m  [34m [1;32;42m∞[0;32;40mﬂﬂ[35m [1;30m‹[45m≤[0;35;40m [1;30;45m≤[40mﬁ[0;35;40m");
+	put_it("    ﬂﬂﬂﬂ€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€‹[1;32mﬂ[0;32;40mﬂﬂﬂ[35m‹[30;45mrE[35;40m€[1;30;45m∞±≤[0;35;40m  [1;30;45m≤[40m‹[45m≤[40m›[0;35;40m [1;30;45m≤±[0;35;40m [1;30;45m±[40mﬁ[0m");
 	put_it(empty_string);
-	put_it("[1m√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú√ú¬≤[0m√ú");
-	put_it("[1;47m√õ[0;30;47m                                                                             [0m");
-	put_it("[1;47m¬≤[0;30;47m Grtz To: Trench, HappyCrappy, Yak, Zircon, Otiluke, Masonry, BuddahX, Hob, [1m¬∞[0m");
-	put_it("[1;47m¬±[0;30;47m          Lifendel, JondalaR, JVaughn, suicide, NovaLogic, Jordy, BigHead,  [1m¬±[0m");
-	put_it("[1;47m¬∞[0;30;47m          Ananda, Hybrid, Reefa, BlackJac, GenX, MHacker, PSiLiCON,         [1m¬≤[0m");
-	put_it("[1;47m¬∞[0;30;47m          hop, Sheik, psykotyk, oweff, icetrey, Power, sideshow, Raistlin,  [1m¬≤[0m");
-	put_it("[1;47m¬∞[0;30;47m          Mustang, [Nuke], Rosmo, Sellfone, Drago and bark0de!              [1m¬≤[0m");
-	put_it("[1;47m¬∞[0;30;47m Mailing list is at <bitchx-devel@lists.sourceforge.net>                    [1m¬≤[0m");
-	put_it("√ü[1;30m¬≤√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü√ü[0m");
+	put_it("[1m‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹≤[0m‹");
+	put_it("[1;47m€[0;30;47m                                                                             [0m");
+	put_it("[1;47m≤[0;30;47m Grtz To: Trench, HappyCrappy, Yak, Zircon, Otiluke, Masonry, BuddahX, Hob, [1m∞[0m");
+	put_it("[1;47m±[0;30;47m          Lifendel, JondalaR, JVaughn, suicide, NovaLogic, Jordy, BigHead,  [1m±[0m");
+	put_it("[1;47m∞[0;30;47m          Ananda, Hybrid, Reefa, BlackJac, GenX, MHacker, PSiLiCON,         [1m≤[0m");
+	put_it("[1;47m∞[0;30;47m          hop, Sheik, psykotyk, oweff, icetrey, Power, sideshow, Raistlin,  [1m≤[0m");
+	put_it("[1;47m∞[0;30;47m          Mustang, [Nuke], Rosmo, Sellfone, Drago and bark0de!              [1m≤[0m");
+	put_it("[1;47m∞[0;30;47m Mailing list is at <bitchx-devel@lists.sourceforge.net>                    [1m≤[0m");
+	put_it("ﬂ[1;30m≤ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ[0m");
 	put_it(empty_string);
 #endif
 #if !defined(WINNT) && !defined(__EMX__)
@@ -840,6 +816,47 @@ Mailing list is at <bitchx-devel@lists.sourceforge.net>\n";
 #endif
 }
 
+BUILT_IN_COMMAND(obits)
+{
+	charset_ibmpc();
+	put_it("%s", convert_output_format("%P⁄ƒƒƒƒƒ---%pƒ%P--%pƒƒ%P-%pƒƒƒƒƒƒ---%Kƒ%p--ƒ%Kƒ-%pƒƒƒ%Kƒƒƒƒ-%pƒ-%Kƒƒ---%K --  -%n", NULL, NULL));
+	put_it("%s", convert_output_format("%P|%n ", NULL, NULL));
+	put_it("%s", convert_output_format("%P≥%n  From its humble beginnings to the latest release, BitchX has always been", NULL, NULL));
+	put_it("%s", convert_output_format("%P≥%n  about community. Over the years, a handful of people have voluntarily ", NULL, NULL));
+	put_it("%s", convert_output_format("%P|%n  contributed a great deal of time and energy to the project by writing ", NULL, NULL));
+	put_it("%s", convert_output_format("%p:%n  scripts, providing support, troubleshooting, patches, enhancements - or ", NULL, NULL));
+	put_it("%s", convert_output_format("%P|%n  simply making BitchX a fun thing to be involved with. With such a long ", NULL, NULL));
+	put_it("%s", convert_output_format("%p'%n  history, we have had our losses. Several of the friends that we came to ", NULL, NULL));
+	put_it("%s", convert_output_format("%p|%n  regard as a kind of extended family left us before their time, and we would", NULL, NULL));
+	put_it("%s", convert_output_format("%P≥%n  like to remember them here.", NULL, NULL));
+	put_it("%s", convert_output_format("%p≥%n ", NULL, NULL));
+	put_it("%s", convert_output_format("%p:%n                            %P⁄%n ", NULL, NULL));
+	put_it("%s", convert_output_format("%K|%n                            %P≥%n Jason Higham, known to his friends on IRC as ", NULL, NULL));
+	put_it("%s", convert_output_format("%p|%n                            %P≥%n %Wssshooter%n, left us on July 11th, 2004. He is ", NULL, NULL));
+	put_it("%s", convert_output_format("                             %P≥%n remembered fondly by his family and friends.  ", NULL, NULL));
+	put_it("%s", convert_output_format("%K|%n  %P⁄%n", NULL, NULL));
+	put_it("%s", convert_output_format("   %P≥%n On the 18th of July, 2004, our dearly missed", NULL, NULL));
+	put_it("%s", convert_output_format("   %P≥%n friend Miles Wilson (also known as %Wsellfone%n)", NULL, NULL));
+	put_it("%s", convert_output_format("   %P≥%n passed away in his sleep.", NULL, NULL));
+	put_it("%s", convert_output_format("                     %P⁄%n", NULL, NULL));
+	put_it("%s", convert_output_format("                     %P≥%n Amy Elizabeth Haskew died on June 16, 2009 at", NULL, NULL));
+	put_it("%s", convert_output_format("                     %P≥%n 34.  Goodbye %Wturtlex%n, you'll always be", NULL, NULL));
+	put_it("%s", convert_output_format("                     %P≥%n remembered as someone very kind, and wise beyond", NULL, NULL));
+	put_it("%s", convert_output_format("                     %P≥%n your years.", NULL, NULL));
+	put_it("%s", convert_output_format("      %P⁄%n", NULL, NULL));
+	put_it("%s", convert_output_format("      %P≥%n RIP Marc Casillo aka %Wfrash%n [25/Nov/1970 - 28/Sep/2009] ", NULL, NULL));
+	put_it("%s", convert_output_format("                         %P⁄%n", NULL, NULL));
+	put_it("%s", convert_output_format("                         %P≥%n Matthew Luberto, known to his many friends online", NULL, NULL));
+	put_it("%s", convert_output_format("                         %P≥%n as %Wvoid%n, passed away in his sleep on February 16, ", NULL, NULL));
+	put_it("%s", convert_output_format("                         %P≥%n 2013 in his 38th year.  We'll miss you, void.", NULL, NULL));
+	put_it(" ");
+#if defined(LATIN1)
+	charset_lat1();
+#elif defined(CHARSET_CUSTOM)
+	charset_cst();
+#endif
+}
+
 BUILT_IN_COMMAND(dcc_stat_comm)
 {
 	dcc_stats(NULL, NULL);
@@ -847,7 +864,7 @@ BUILT_IN_COMMAND(dcc_stat_comm)
 
 void handle_dcc_chat(UserhostItem *stuff, char *nick, char *args)
 {
-	if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || !strcmp(stuff->host, "<UNKNOWN>"))
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || !strcmp(stuff->host, "<UNKNOWN>"))
 	{
 		bitchsay("No such nick %s", nick);
 		return;
@@ -881,25 +898,6 @@ BUILT_IN_COMMAND(init_ftp)
 }
 #endif
 
-char *glob_commands(char *name, int *cnt, int pmatch)
-{
-IrcCommand *var = NULL;
-char *loc_match;
-char *mylist = NULL;
-	*cnt = 0;
-	/* let's do a command completion here */
-	if (!(var = find_command(name, cnt)))
-		return m_strdup(empty_string);
-	loc_match = alloca(strlen(name)+2);
-	sprintf(loc_match, "%s*", (name && *name) ? name : empty_string);
-	while (wild_match(loc_match, var->name))
-	{
-		m_s3cat(&mylist, space, var->name);
-		var++;
-	}
-	return m_strdup(mylist ? mylist : empty_string);
-}
-
 /*
  * find_command: looks for the given name in the command list, returning a
  * pointer to the first match and the number of matches in cnt.  If no
@@ -909,7 +907,7 @@ char *mylist = NULL;
  * returned and cnt is set to the number of matches * -1.  Thus is 4 commands
  * matched, but the first was as exact match, cnt is -4.
  */
-IrcCommand *BX_find_command(char *com, int *cnt)
+const IrcCommand *BX_find_command(const char *com, int *cnt)
 {
 	IrcCommand *retval;
 	int loc;
@@ -927,50 +925,6 @@ IrcCommand *BX_find_command(char *com, int *cnt)
 	return retval;
 }
 
-#ifdef WANT_DLL
-IrcCommandDll * find_dll_command(char *com, int *cnt)
-{
-	int len = 0;
-	
-	if (com && (len = strlen(com)) && dll_commands)
-	{
-		int	min,
-			max;
-		IrcCommandDll *old, *old_next = NULL;
-		
-		*cnt = 0;
-		min = 1;
-		max = 0;
-		for (old = dll_commands; old; old = old->next)
-			max++;
-		
-		old = dll_commands;
-		while (1)
-		{
-			if (!my_strnicmp(com, old->name, len))
-			{
-				if (!old_next)
-					old_next = old;
-				(*cnt)++;
-			}
-			if (old->next == NULL)
-			{
-				if (old_next && strlen(old_next->name) == len)
-					*cnt *= -1;
-				return (old_next);
-			}
-			else
-				old = old->next;
-		}
-	}
-	else
-	{
-		*cnt = -1;
-		return (NULL);
-	}
-}
-#endif
-
 /* IRCUSER command. Changes your userhost on the fly.  Takes effect
  * the next time you connect to a server 
  */
@@ -981,9 +935,9 @@ BUILT_IN_COMMAND(set_username)
 	if ((blah = next_arg(args, &args)))
 	{
 		if (!strcmp(blah, "-"))
-			strmcpy(username, empty_string, NAME_LEN);
+			strlcpy(username, empty_string, sizeof username);
 		else 
-			strmcpy(username, blah, NAME_LEN);
+			strlcpy(username, blah, sizeof username);
 		say("Username has been changed to '%s'",username);
 	}
 }
@@ -1001,14 +955,14 @@ BUILT_IN_COMMAND(realname_cmd)
 	
         if (*args)
 	{
-                strmcpy(realname, args, REALNAME_LEN);
+                strlcpy(realname, args, sizeof realname);
 		say("Realname at next server connnection: %s", realname);
 	}
 	else
 	{
 		char *s = NULL;
 		s = get_realname(get_server_nickname(from_server));
-		strmcpy(realname, s, REALNAME_LEN);
+		strlcpy(realname, s, sizeof realname);
 		say("Randomly chose a new ircname: %s", realname);
 	}
 }
@@ -1114,7 +1068,6 @@ BUILT_IN_COMMAND(reconnect_cmd)
 	/* close server will take care of the .reconnect variable */
 	set_server_reconnecting(from_server, 1);
 	close_server(from_server,(args && *args) ? args : "Reconnecting");
-	clean_server_queues(from_server);
 	window_check_servers(from_server);
 	servercmd(NULL, scommnd, empty_string, NULL);
 
@@ -1133,7 +1086,7 @@ BUILT_IN_COMMAND(my_clear)
 	
 	while ((arg = next_arg(args, &args)) != NULL)
 	{
-	/* -ALL and ALL here becuase the help files used to be wrong */
+	/* -ALL and ALL here because the help files used to be wrong */
 		if (!my_strnicmp(arg, "A", 1) || !my_strnicmp(arg+1, "A", 1))
 			all = 1;
 	/* UNHOLD */
@@ -1300,7 +1253,7 @@ int	server = from_server;
 
 enum SCAN_TYPE {
     SCAN_ALL, SCAN_VOICES, SCAN_CHANOPS, SCAN_NONOPS, SCAN_IRCOPS, 
-    SCAN_FRIENDS, SCAN_SHITLISTED
+    SCAN_FRIENDS, SCAN_SHITLISTED, SCAN_BOTS
 };
 
 /* nick_in_scan
@@ -1334,6 +1287,10 @@ int nick_in_scan(NickList *nick, enum SCAN_TYPE scan_type, char *mask)
         
     case SCAN_SHITLISTED:
         if (!nick->shitlist) return 0;
+        break;
+
+    case SCAN_BOTS:
+        if (!nick->userlist || !(nick->userlist->flags & ADD_BOT)) return 0;
         break;
 
     case SCAN_ALL:
@@ -1380,6 +1337,8 @@ BUILT_IN_COMMAND(do_scan)
             scan_type = SCAN_SHITLISTED;
         else if (!my_stricmp(command, "scani"))
 		    scan_type = SCAN_IRCOPS;
+        else if (!my_stricmp(command, "scanb"))
+		    scan_type = SCAN_BOTS;
     }
 
 	while ((s = next_arg(args, &args)))
@@ -1440,6 +1399,11 @@ BUILT_IN_COMMAND(do_scan)
             case 'I':
                 scan_type = SCAN_IRCOPS;
                 break;
+
+            case 'b':
+            case 'B':
+                scan_type = SCAN_BOTS;
+                break;
             }
 
             continue;
@@ -1492,6 +1456,10 @@ BUILT_IN_COMMAND(do_scan)
 
     case SCAN_SHITLISTED:
 		s = fget_string_var(FORMAT_NAMES_SHIT_FSET);
+        break;
+
+    case SCAN_BOTS:
+		s = fget_string_var(FORMAT_NAMES_BOT_FSET);
         break;
 
     case SCAN_ALL:
@@ -1710,26 +1678,23 @@ BUILT_IN_COMMAND(pingcmd)
 	ctcp(command, buffer, empty_string, NULL);
 }
 
-BUILT_IN_COMMAND(ctcp_version)
+BUILT_IN_COMMAND(ctcp_simple)
 {
-char *person;
-int type = 0;
+	char *person = next_arg(args, &args);
 
-	
-	if ((person = next_arg(args, &args)) == NULL || !strcmp(person, "*"))
+	if (person == NULL || !strcmp(person, "*"))
 	{
 		if ((person = get_current_channel_by_refnum(0)) == NULL)
-			if (!(person = get_target_by_refnum(0)))
+			if ((person = get_target_by_refnum(0)) == NULL)
 				person = zero;
-	}		
-	if ((type = in_ctcp()) == -1)
-		echocmd(NULL, "*** You may not use the CTCP command in an ON CTCP_REPLY!", empty_string, NULL);
-	else
+	}
+
+	if (!in_ctcp())
 	{
-		send_ctcp(type, person, CTCP_VERSION, NULL);
+		send_ctcp(CTCP_PRIVMSG, person, get_ctcp_val(command), NULL);
 		put_it("%s", convert_output_format(fget_string_var(FORMAT_SEND_CTCP_FSET),
-			"%s %s %s",update_clock(GET_TIME), person, "VERSION"));
-		add_last_type(&last_sent_ctcp[0], 1, NULL, NULL, person, "VERSION");
+			"%s %s %s",update_clock(GET_TIME), person, command));
+		add_last_type(&last_sent_ctcp[0], 1, NULL, NULL, person, command);
 	}
 }
 
@@ -1908,8 +1873,8 @@ BUILT_IN_COMMAND(funny_stuff)
 }
 
 /*
-   This isnt a command, its used by the wait command.  Since its extern,
-   and it doesnt use anything static in this file, im sure it doesnt
+   This isn't a command, it's used by the wait command.  Since it's extern,
+   and it doesn't use anything static in this file, I'm sure it doesn't
    belong here.
  */
 void oh_my_wait (int servnum)
@@ -2591,13 +2556,11 @@ extern int run_level, do_ignore_ajoin;
 BUILT_IN_COMMAND(e_channel)
 {
 	char	*chan;
-	int	len;
 	char	*buffer=NULL;
 	
 	set_display_target(NULL, LOG_CURRENT);
 	if ((chan = next_arg(args, &args)) != NULL)
 	{
-		len = strlen(chan);
 		if (!my_strnicmp(chan, "-i", 2))
 		{
 			if (invite_channel)
@@ -2617,7 +2580,7 @@ BUILT_IN_COMMAND(e_channel)
 				   right here we want to check to see if the
 				   channel is bound to this window.  if it is,
 				   we set it as the default channel.  If it
-				   is not, we warn the user that we cant do it
+				   is not, we warn the user that we can't do it
 				 */
 				if (is_bound_anywhere(buffer) &&
 				    !(is_bound_to_window(current_window, buffer)))
@@ -3124,21 +3087,18 @@ int silent = 0;
 			bitchsay("You were /away for %i hours %i minutes and %i seconds. [\002BX\002-MsgLog %s]",
 				hours, minutes, seconds,
 				on_off(get_int_var(MSGLOG_VAR)));
+			if (fget_string_var(FORMAT_BACK_FSET))
 			{
 				char str[BIG_BUFFER_SIZE+1];
-				char reason[BIG_BUFFER_SIZE+1];
-				char fset[BIG_BUFFER_SIZE+1];
-				*reason = 0;
-				quote_it(args ? args : get_server_away(from_server), NULL, reason);
-				if(fget_string_var(FORMAT_BACK_FSET))
-				{
-					quote_it(stripansicodes(convert_output_format(fget_string_var(FORMAT_BACK_FSET), "%s %d %d %d %d %s",
-																  update_clock(GET_TIME),	hours, minutes, seconds,
-																  get_int_var(MSGCOUNT_VAR), reason)), NULL, fset);
-					snprintf(str, BIG_BUFFER_SIZE,
-							 "PRIVMSG %%s :ACTION %s", fset);
-					send_msg_to_channels(get_server_channels(from_server), from_server, str);
-				}
+				char *fset;
+				char *reason = args ? args : get_server_away(from_server);
+
+				fset = stripansicodes(convert_output_format(
+					fget_string_var(FORMAT_BACK_FSET), "%s %d %d %d %d %s",
+					update_clock(GET_TIME), hours, minutes, seconds,
+					get_int_var(MSGCOUNT_VAR), reason));
+				snprintf(str, BIG_BUFFER_SIZE, "ACTION %s", fset);
+				send_msg_to_channels(from_server, str);
 			}
 		}
 		set_server_away(from_server, NULL, silent);
@@ -3166,7 +3126,6 @@ int silent = 0;
  */
 BUILT_IN_COMMAND(away)
 {
-	int	len;
 	char	*arg = NULL;
 	int	flag = AWAY_ONE;
 	int	i,
@@ -3197,7 +3156,6 @@ BUILT_IN_COMMAND(away)
 				*arg++ = '\0';
 			else
 				arg = empty_string;
-			len = strlen(args);
 			if (!my_strnicmp(args+1, "A", 1)) /* all */
 			{
 				flag = AWAY_ALL;
@@ -3287,12 +3245,15 @@ BUILT_IN_COMMAND(flush)
 /* e_wall: used for WALLOPS */
 BUILT_IN_COMMAND(e_wall)
 {
-	
-	if ((!args || !*args))
+	if (!args || !*args)
 		return;
+
 	set_display_target(NULL, LOG_WALLOP);
 	send_to_server("%s :%s", command, args);
-	if (get_server_flag(from_server, USER_MODE_W))
+
+	/* Only show the message if we are _not_ +w, because if we are the server
+	 * will echo our WALLOPS back to us. */
+	if (!get_server_umode(from_server, 'w'))
 		put_it("!! %s", args);
 	add_last_type(&last_sent_wall[0], 1, get_server_nickname(from_server), NULL, "*", args);
 	reset_display_target();
@@ -3304,8 +3265,11 @@ BUILT_IN_COMMAND(e_wall)
  */
 BUILT_IN_COMMAND(e_privmsg)
 {
-	char	*nick;
+	unsigned stxt_flags = (window_display ? 0 : STXT_QUIET) | STXT_LOG;
+	char *nick;
 
+	if (command && !strcmp(command, "NOTICE"))
+		stxt_flags |= STXT_NOTICE;
 	
 	if ((nick = next_arg(args, &args)) != NULL)
 	{
@@ -3327,7 +3291,7 @@ BUILT_IN_COMMAND(e_privmsg)
 		}
 		else if (!strcmp(nick, "*") && (!(nick = get_current_channel_by_refnum(0))))
 				nick = zero;
-		send_text(nick, args, command, window_display, 1);
+		send_text(nick, args, stxt_flags);
 	}
 }
 
@@ -3363,35 +3327,13 @@ BUILT_IN_COMMAND(quotecmd)
 	if (args && *args)
 	{
 		char	*comm = new_next_arg(args, &args);
-		protocol_command *p;
 		int	cnt;
 		int	loc;
 
 		upper(comm);
-		p = (protocol_command *)find_fixed_array_item(
-			(void *)rfc1459, sizeof(protocol_command),
+		find_fixed_array_item((void *)rfc1459, sizeof(protocol_command),
 			num_protocol_cmds + 1, comm, &cnt, &loc);
 
-		/*
-		 * If theyre dispatching some protocol commands we
-		 * dont know about, then let them, without complaint.
-		 */
-#if 0
-		if (cnt < 0 && (rfc1459[loc].flags & PROTO_NOQUOTE))
-		{
-			yell("Doing /QUOTE %s is not permitted.  Use the client's built in command instead.", comm);
-			from_server = old_from_server;
-			return;
-		}
-#endif
-		/*
-		 * If we know its going to cause a problem in the 
-		 * future, whine about it.
-		 */
-#if 0
-		if (cnt < 0 && (rfc1459[loc].flags & PROTO_DEPREC))
-			yell("Doing /QUOTE %s is discouraged because it will break the client in the future.  Use the client's built in command instead.", comm);
-#endif
 		if (all_servers)
 		{
 			int i;
@@ -3538,7 +3480,7 @@ BUILT_IN_COMMAND(untopic)
 	ChannelList *chan;
 	int server;
 	
-	args = sindex(args, "^ ");
+	args = inv_strpbrk(args, " ");
 
 	if (is_channel(args))
 		channel = next_arg(args, &args);
@@ -3555,12 +3497,12 @@ BUILT_IN_COMMAND(e_topic)
 	ChannelList *chan;
 	int server;
 
-	args = sindex(args, "^ ");
+	args = inv_strpbrk(args, " ");
 
 	if (is_channel(args))
 	{
 		channel = next_arg(args, &args);
-		args = sindex(args, "^ ");
+		args = inv_strpbrk(args, " ");
 	}
 
 	if (!(chan = prepare_command(&server, channel, args ? PC_TOPIC : NO_OP)))
@@ -3628,65 +3570,41 @@ BUILT_IN_COMMAND(send_2comm)
 
 BUILT_IN_COMMAND(send_kill)
 {
-	char	*reason = NULL;
-	char	*r_file;
-	char	*nick;
-	char	*arg = NULL, *save_arg = NULL;
-		
-#if 0
-	args = next_arg(args, &reason);
-	if (!args)
-		args = empty_string;
-#endif
-
-#if defined(WINNT)
-	r_file = m_sprintf("%s/BitchX.kil",get_string_var(CTOOLZ_DIR_VAR));
-#else
-	r_file = m_sprintf("%s/BitchX.kill",get_string_var(CTOOLZ_DIR_VAR));
-#endif
-
-	if ((reason = strchr(args, ' ')) != NULL)
-		*reason++ = '\0';
-	else
-		if ((reason = get_reason(args, r_file)))
-			reason = empty_string;
-	new_free(&r_file);
+	char *target;
 	
-	if (!strcmp(args, "*"))
+	target = next_arg(args, &args);	
+	
+	if (!strcmp(target, "*"))
 	{
-		ChannelList *chan = NULL;
+		ChannelList *chan = lookup_channel("*", from_server, 0);
 		NickList *n = NULL;
-		arg = get_current_channel_by_refnum(0);
-		if (!arg || !*arg)
-			return;     /* what-EVER */
-		else
+
+		if (!chan)
+			return;
+		for (n = next_nicklist(chan, NULL); n; n = next_nicklist(chan, n))
 		{
-			if (!(chan = lookup_channel(arg, from_server, 0)))
-				return;
-			arg = NULL;
-			for (n = next_nicklist(chan, NULL); n; n = next_nicklist(chan, n))
-			{
-				if (isme(n->nick)) continue;
-				m_s3cat(&arg, ",",  n->nick);
-			}
-			save_arg = arg;
+			if (isme(n->nick))
+				continue;
+
+			if (args && *args)
+				send_to_server("%s %s :%s", command, n->nick, args);
+			else
+				send_to_server("%s %s :%s", command, n->nick, 
+					get_kill_reason(n->nick, get_server_nickname(from_server)));
 		}
 	}
 	else
 	{
-		malloc_strcpy(&arg, args);
-		save_arg = arg;
+		const char *nick;
+		while ((nick = next_in_comma_list(target, &target)) && *nick)
+		{
+			if (args && *args)
+				send_to_server("%s %s :%s", command, nick, args);
+			else
+				send_to_server("%s %s :%s", command, nick, 
+					get_kill_reason(nick, get_server_nickname(from_server)));
+		}
 	}
-	while ((nick = next_in_comma_list(arg, &arg)))
-	{
-		if (!nick || !*nick)
-			break;
-		if (reason && *reason)
-			send_to_server("%s %s :%s", command, nick, reason);
-		else
-			send_to_server("%s %s", command, nick);
-	}
-	new_free(&save_arg);
 }
 
 /*
@@ -3696,25 +3614,22 @@ BUILT_IN_COMMAND(send_kill)
 
 BUILT_IN_COMMAND(send_kick)
 {
-	char	*kickee,
-		*comment,
-		*channel = NULL;
-ChannelList *chan;
-int server = from_server;
- 	
+	const char *kickee, *comment;
+	char *channel;
+	ChannelList *chan;
+	int server = from_server;
 	
-        if (!(channel = next_arg(args, &args)))
+	if (!(channel = next_arg(args, &args)))
 		return;
-        
-        if (!(kickee = next_arg(args, &args)))
+	
+	if (!(kickee = next_arg(args, &args)))
  		return;
 
-        comment = args?args:get_reason(kickee, NULL);
-
 	reset_display_target();
-	if (!(chan = prepare_command(&server, (channel && !strcmp(channel, "*"))?NULL:channel, NEED_OP)))
+	if (!(chan = prepare_command(&server, !strcmp(channel, "*") ? NULL : channel, NEED_OP)))
 		return;
 
+	comment = args ? args : get_kick_reason(kickee, get_server_nickname(server));
 	my_send_to_server(server, "%s %s %s :%s", command, chan->channel, kickee, comment);
 }
 
@@ -3772,7 +3687,7 @@ int	command_exist (char *command)
 	return 0;
 }
 
-void	redirect_text (int to_server, const char *nick_list, const char *text, char *command, int hook, int log)
+void redirect_text(int to_server, const char *nick_list, const char *text, unsigned flags)
 {
 static	int 	recursion = 0;
 	int 	old_from_server = from_server;
@@ -3783,28 +3698,110 @@ static	int 	recursion = 0;
 		allow = do_hook(REDIRECT_LIST, "%s %s", nick_list, text);
 
 	/* 
-	 * Dont hook /ON REDIRECT if we're being called recursively
+	 * Don't hook /ON REDIRECT if we're being called recursively
 	 */
 	if (allow)
-		send_text(nick_list, text, command, hook, log);
+		send_text(nick_list, text, flags);
 
 	recursion--;
 	from_server = old_from_server;
 }
 
+static int try_send_special_target(char *target, const char *text, unsigned stxt_flags)
+{
+	/*
+	 * It is legal to send an empty line to a process, but not legal
+	 * to send an empty line anywhere else.
+	 */
+	switch (*target)
+	{
+		case '%':
+			{
+				int process_idx = get_process_index(&target);
 
+				if (process_idx == -1)
+					say("Invalid process specification");
+				else
+					text_to_process(process_idx, text, 1);
+			}
+			break;
 
+#ifdef WANT_FTP
+		case '-':
+			if (text && *text)
+				dcc_ftpcommand(target + 1, (char *)text);
+			break;
+#endif
+
+		case '"':
+			if (text && *text)
+				send_to_server("%s", text);
+			break;
+
+		case '/':
+			if (text && *text)
+			{
+				char *line = m_opendup(target, space, text, NULL);
+				parse_command(line, 0, empty_string);
+				new_free(&line);
+			}
+			break;
+
+		case '=':
+			if (text && *text)
+			{
+				const char *key;
+				int old_server;
+				char *line;
+
+				if (!is_number(target + 1) && 
+						!dcc_activechat(target + 1) && 
+						!dcc_activebot(target+1) && 
+						!dcc_activeraw(target+1))
+				{
+					yell("No DCC CHAT connection open to %s", target + 1);
+					break;
+				}
+				if ((key = is_crypted(target)))
+					line = sed_encrypt_msg(text, key);
+				else
+					line = m_strdup(text);
+
+				old_server = from_server;
+				from_server = -1;
+				if (dcc_activechat(target+1))
+				{
+					dcc_chat_transmit(target + 1, line, line, stxt_flags);
+					if (!(stxt_flags & STXT_QUIET))
+						addtabkey(target, "msg", 0);
+				}
+				else if (dcc_activebot(target + 1))
+					dcc_bot_transmit(target + 1, line, stxt_flags);
+				else 
+					dcc_raw_transmit(target + 1, line, stxt_flags);
+
+				add_last_type(&last_sent_dcc[0], MAX_LAST_MSG, NULL, NULL, target+1, text);
+				from_server = old_server;
+				new_free(&line);
+			}
+			break;
+
+		default:
+			return 0;
+	}
+
+	return 1;
+}
 
 struct target_type
 {
 	char *nick_list;
-	char *message;
 	int  hook_type;
 	char *command;
-	char *format;
 	unsigned long level;
-	char *output;
-	char *other_output;
+	const char *output;
+	const char *other_output;
+	const char *format_encrypted;
 };
 
 int current_target = 0;
@@ -3822,185 +3819,129 @@ int current_target = 0;
  * Bucket 3 -- Unencrypted NOTICEs to channels
  *
  * All other messages (encrypted, and DCC CHATs) are dispatched 
- * immediately, and seperately from all others.  All messages that
+ * immediately, and separately from all others.  All messages that
  * end up in one of the above mentioned buckets get sent out all
  * at once.
  */
-void 	BX_send_text(const char *nick_list, const char *text, char *command, int hook, int log)
+void BX_send_text(const char *nick_list, const char *text, unsigned flags)
 {
+	static int sent_text_recursion = 0;
+
 	int	i, 
-		old_server,
-		not_done = 1,
+		done_forward = 0,
 		is_current = 0,
 		old_window_display = window_display;
 	char	*current_nick,
 		*next_nick,
 		*free_nick,
-		*line,
-		*key = NULL;
-static	int sent_text_recursion = 0;	
+		*line;
 	        
-struct target_type target[4] = 
-{	
-	{NULL, NULL, SEND_MSG_LIST,     "PRIVMSG", "*%s*> %s" , LOG_MSG, NULL, NULL },
-	{NULL, NULL, SEND_PUBLIC_LIST,  "PRIVMSG", "%s> %s"   , LOG_PUBLIC, NULL, NULL },
-	{NULL, NULL, SEND_NOTICE_LIST,  "NOTICE",  "-%s-> %s" , LOG_NOTICE, NULL, NULL }, 
-	{NULL, NULL, SEND_NOTICE_LIST,  "NOTICE",  "-%s-> %s" , LOG_NOTICE, NULL, NULL }
-};
-
-	
+	struct target_type target[4] = 
+	{	
+		{NULL, SEND_MSG_LIST,     "PRIVMSG", LOG_MSG, NULL, NULL },
+		{NULL, SEND_PUBLIC_LIST,  "PRIVMSG", LOG_PUBLIC, NULL, NULL },
+		{NULL, SEND_NOTICE_LIST,  "NOTICE",  LOG_NOTICE, NULL, NULL }, 
+		{NULL, SEND_NOTICE_LIST,  "NOTICE",  LOG_NOTICE, NULL, NULL }
+	};
 
 	target[0].output = fget_string_var(FORMAT_SEND_MSG_FSET);
+	target[0].format_encrypted = fget_string_var(FORMAT_SEND_ENCRYPTED_MSG_FSET);
 	target[1].output = fget_string_var(FORMAT_SEND_PUBLIC_FSET);
 	target[1].other_output = fget_string_var(FORMAT_SEND_PUBLIC_OTHER_FSET);
+	target[1].format_encrypted = fget_string_var(FORMAT_SEND_ENCRYPTED_PUBLIC_FSET);
 	target[2].output = fget_string_var(FORMAT_SEND_NOTICE_FSET);
+	target[2].format_encrypted = fget_string_var(FORMAT_SEND_ENCRYPTED_NOTICE_FSET);
 	target[3].output = fget_string_var(FORMAT_SEND_NOTICE_FSET);
 	target[3].other_output = fget_string_var(FORMAT_SEND_NOTICE_FSET);
+	target[3].format_encrypted = fget_string_var(FORMAT_SEND_ENCRYPTED_NOTICE_FSET);
 
 	if (sent_text_recursion)
-		hook = 0;
-	window_display = hook;
+		flags |= STXT_QUIET;
 	sent_text_recursion++;
+
+	window_display = !(flags & STXT_QUIET);
+
 	free_nick = next_nick = m_strdup(nick_list);
 
 	while ((current_nick = next_nick))
 	{
+		const char *key;
+
 		if ((next_nick = strchr(current_nick, ',')))
 			*next_nick++ = 0;
 
 		if (!*current_nick)
 			continue;
 
-		if (*current_nick == '%')
-		{
-			if ((i = get_process_index(&current_nick)) == -1)
-				say("Invalid process specification");
-			else
-				text_to_process(i, text, 1);
-		}
+		if (try_send_special_target(current_nick, text, flags))
+			continue;
+
 		/*
 		 * This test has to be here because it is legal to
 		 * send an empty line to a process, but not legal
 		 * to send an empty line anywhere else.
 		 */
-		else if (!text || !*text)
-			;
-#ifdef WANT_FTP
-		else if (*current_nick == '-')
-			dcc_ftpcommand(current_nick+1, (char *)text);
-#endif
-		else if (*current_nick == '"')
-			send_to_server("%s", text);
-		else if (*current_nick == '/')
+		if (!text || !*text)
+			continue;
+
+		if (doing_notice)
 		{
-			line = m_opendup(current_nick, space, text, NULL);
-			parse_command(line, 0, empty_string);
-			new_free(&line);
+			say("You cannot send a message from within ON NOTICE");
+			continue;
 		}
-		else if (*current_nick == '=')
+
+		if (!(i = is_channel(current_nick)) && !(flags & STXT_QUIET))
+			addtabkey(current_nick, "msg", 0);
+
+		if (flags & STXT_NOTICE)
+			i += 2;
+
+		if ((key = is_crypted(current_nick)))
 		{
-			if (!is_number(current_nick + 1) && 
-				!dcc_activechat(current_nick + 1) && 
-				!dcc_activebot(current_nick+1) && 
-				!dcc_activeraw(current_nick+1))
-			{
-				yell("No DCC CHAT connection open to %s", current_nick + 1);
-				continue;
-			}
-			if ((key = is_crypted(current_nick)))
-			{
-				char *breakage;
-				breakage = LOCAL_COPY(text);
-				line = crypt_msg(breakage, key);
-			}
-			else
-				line = m_strdup(text);
+			set_display_target(current_nick, target[i].level);
 
-			old_server = from_server;
-			from_server = -1;
-			if (dcc_activechat(current_nick+1))
-			{
-				dcc_chat_transmit(current_nick + 1, line, line, command, hook);
-				if (hook)
-					addtabkey(current_nick, "msg", 0);
-			}
-			else if (dcc_activebot(current_nick + 1))
-				dcc_bot_transmit(current_nick + 1, line, command);
-			else 
-				dcc_raw_transmit(current_nick + 1, line, command);
+			line = sed_encrypt_msg(text, key);
+			if (!(flags & STXT_QUIET) && do_hook(target[i].hook_type, "%s %s", current_nick, text))
+				put_it("%s", convert_output_format(target[i].format_encrypted,
+							"%s %s %s %s", update_clock(GET_TIME), current_nick, get_server_nickname(from_server), text));
 
-			add_last_type(&last_sent_dcc[0], MAX_LAST_MSG, NULL, NULL, current_nick+1, (char *)text);
-			from_server = old_server;
+			send_to_server("%s %s :%s", target[i].command, current_nick, line);
 			new_free(&line);
+			reset_display_target();
 		}
 		else
 		{
-			char *copy = NULL;
-			if (doing_notice)
-			{
-				say("You cannot send a message from within ON NOTICE");
-				continue;
-			}
-
-			copy = LOCAL_COPY(text);
-
-			if (!(i = is_channel(current_nick)) && hook)
-				addtabkey(current_nick, "msg", 0);
-				
-			if (doing_notice || (command && !strcmp(command, "NOTICE")))
-				i += 2;
-
-			if ((key = is_crypted(current_nick)))
-			{
-				set_display_target(current_nick, target[i].level);
-
-				line = crypt_msg(copy, key);
-				if (hook && do_hook(target[i].hook_type, "%s %s", current_nick, copy))
-					put_it("%s", convert_output_format(fget_string_var(target[i].hook_type == SEND_MSG_LIST?FORMAT_SEND_ENCRYPTED_MSG_FSET:FORMAT_SEND_ENCRYPTED_NOTICE_FSET),
-					"%s %s %s %s",update_clock(GET_TIME), get_server_nickname(from_server),current_nick, text));
-
-				send_to_server("%s %s :%s", target[i].command, current_nick, line);
-				new_free(&line);
-				reset_display_target();
-			}
-			else
-			{
-				if (target[i].nick_list)
-					malloc_strcat(&target[i].nick_list, ",");
-				malloc_strcat(&target[i].nick_list, current_nick);
-				if (!target[i].message)
-					target[i].message = (char *)text;
-			}
+			if (target[i].nick_list)
+				malloc_strcat(&target[i].nick_list, ",");
+			malloc_strcat(&target[i].nick_list, current_nick);
 		}
 	}
 	
 	for (i = 0; i < 4; i++)
 	{
-		char *copy = NULL;
 		char *s = NULL;
 		ChannelList *chan = NULL;
 		const char *old_mf;
 		unsigned long old_ml;
 		int blah_hook = 0;
 				
-		if (!target[i].message)
+		if (!target[i].nick_list)
 			continue;
 
 		save_display_target(&old_mf, &old_ml);
 		set_display_target(target[i].nick_list, target[i].level);
-		copy = m_strdup(target[i].message);
 
 		/* do we forward this?*/
 
-		if (forwardnick && not_done)
+		if (forwardnick && !done_forward)
 		{
-			send_to_server("NOTICE %s :-> *%s* %s", forwardnick, nick_list, copy);
-			not_done = 0;
+			send_to_server("NOTICE %s :-> *%s* %s", forwardnick, nick_list, text);
+			done_forward = 1;
 		}
 
 		/* log it if logging on */
-		if (log)
-			logmsg(LOG_SEND_MSG, target[i].nick_list, 0, "%s", copy);
+		if (flags & STXT_LOG)
+			logmsg(LOG_SEND_MSG, target[i].nick_list, 0, "%s", text);
 		/* save this for /oops */
 	
 		if (i == 1 || i == 3)
@@ -4020,7 +3961,7 @@ struct target_type target[4] =
 		else
 			is_current = 1;
 
-		if (hook && (blah_hook = do_hook(target[i].hook_type, "%s %s", target[i].nick_list, copy)))
+		if (!(flags & STXT_QUIET) && (blah_hook = do_hook(target[i].hook_type, "%s %s", target[i].nick_list, text)))
 			;
 		/* supposedly if this is called before the do_hook
 		 * it can cause a problem with scripts.
@@ -4028,7 +3969,7 @@ struct target_type target[4] =
 		 
 		if (blah_hook || chan)
 			s = convert_output_format(is_current ? target[i].output : target[i].other_output,
-				"%s %s %s %s",update_clock(GET_TIME), target[i].nick_list, get_server_nickname(from_server), copy);
+				"%s %s %s %s",update_clock(GET_TIME), target[i].nick_list, get_server_nickname(from_server), text);
 		if (blah_hook)
 			put_it("%s", s);
 			
@@ -4038,20 +3979,18 @@ struct target_type target[4] =
 		if ((i == 0))
 		{
 			set_server_sent_nick(from_server, target[0].nick_list);
-			set_server_sent_body(from_server, copy);
-			add_last_type(&last_sent_msg[0], MAX_LAST_MSG, NULL, NULL, target[i].nick_list, copy);
+			set_server_sent_body(from_server, text);
+			add_last_type(&last_sent_msg[0], MAX_LAST_MSG, NULL, NULL, target[i].nick_list, text);
 		}
 		else if ((i == 2) || (i == 3))
-			add_last_type(&last_sent_notice[0], MAX_LAST_MSG, target[i].nick_list, NULL, get_server_nickname(from_server), copy);
+			add_last_type(&last_sent_notice[0], MAX_LAST_MSG, get_server_nickname(from_server), NULL, target[i].nick_list, text);
 
-		send_to_server("%s %s :%s", target[i].command, target[i].nick_list, copy);
-		new_free(&copy);
+		send_to_server("%s %s :%s", target[i].command, target[i].nick_list, text);
 		new_free(&target[i].nick_list);
-		target[i].message = NULL;
 		restore_display_target(old_mf, old_ml);
 	}
 	
-	if (hook && get_server_away(from_server) && get_int_var(AUTO_UNMARK_AWAY_VAR))
+	if (!(flags & STXT_QUIET) && get_server_away(from_server) && get_int_var(AUTO_UNMARK_AWAY_VAR))
 		parse_line(NULL, "AWAY", empty_string, 0, 0, 1);
 
 	new_free(&free_nick);
@@ -4083,9 +4022,9 @@ BUILT_IN_COMMAND(do_send_text)
 		else 
 #endif
 		if (!my_stricmp(cmd, "SAY") || !my_stricmp(cmd, "PRIVMSG") || !my_stricmp(cmd, "MSG"))
-			send_text(tmp, text, NULL, 1, 1);
+			send_text(tmp, text, STXT_LOG);
 		else if (!my_stricmp(cmd, "NOTICE"))
-			send_text(tmp, text, "NOTICE", 1, 1);
+			send_text(tmp, text, STXT_NOTICE | STXT_LOG);
 		else if (!my_strnicmp(cmd, "WALLO", 5))
 			e_wall("WALLOPS", text, NULL, NULL);
 		else if (!my_strnicmp(cmd, "SWALLO", 6))
@@ -4099,10 +4038,10 @@ BUILT_IN_COMMAND(do_send_text)
 			cmsg(NULL, text, NULL, NULL);
 #endif
 		else
-			send_text(tmp, text, NULL, 1, 1);					
+			send_text(tmp, text, STXT_LOG);
 	}
 	else
-		send_text(tmp, text, NULL, 1, 1);
+		send_text(tmp, text, STXT_LOG);
 }
 
 BUILT_IN_COMMAND(do_msay)
@@ -4122,7 +4061,7 @@ BUILT_IN_COMMAND(do_msay)
 		}
 		from_server = i;
 		if (channels)
-			send_text(channels, args, NULL, 1, 1);
+			send_text(channels, args, STXT_LOG);
 		new_free(&channels);
 		from_server = old_from_server;
 	} else
@@ -4149,21 +4088,18 @@ void command_completion(char unused, char *not_used)
 	
 	char	*line = NULL,
 		*com,
-		*cmdchars,
 		*rest,
 		firstcmdchar[2] = "/";
-	IrcCommand	*command;
+	const char *cmdchars = get_string_var(CMDCHARS_VAR);
+	const IrcCommand *command;
 #ifdef WANT_DLL
 	IrcCommandDll	*dll = NULL;
 #endif
-	char	buffer[BIG_BUFFER_SIZE + 1];
-	
+	char	buffer[BIG_BUFFER_SIZE];
 	
 	malloc_strcpy(&line, get_input());
 	if ((com = next_arg(line, &rest)) != NULL)
 	{
-		if (!(cmdchars = get_string_var(CMDCHARS_VAR)))
-			cmdchars = DEFAULT_CMDCHARS;
 		if (*com == '/' || strchr(cmdchars, *com))
 		{
 			*firstcmdchar = *cmdchars;
@@ -4212,7 +4148,7 @@ void command_completion(char unused, char *not_used)
 #endif
 			if ((alias_cnt == 1) && (cmd_cnt == 0) && (dll_cnt <= 0))
 			{
-				snprintf(buffer, BIG_BUFFER_SIZE, "%s%s %s", firstcmdchar, *aliases, rest);
+				snprintf(buffer, sizeof buffer, "%s%s %s", firstcmdchar, *aliases, rest);
 				set_input(buffer);
 				new_free((char **)aliases);
 				new_free((char **)&aliases);
@@ -4227,7 +4163,7 @@ void command_completion(char unused, char *not_used)
 #endif
 			    ))
 			{
-				snprintf(buffer, BIG_BUFFER_SIZE, "%s%s%s %s",
+				snprintf(buffer, sizeof buffer, "%s%s%s %s",
 					firstcmdchar,
 					do_aliases ? empty_string : firstcmdchar,
 #ifdef WANT_DLL
@@ -4250,8 +4186,8 @@ void command_completion(char unused, char *not_used)
 					{
 						if (i == 0)
 							bitchsay("Commands:");
-						strmcat(buffer, command[i].name, BIG_BUFFER_SIZE);
-						strmcat(buffer, space, BIG_BUFFER_SIZE);
+						strlcat(buffer, command[i].name, sizeof buffer);
+						strlcat(buffer, space, sizeof buffer);
 						if (++c == 4)
 						{
 							put_it("%s", convert_output_format("$G $[15]0 $[15]1 $[15]2 $[15]3", "%s", buffer));
@@ -4270,8 +4206,8 @@ void command_completion(char unused, char *not_used)
 					{
 						if (com && *com && my_strnicmp(com, dll->name, strlen(com)))
 							continue;
-						strmcat(buffer, dll->name, BIG_BUFFER_SIZE);
-						strmcat(buffer, space, BIG_BUFFER_SIZE);
+						strlcat(buffer, dll->name, sizeof buffer);
+						strlcat(buffer, space, sizeof buffer);
 						if (++c == 4)
 						{
 							put_it("%s", convert_output_format("$G $[15]0 $[15]1 $[15]2 $[15]3", "%s", buffer));
@@ -4291,8 +4227,8 @@ void command_completion(char unused, char *not_used)
 					{
 						if (i == 0)
 							bitchsay("Aliases:");
-						strmcat(buffer, aliases[i], BIG_BUFFER_SIZE);
-						strmcat(buffer, space, BIG_BUFFER_SIZE);
+						strlcat(buffer, aliases[i], sizeof buffer);
+						strlcat(buffer, space, sizeof buffer);
 						if (++c == 4)
 						{
 							put_it("%s", convert_output_format("$G $[15]0 $[15]1 $[15]2 $[15]3", "%s", buffer));
@@ -4313,8 +4249,8 @@ void command_completion(char unused, char *not_used)
 					{
 						if (i == 0)
 							bitchsay("Functions:");
-						strmcat(buffer, functions[i], BIG_BUFFER_SIZE);
-						strmcat(buffer, space, BIG_BUFFER_SIZE);
+						strlcat(buffer, functions[i], sizeof buffer);
+						strlcat(buffer, space, sizeof buffer);
 						if (++c == 4)
 						{
 							put_it("%s", convert_output_format("$G $[15]0 $[15]1 $[15]2 $[15]3", "%s", buffer));
@@ -4363,19 +4299,16 @@ static int oper_issued = 0;
  * Other than these two conventions the line is left basically untouched.
  */
 /* Ideas on parsing: Why should the calling function be responsible
- *  for removing {} blocks?  Why cant this parser cope with and {}s
+ *  for removing {} blocks?  Why can't this parser cope with and {}s
  *  that come up?
  */
 void BX_parse_line (const char *name, char *org_line, const char *args, int hist_flag, int append_flag, int handle_local)
 {
 	char	*line = NULL,
 			*stuff,
-			*s,
-			*t;
+			*s;
 	int	args_flag = 0,
 		die = 0;
-
-	
 
 	if (handle_local)
 		make_local_stack((char *)name);
@@ -4387,16 +4320,16 @@ void BX_parse_line (const char *name, char *org_line, const char *args, int hist
 	else if (args) do
 	{
 		while (*line == '{') 
-               	{
-                       	if (!(stuff = next_expr(&line, '{'))) 
+		{
+			if (!(stuff = next_expr(&line, '{'))) 
 			{
 				error("Unmatched {");
 				destroy_local_stack();
-                               	return;
-                        }
+				return;
+			}
 			if (((internal_debug & DEBUG_CMDALIAS) || (internal_debug & DEBUG_HOOK)) && alias_debug && !in_debug_yell)
 				debugyell("%3d %s", debug_count++, stuff);
-       	                parse_line(name, stuff, args, hist_flag, append_flag, handle_local);
+			parse_line(name, stuff, args, hist_flag, append_flag, handle_local);
 
 			if ((will_catch_break_exceptions && break_exception) ||
 			    (will_catch_return_exceptions && return_exception) ||
@@ -4406,11 +4339,11 @@ void BX_parse_line (const char *name, char *org_line, const char *args, int hist
 				break;
 			}
 
-			while (line && *line && ((*line == ';') || (my_isspace(*line))))
+			while (*line == ';' || my_isspace(*line))
 				*line++ = '\0';
 		}
 
-		if (!line || !*line || die)
+		if (!*line || die)
 			break;
 
 		stuff = expand_alias(line, args, &args_flag, &line);
@@ -4421,14 +4354,14 @@ void BX_parse_line (const char *name, char *org_line, const char *args, int hist
 			debugyell("%3d %s", debug_count++, stuff);
 
 		parse_command(stuff, hist_flag, (char *)args);
-       	        new_free(&stuff);
+		new_free(&stuff);
 
 		if ((will_catch_break_exceptions && break_exception) ||
 		    (will_catch_return_exceptions && return_exception) ||
 		    (will_catch_continue_exceptions && continue_exception))
 			break;
 	} while (line && *line);
-        else
+	else
 	{
 		if (load_depth != -1) /* CDE should this be != 1 or > 0 */
 			parse_command(line, hist_flag, (char *)args);
@@ -4436,13 +4369,10 @@ void BX_parse_line (const char *name, char *org_line, const char *args, int hist
 		{
 			while ((s = line))
 			{
-				if ((t = sindex(line, "\r\n")))
-				{
-					*t++ = '\0';
-					line = t;
-				}
-				else
-					line = NULL;
+				line = strpbrk(line, "\r\n");
+				if (line)
+					*line++ = '\0';
+
 				parse_command(s, hist_flag, (char *)args);
 
 				if ((will_catch_break_exceptions && break_exception) ||
@@ -4479,20 +4409,20 @@ void BX_parse_line (const char *name, char *org_line, const char *args, int hist
  * characters or anything (beyond those specific for a given command being
  * executed). 
  */
-int BX_parse_command(register char *line, int hist_flag, char *sub_args)
+int BX_parse_command(char *line, int hist_flag, char *sub_args)
 {
-static	unsigned int	 level = 0;
-	unsigned int	display,
-			old_display_var;
-		char	*cmdchars;
-	const	char	*com;
-		char	*this_cmd = NULL;
-		int	args_flag = 0,
-			add_to_hist,
-			cmdchar_used = 0;
-		int	noisy = 1;
+	static unsigned int level = 0;
+	unsigned int display,
+		old_display_var;
+	const char *cmdchars = get_string_var(CMDCHARS_VAR);
+	const char *com;
+	char *this_cmd = NULL;
+	int args_flag = 0,
+		add_to_hist,
+		cmdchar_used = 0;
+	int noisy = 1;
 
-		int	old_alias_debug = alias_debug;
+	int old_alias_debug = alias_debug;
 				
 	if (!line || !*line)
 		return 0;
@@ -4500,10 +4430,6 @@ static	unsigned int	 level = 0;
 	if (internal_debug & DEBUG_COMMANDS && !in_debug_yell)
 		debugyell("Executing [%d] %s", level, line);
 	level++;
-
-	if (!(cmdchars = get_string_var(CMDCHARS_VAR)))
-		cmdchars = DEFAULT_CMDCHARS;
-
 
 	this_cmd = LOCAL_COPY(line);
 	set_current_command(this_cmd);
@@ -4582,7 +4508,7 @@ static	unsigned int	 level = 0;
 				*alias = NULL,
 				*alias_name = NULL,
 				*cline = NULL;
-		IrcCommand	*command = NULL;
+		const IrcCommand *command = NULL;
 		void		*arglist = NULL; 
 		int		cmd_cnt,
 				alias_cnt = 0;
@@ -4594,7 +4520,8 @@ static	unsigned int	 level = 0;
 		if ((rest = strchr(line, ' ')))
 		{
 			cline = alloca((rest - line) + 1);
-			strmcpy(cline, line, (rest - line));
+			memcpy(cline, line, rest - line);
+			cline[rest - line] = 0;
 			rest++;
 		}
 		else
@@ -4638,8 +4565,6 @@ static	unsigned int	 level = 0;
 			}
 			else
 			{
-				char unknown[] = "Unknown command:";
-				
 				if (hist_flag && add_to_hist && !oper_issued)
 					add_to_history(this_cmd);
 				command = find_command(cline, &cmd_cnt);
@@ -4691,48 +4616,41 @@ static	unsigned int	 level = 0;
 				else if (!my_stricmp(com, get_server_nickname(from_server)))
 					me(NULL, rest, empty_string, NULL);
 #ifdef WANT_TCL
-				else
+				else if (tcl_interp)
 				{
-					
-					if (tcl_interp)
+					int err;
+					const char *tcl_result;
+
+					err = Tcl_Invoke(tcl_interp, cline, rest);
+					tcl_result = Tcl_GetStringResult(tcl_interp);
+
+					if (err == TCL_OK)
 					{
-						int err;
-						err = Tcl_Invoke(tcl_interp, cline, rest);
-						if (err == TCL_OK)
-						{
-							if (tcl_interp->result && *tcl_interp->result)
-								bitchsay("%s %s", *tcl_interp->result?empty_string:unknown, *tcl_interp->result?tcl_interp->result:empty_string);
-						}
-						else
-						{
-							if (alias_cnt + cmd_cnt > 1)
-								bitchsay("Ambiguous command: %s", cline);
-							else if (get_int_var(DISPATCH_UNKNOWN_COMMANDS_VAR))
-								send_to_server("%s %s", cline, rest);
-							else if (tcl_interp->result && *tcl_interp->result)
-							{
-								if (check_help_bind(cline))
-									bitchsay("%s", tcl_interp->result);
-							}
-							else
-								bitchsay("%s %s", unknown, cline);
-								
-						}
-					} else if (get_int_var(DISPATCH_UNKNOWN_COMMANDS_VAR))
-						send_to_server("%s %s", cline, rest);
-					else if (alias_cnt + cmd_cnt > 1)
-						bitchsay("Ambiguous command: %s", cline);
+						bitchsay("%s", tcl_result);
+					}
 					else
-						bitchsay("%s %s", unknown, cline);
+					{
+						if (*tcl_result)
+						{
+							if (check_help_bind(cline))
+								bitchsay("%s", tcl_result);
+						}
+						else if (get_int_var(DISPATCH_UNKNOWN_COMMANDS_VAR))
+							send_to_server("%s %s", cline, rest);
+						else if (alias_cnt + cmd_cnt > 1)
+							bitchsay("Ambiguous command: %s", cline);
+						else
+							bitchsay("Unknown command: %s", cline);
+
+					}
 				}
-#else
+#endif
 				else if (get_int_var(DISPATCH_UNKNOWN_COMMANDS_VAR))
 					send_to_server("%s %s", cline, rest);
 				else if (alias_cnt + cmd_cnt > 1)
 					bitchsay("Ambiguous command: %s", cline);
 				else
-					bitchsay("%s %s", unknown, cline);
-#endif
+					bitchsay("Unknown command: %s", cline);
 			}
 			if (alias)
 				new_free(&alias_name);
@@ -4803,9 +4721,9 @@ int	current_line (void)
 /*
  * load: the /LOAD command.  Reads the named file, parsing each line as
  * though it were typed in (passes each line to parse_command). 
-	Right now, this is broken, as it doesnt handle the passing of
+	Right now, this is broken, as it doesn't handle the passing of
 	the '-' flag, which is meant to force expansion of expandos
-	with the arguments after the '-' flag.  I think its a lame
+	with the arguments after the '-' flag.  I think it's a lame
 	feature, anyhow.  *sigh*.
  */
 
@@ -4872,7 +4790,7 @@ BUILT_IN_COMMAND(BX_load)
 		{
 #ifdef WANT_TCL
 			if (Tcl_EvalFile(tcl_interp, filename) != TCL_OK)
-				error("Unable to load filename %s[%s]", filename, tcl_interp->result);
+				error("Unable to load filename %s [%s]", filename, Tcl_GetStringResult(tcl_interp));
 #endif
 			continue;
 		}
@@ -4886,7 +4804,7 @@ BUILT_IN_COMMAND(BX_load)
 		{
 			int owc = window_display;
 			/* uzfopen emits an error if the file
-			 * is not found, so we dont have to. */
+			 * is not found, so we don't have to. */
 			window_display = 1;
 #ifdef WANT_DLL
 			if (expanded)
@@ -4913,7 +4831,7 @@ BUILT_IN_COMMAND(BX_load)
 			continue;
 		}
 /* Reformatted by jfn */
-/* *_NOT_* attached, so dont "fix" it */
+/* *_NOT_* attached, so don't "fix" it */
 		{
 		int	in_comment 	= 0;
 		int	comment_line 	= -1;
@@ -4942,9 +4860,9 @@ BUILT_IN_COMMAND(BX_load)
 			 * this line from stargazer to allow \'s in scripts for continued
 			 * lines <spz@specklec.mpifr-bonn.mpg.de>
 			 *  If we have \\ at the end of the line, that
-			 *  should indicate that we DONT want the slash to 
+			 *  should indicate that we DON'T want the slash to 
 			 *  escape the newline (hop)
-			 *  We cant just do start[len-2] because we cant say
+			 *  We can't just do start[len-2] because we can't say
 			 *  what will happen if len = 1... (a blank line)
 			 *  SO.... 
 			 *  If the line ends in a newline, and
@@ -4952,7 +4870,7 @@ BUILT_IN_COMMAND(BX_load)
 			 *  and the 2nd to the last one is a \ and,
 			 *  If there are EITHER 2 characters on the line or
 			 *  the 3rd to the last character is NOT a \ and,
-			 *  If the line isnt too big yet and,
+			 *  If the line isn't too big yet and,
 			 *  If we can read more from the file,
 			 *  THEN -- adjust the length of the string
 			 */
@@ -4977,7 +4895,7 @@ BUILT_IN_COMMAND(BX_load)
 				char    *optr = start;
 
 				/* Skip slashed brackets */
-				while ((ptr = sindex(optr, "{};/")) && 
+				while ((ptr = strpbrk(optr, "{};/")) &&
 				      ptr != optr && ptr[-1] == '\\')
 					optr = ptr+1;
 
@@ -5013,11 +4931,11 @@ BUILT_IN_COMMAND(BX_load)
 		/* switch statement tabbed back */
 case '/' :
 {
-	/* If we're in a comment, any slashes that arent preceeded by
-	   a star is just ignored (cause its in a comment, after all >;) */
+	/* If we're in a comment, any slashes that aren't preceded by
+	   a star are just ignored. */
 	if (in_comment)
 	{
-		/* ooops! cant do ptr[-1] if ptr == optr... doh! */
+		/* ooops! can't do ptr[-1] if ptr == optr... doh! */
 		if ((ptr > start) && (ptr[-1] == '*'))
 		{
 			in_comment = 0;
@@ -5168,18 +5086,6 @@ BUILT_IN_COMMAND(sendlinecmd)
 	update_input(UPDATE_ALL);
 	window_display = display;
 	from_server = server;
-}
-
-/*
- * irc_clear_screen: the CLEAR_SCREEN function for BIND.  Clears the screen and
- * starts it if it is held 
- */
-/*ARGSUSED*/
-void irc_clear_screen(char key, char *ptr)
-{
-	
-	set_hold_mode(NULL, OFF, 1);
-	my_clear(NULL, empty_string, empty_string, NULL);
 }
 
 BUILT_IN_COMMAND(cd)
@@ -5361,7 +5267,7 @@ BUILT_IN_COMMAND(evalcmd)
 }
 
 /*
- * inputcmd:  the INPUT command.   Takes a couple of arguements...
+ * inputcmd:  the INPUT command.   Takes a couple of arguments...
  * the first surrounded in double quotes, and the rest makes up
  * a normal ircII command.  The command is evalutated, with $*
  * being the line that you input.  Used add_wait_prompt() to prompt
@@ -5499,7 +5405,7 @@ BUILT_IN_COMMAND(pretend_cmd)
  * io event, so that might also start adding up.  Oh well, TIOLI.
  *
  * Without an argument, it waits for the user to press a key.  Any key.
- * and the key is accepted.  Thats probably not right, ill work on that.
+ * and the key is accepted.  That's probably not right, I'll work on that.
  */
 static        int     e_pause_cb_throw = 0;
 static        void    e_pause_cb (char *u1, char *u2) { e_pause_cb_throw--; }
@@ -5529,11 +5435,11 @@ struct timeval start;
 	start.tv_usec %= 1000000;
 
 	/* 
-	 * I use comment here simply becuase its not going to mess
+	 * I use comment here simply because it's not going to mess
 	 * with the arguments.
 	 */
 	add_timer(0, empty_string, milliseconds, 1, (int (*)(void *, char *))comment, NULL, NULL, get_current_winref(), "pause");
-	while (BX_time_diff(get_time(NULL), start) > 0)
+	while (time_until(&start) > 0)
 		io("e_pause");
 }
 
@@ -5559,12 +5465,18 @@ int result = 0;
 	if ((filename = next_arg(args, &args)))
 	{
 		char *bla = NULL;
+		const char *tcl_result;
+
 		if (get_string_var(LOAD_PATH_VAR))
 			bla = path_search(filename, get_string_var(LOAD_PATH_VAR));
-		if ((result = Tcl_EvalFile(tcl_interp, bla?bla:filename)) != TCL_OK)
-			put_it("Tcl:  [%s]",tcl_interp->result);
-		else if (*tcl_interp->result)
-			put_it("Tcl:  [%s]", tcl_interp->result);
+
+		result = Tcl_EvalFile(tcl_interp, bla ? bla : filename);
+		tcl_result = Tcl_GetStringResult(tcl_interp);
+
+		if (result != TCL_OK)
+			put_it("Tcl Error: [%s]", tcl_result);
+		else if (*tcl_result)
+			put_it("Tcl: [%s]", tcl_result);
 	}
 }
 
@@ -5608,15 +5520,14 @@ BUILT_IN_COMMAND(returncmd)
 
 BUILT_IN_COMMAND(help)
 {
-int cnt = 1;
-int cntdll = 0;
-IrcCommand *cmd = NULL;
+	const IrcCommand *cmd = NULL;
 #ifdef WANT_DLL
-IrcCommandDll *cmddll = NULL;
+	IrcCommandDll *cmddll = NULL;
 #endif
-int c, i;
-char buffer[BIG_BUFFER_SIZE+1];
-char *comm = NULL;
+	int cnt = 1, cntdll = 0, c, i;
+	char *comm = NULL;
+	char buffer[BIG_BUFFER_SIZE];
+
 	reset_display_target();
 	if (args && *args)
 	{
@@ -5675,8 +5586,8 @@ char *comm = NULL;
 	c = 0;
 	for (i = 0; i < cnt; i++)
 	{
-		strmcat(buffer, cmd[i].name, BIG_BUFFER_SIZE);
-		strmcat(buffer, space, BIG_BUFFER_SIZE);
+		strlcat(buffer, cmd[i].name, sizeof buffer);
+		strlcat(buffer, space, sizeof buffer);
 		if (++c == 5)
 		{
 			put_it("%s", convert_output_format("$G $[13]0 $[13]1 $[13]2 $[13]3 $[13]4", "%s", buffer));
@@ -5687,8 +5598,8 @@ char *comm = NULL;
 #ifdef WANT_DLL
 	for (i = 0; i < cntdll && cmddll; cmddll = cmddll->next, i++)
 	{
-		strmcat(buffer, cmddll->name, BIG_BUFFER_SIZE);
-		strmcat(buffer, space, BIG_BUFFER_SIZE);
+		strlcat(buffer, cmddll->name, sizeof buffer);
+		strlcat(buffer, space, sizeof buffer);
 		if (++c == 5)
 		{
 			put_it("%s", convert_output_format("$G $[13]0 $[13]1 $[13]2 $[13]3 $[13]4", "%s", buffer));
@@ -5701,5 +5612,3 @@ char *comm = NULL;
 		put_it("%s", convert_output_format("$G $[13]0 $[13]1 $[13]2 $[13]3 $[13]4", "%s", buffer));
 	userage("help", "%R[%ncommand%R]%n or /command -help %n to get help on specific commands");
 }
-
-

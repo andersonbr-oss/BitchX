@@ -31,6 +31,8 @@
 #define INIT_MODULE
 #include "modval.h"
 
+#define MODULE_NAME "arcfour"
+
 typedef struct {
 	int sock;
 	char ukey[16];
@@ -61,7 +63,7 @@ static unsigned int typenum = 0;
 static char *init_box(char *ukey, arckey *key)
 {
 	MD5_CTX md5context;
-	char buf[256];
+	unsigned char buf[256];
 	int fd;
 
 	fd = open("/dev/urandom", O_RDONLY);
@@ -70,11 +72,7 @@ static char *init_box(char *ukey, arckey *key)
 		close(fd);
 	}
 	else
-	{
-		buf[(int)buf[69]] ^= getpid();
-		buf[(int)buf[226]] ^= getuid();
-		buf[(int)buf[119]] ^= getpid();
-	}
+		return NULL;
 
 	MD5Init(&md5context);
 	MD5Update(&md5context, buf, sizeof(buf));
@@ -87,17 +85,18 @@ static char *init_box(char *ukey, arckey *key)
 	return ukey;
 }
 
-static inline void arcfourInit(arckey *arc, char *userkey, unsigned short len)
+static inline void arcfourInit(arckey *arc, void *userkey, unsigned short len)
 {
 	register arcword *S = arc->state, x = 0, y = 0, pos = 0, tmp;
+	unsigned char *userkey_byte = userkey;
 
 	/* Seed the S-box linearly, then mix in the key while stiring briskly */
 	arc->i = arc->j = 0;				 /* Initialize i and j to 0 */
-	while((S[x] = --x));				 /* Initialize S-box, backwards */
+	while(--x, (S[x] = x));				 /* Initialize S-box, backwards */
 
 	/* Note: Some of these optimizations REQUIRE arcword to be 8-bit unsigned */
 	do {						 /* Spread user key into real key */
-		y += S[x] + userkey[pos];			 /* Keys, shaken, not stirred */
+		y += S[x] + userkey_byte[pos];			 /* Keys, shaken, not stirred */
 		tmp = S[x]; S[x] = S[y]; S[y] = tmp;  /* Swap S[i] and S[j] */
 		if (++pos >= len)	pos = 0;		 /* Repeat user key to fill array */
 	} while(++x);				 /* ++x is faster than x++ */
@@ -121,23 +120,13 @@ static inline char *arcfourCrypt(arckey *arc, char *data, int len)
 
 int Arcfour_Init(IrcCommandDll **intp, Function_ptr *global_table)
 {
-	initialize_module("arcfour");
-	memset(keyboxes, 0, sizeof(keyboxes));
-/*
-	dcc_output_func = send_dcc_encrypt;
-	dcc_input_func = get_dcc_encrypt;
-	dcc_open_func = start_dcc_crypt;
-	dcc_close_func = end_dcc_crypt;
-*/
-	typenum = add_dcc_bind("SCHAT", "schat", init_schat, start_dcc_crypt, get_dcc_encrypt, send_dcc_encrypt, end_dcc_crypt);
-	add_module_proc(DCC_PROC, "schat", "schat", "Secure DCC Chat", 0, 0, dcc_sdcc, NULL);
-	return 0;
-}
+	static const struct dcc_ops schat_ops = { NULL, start_dcc_crypt, dcc_schat_input, send_dcc_encrypt, end_dcc_crypt };
 
-int Arcfour_Cleanup(IrcCommandDll **intp)
-{
-/*	remove_dcc_bind("SCHAT", typenum); */
-	return 1;
+	initialize_module(MODULE_NAME);
+	memset(keyboxes, 0, sizeof(keyboxes));
+	typenum = add_dcc_bind("ARC4CHAT", MODULE_NAME, &schat_ops);
+	add_module_proc(DCC_PROC, MODULE_NAME, "ARC4CHAT", "ArcFour DCC Chat", 0, 0, dcc_sdcc, NULL);
+	return 0;
 }
 
 static arclist *find_box(int sock)
@@ -172,15 +161,17 @@ static int send_dcc_encrypt (int type, int sock, char *buf, int len)
 	return -1;
 }
 
-static int get_dcc_encrypt (int type, int sock, char *buf, int parm, int len)
+static int dcc_schat_input(int type, int sock, char *buf, int parm, int buf_size)
 {
-	if (type == DCC_CHAT) {
-		if ((len = dgets(buf, sock, parm, BIG_BUFFER_SIZE, NULL)) > 0) {
-			buf[len-1] = '\0';
-			dcc_crypt(sock, buf, len);
-			if (buf[len])
-				buf[len] = '\0';
-		}
+	int len;
+
+	len = dgets(buf, sock, parm, buf_size - 1, NULL);
+
+	if (len > 0)
+	{
+		buf[len-1] = '\0';
+		dcc_crypt(sock, buf, len);
+		buf[len] = '\0';
 	}
 	return len;
 }
@@ -190,8 +181,7 @@ static int get_dcc_encrypt (int type, int sock, char *buf, int parm, int len)
  * an encrypted connection.
  */
 
-
-static int start_dcc_crypt (int s, int type, unsigned long d_addr, int d_port)
+static int start_dcc_crypt (int s, int type, unsigned long d_addr, unsigned short d_port)
 {
 	arclist *tmpbox;
 	put_it("start_dcc_crypt");
@@ -202,14 +192,18 @@ static int start_dcc_crypt (int s, int type, unsigned long d_addr, int d_port)
 		memset(randkey, 0, sizeof(randkey));
 		memset(buf, 0, sizeof(buf));
 		tmpbox->outbox = (arckey *)new_malloc(sizeof(arckey));
-		init_box(randkey, tmpbox->outbox);
+		if (init_box(randkey, tmpbox->outbox) == NULL)
+		{
+			new_free(&tmpbox->outbox);
+			return -1;
+		}
 		snprintf(buf, BIG_BUFFER_SIZE, "SecureDCC %s\r\n%n", randkey, &len);
 		write(s, buf, len);
 		memset(buf, 0, sizeof(buf));
 		if ((len = dgets(buf, s, 1, BIG_BUFFER_SIZE, NULL)) > 0) {
 			if (!my_strnicmp("SecureDCC", buf, 9)) {
 				tmpbox->inbox = (arckey *)new_malloc(sizeof(arckey));
-       	arcfourInit(tmpbox->inbox, next_arg(buf, &buf), 16);
+			 	arcfourInit(tmpbox->inbox, next_arg(buf, NULL), 16);
 			}
 		}
 		return 0;
@@ -217,7 +211,7 @@ static int start_dcc_crypt (int s, int type, unsigned long d_addr, int d_port)
 	return -1;
 }
 
-static int end_dcc_crypt (int s, unsigned long d_addr, int d_port)
+static int end_dcc_crypt(int s, unsigned long d_addr, unsigned short d_port)
 {
 	int i;
 	for(i = 0; i < 16; i++) {	
@@ -231,11 +225,10 @@ static int end_dcc_crypt (int s, unsigned long d_addr, int d_port)
 	return -1;
 }
 
-
 static void start_dcc_chat(int s)
 {
 struct	sockaddr_in	remaddr;
-int	sra;
+socklen_t	sra;
 int	type;
 int	new_s = -1;
 char	*nick = NULL;	
@@ -250,7 +243,10 @@ SocketList *sa;
 	new_s = accept(s, (struct sockaddr *) &remaddr, &sra);
 	type = flags & DCC_TYPES;
 	n = get_socketinfo(s);
-	if ((add_socketread(new_s, ntohs(remaddr.sin_port), flags, nick, get_dcc_encrypt, NULL)) < 0)
+
+	/* This uses the ordinary dcc_chat_socketread() function - it will call our
+	 * input filter function dcc_schat_input(). */
+	if ((add_socketread(new_s, ntohs(remaddr.sin_port), flags, nick, dcc_chat_socketread, NULL)) < 0)
 	{
 		erase_dcc_info(s, 0, "%s", convert_output_format("$G %RDCC error: accept() failed. punt!!", NULL, NULL));
 		close_socketread(s);
@@ -278,8 +274,6 @@ SocketList *sa;
 void dcc_sdcc (char *name, char *args)
 {
 	char *p;
-	int tmp, i;
-	DCC_int *new_sdcc;
 	if (!my_stricmp(name, "schat") && (strlen(args) > 0)) {
 		if (*args == ' ')
 			new_next_arg(args, &args);
@@ -288,20 +282,6 @@ void dcc_sdcc (char *name, char *args)
 			if (p && *p)
 				*p = 0;
 		}
-		new_sdcc = dcc_create(args, "SCHAT", NULL, 0, 0, typenum, DCC_TWOCLIENTS, start_dcc_chat);
-/*		find_dcc_pending(new_sdcc->user, new_sdcc->filename, NULL, typenum, 1, -1); */
-/*		new_i = find_dcc_pending(nick, filename, NULL, type, 1, -1); */
-		tmp = sizeof(keyboxes)/sizeof(arclist *);
-		for (i = 0; i < tmp; i++)
-			if (!keyboxes[i])
-/*				keyboxes[i]->sock = new_i->sock */;
+		dcc_create(args, "ARC4CHAT", NULL, 0, 0, typenum, DCC_TWOCLIENTS, start_dcc_chat);
 	}
-}
-
-/* thanks to the new add_dcc_bind, we dont have to worry about any hooking... */
-
-static int init_schat(char *type, char *nick, char *userhost, char *description, char *size, char *extra, unsigned long ip, unsigned int port)
-{
-/*	new_sdcc = dcc_create(args, "SCHAT", NULL, 0, 0, typenum, DCC_TWOCLIENTS, start_dcc_chat); */
-	return 0;
 }

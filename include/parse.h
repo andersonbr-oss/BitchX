@@ -4,11 +4,10 @@
  * written by matthew green
  * copyright (c) 1993
  *
- * @(#)$Id: parse.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __parse_h_
-#define __parse_h_
+#ifndef PARSE_H_
+#define PARSE_H_
 
 typedef struct {
 	const char	*command;
@@ -45,7 +44,7 @@ extern	int	doing_privmsg;
 #define WAIT_BANS 1
 #define WAIT_MODE 2
 
-#define MAXPARA 15
+#define MAXPARA 20	/* RFC1459 says 15+1, but RusNet uses more */
 
 
-#endif /* __parse_h_ */
+#endif /* PARSE_H_ */

@@ -10,7 +10,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: output.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(output_c)
 #include "struct.h"              
 #include <sys/stat.h>
@@ -27,13 +27,10 @@ CVS_REVISION(output_c)
 #include "screen.h"
 #include "server.h"
 #include "hook.h"
-#include "ctcp.h"
 #include "log.h"
 #include "misc.h"
 #define MAIN_SOURCE
 #include "modval.h"
-
-	int	in_help = 0;
 
 /* make this buffer *much* bigger than needed */
 
@@ -51,19 +48,19 @@ char three_stars[4] = "***";
 /* functions which switch the character set on the console */
 /* ibmpc is not available on the xterm */
 
-void charset_ibmpc (void)
+void charset_ibmpc(void)
 {
-	fwrite("\033(U", 3, 1, current_ftarget);	/* switch to IBM code page 437 */
+	fputs("\033(U", current_ftarget);	/* switch to IBM code page 437 */
 }
 
-void charset_lat1 (void)
+void charset_lat1(void)
 {
-	fwrite("\033(B", 3, 1, current_ftarget);	/* switch to Latin-1 (ISO 8859-1) */
+	fputs("\033(B", current_ftarget);	/* switch to Latin-1 (ISO 8859-1) */
 }
 
 void charset_cst(void)
 {
-	fwrite("\033(K", 3, 1, current_ftarget); /* switch too user-defined */
+	fputs("\033(K", current_ftarget); /* switch to user-defined */
 }
 
 /* currently not used. */
@@ -75,9 +72,9 @@ void unflash (void)
 #if !defined(WINNT) && !defined(__EMX__)
 
 #if defined(HARD_UNFLASH) && !defined(CHARSET_CUSTOM)
-	fwrite("\033c", 5, 1, current_ftarget);		/* hard reset */
+	fputs("\033c", current_ftarget);		/* hard reset */
 #else
-	fwrite("\033)0", 6, 1, current_ftarget);		/* soft reset */
+	fputs("\033)0", current_ftarget);		/* soft reset */
 #endif
 
 #if defined(LATIN1)
@@ -97,7 +94,7 @@ void unflash (void)
  */
 void refresh_screen (unsigned char dumb, char *dumber)
 {
-extern int need_redraw;
+	extern int need_redraw;
 
 #if !defined(WINNT) && !defined(__EMX__)
 	term_clear_screen();
@@ -107,16 +104,14 @@ extern int need_redraw;
 	term_clear_screen();
 #endif
 
-#if 0
-	for (tmp = screen_list; tmp; tmp = tmp->next)
-		tmp->co = TI_cols, tmp->li = TI_lines;
-#endif
 	if (term_resize())
 		recalculate_windows(current_window->screen);
 	else
 		redraw_all_windows();
+
 	if (need_redraw)
 		need_redraw = 0;
+
 	update_all_windows();
 	update_input(UPDATE_ALL);
 }
@@ -168,11 +163,11 @@ void put_echo (char *str)
  * put_it: the irc display routine.  Use this routine to display anything to
  * the main irc window.  It handles sending text to the display or stdout as
  * needed, add stuff to the lastlog and log file, etc.  Things NOT to do:
- * Dont send any text that contains \n, very unpredictable.  Tabs will also
+ * Don't send any text that contains \n, very unpredictable.  Tabs will also
  * screw things up.  The calling routing is responsible for not overwriting
  * the 1K buffer allocated.  
  *
- * For Ultrix machines, you can't call put_it() with floating point arguements.
+ * For Ultrix machines, you can't call put_it() with floating point arguments.
  * It just doesn't work.  - phone, jan 1993.
  */
 void BX_put_it(const char *format, ...)
@@ -194,22 +189,21 @@ void BX_put_it(const char *format, ...)
  */
 void say (const char *format, ...)
 {
-int len = 0;
 	if (window_display && format)
 	{
+		size_t len;
 		va_list args;
+
+		snprintf(putbuf, LARGE_BIG_BUFFER_SIZE, "%s ", thing_ansi ? thing_ansi : three_stars);
+		len = strlen(putbuf);
+
 		va_start (args, format);
-		if (thing_ansi)
-			len = strlen(thing_ansi);
-		else
-			len = 3;
-		vsnprintf(&(putbuf[len+1]), LARGE_BIG_BUFFER_SIZE, format, args);
+		vsnprintf(putbuf + len, LARGE_BIG_BUFFER_SIZE - len, format, args);
 		va_end(args);
-		strcpy(putbuf, thing_ansi?thing_ansi:three_stars);
-		putbuf[len] = ' ';
+
 		if (strip_ansi_in_echo) 
 		{
-			register char *ptr;
+			char *ptr;
 			for (ptr = putbuf + len; *ptr; ptr++)
 				if (*ptr < 31 && *ptr > 13)
 					if (*ptr != 15 && *ptr != 22)
@@ -257,74 +251,70 @@ void	BX_yell(const char *format, ...)
 }
 
 
-void	log_put_it (const char *topic, const char *format, ...)
+void	log_put_it (const char *format, ...)
 {
-	if (format)
+	if (window_display && format)
 	{
 		va_list args;
 		va_start (args, format);
 		vsnprintf(putbuf, LARGE_BIG_BUFFER_SIZE, format, args);
 		va_end(args);
 
-		in_help = 1;
 		set_display_target(NULL, LOG_CURRENT);
-		if (window_display)
-			put_echo(putbuf);
+		put_echo(putbuf);
 		reset_display_target();
-		in_help = 0;
 	}
 }
 
-char *ov_server(int server)
+static char *ov_format(const char *server_name)
 {
 	char *c;
 	char *d;
 	static char tmpstr[61];
-	char *string = get_server_itsname(server);
-	    
-	if (!string || !*string)
-		string = get_server_name(server);
-	if (!string || !*string)
-		return  empty_string;
-	strmcpy(tmpstr, string, 60);
+
+	strlcpy(tmpstr, server_name, sizeof tmpstr);
 	if (!(c = strrchr(tmpstr,'.')))
-		return(string);
+		return tmpstr;
 	*c = 0;
 	if (!(d = strrchr(tmpstr, '.'))) 
-		d = ++c; /* Extract domain */
+		d = c; /* Extract domain */
 	d++;
-	return(d);
+	return d;
 }
 
-void serversay(int save, int from_server, const char *format, ...)
+char *ov_server(int server)
 {
-	Window	*old_target_window = target_window;
-	char 	servername[200];
-	int	len = 0;	
-	char	*out = NULL;
+	return ov_format(get_server_itsname(server));
+}
+
+void serversay(const char *from, const char *format, ...)
+{
+	Window *old_target_window = target_window;
+
 	if (get_int_var(OV_VAR))
 		target_window = get_window_by_name("OPER_VIEW");
-        if (window_display && format)
-        {
+
+	if (window_display && format)
+	{
+		char *out;
 		va_list args;
-		va_start (args, format);
+
+		va_start(args, format);
 		vsnprintf(putbuf, LARGE_BIG_BUFFER_SIZE, format, args);
 		va_end(args);
-		strmcpy(servername, convert_output_format(get_string_var(SERVER_PROMPT_VAR), "%s", ov_server(from_server)?ov_server(from_server):empty_string), 79);
-		len = strlen(putbuf);
-		out = alloca(strlen(servername)+len+5);
-		len = strlen(servername);
-		strcpy(out, servername); out[len] = ' '; out[len+1] = 0;
-		strcat(out, putbuf);
-		if (*out)
-			put_echo(out);
-	}
-	target_window = old_target_window;
-	if (save && out)
+
+		out = m_sprintf("%s %s", 
+			convert_output_format(get_string_var(SERVER_PROMPT_VAR), "%s", ov_format(from)),
+			putbuf);
+		put_echo(out);
 		add_last_type(&last_servermsg[0], MAX_LAST_MSG, NULL, NULL, NULL, out);
+		new_free(&out);
+	}
+
+	target_window = old_target_window;
 }
 /*
- * Error is exactly like yell, except that if the error occured while
+ * Error is exactly like yell, except that if the error occurred while
  * you were loading a script, it tells you where it happened.
  */
 void 	error (const char *format, ...)

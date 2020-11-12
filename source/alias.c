@@ -10,13 +10,12 @@
 
 #define _cs_alist_hash_
 #include "irc.h"
-static char cvsrevision[] = "$Id: alias.c 26 2008-04-30 13:57:56Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(alias_c)
 #include "struct.h"
 #include "alias.h"
 #include "alist.h"
 #include "array.h"
-#include "dcc.h"
 #include "commands.h"
 #include "files.h"
 #include "history.h"
@@ -25,7 +24,6 @@ CVS_REVISION(alias_c)
 #include "ircaux.h"
 #include "names.h"
 #include "notify.h"
-#include "numbers.h"
 #include "output.h"
 #include "parse.h"
 #include "screen.h"
@@ -33,11 +31,9 @@ CVS_REVISION(alias_c)
 #include "status.h"
 #include "vars.h"
 #include "window.h"
-#include "ircterm.h"
 #include "server.h"
 #include "list.h"
 #include "keys.h"
-#include "userlist.h"
 #include "misc.h"
 #include "newio.h"
 #include "stack.h"
@@ -387,7 +383,7 @@ BUILT_IN_COMMAND(assigncmd)
 	 * If there is no body, then the user probably wants to delete
 	 * the variable
 	 */
-	if (!args || !*args)
+	if (!*args)
 	{
 		/*
 	 	 * If the variable name starts with a hyphen, then we remove
@@ -469,7 +465,7 @@ BUILT_IN_COMMAND(stubcmd)
 	 * The rest of the argument(s) are the files to load when the
 	 * item is referenced.  This is not optional.
 	 */
-	if (!args || !*args)
+	if (!*args)
 	{
 		error("Missing file name");
 		return;
@@ -477,7 +473,7 @@ BUILT_IN_COMMAND(stubcmd)
 
 	/*
 	 * Now we iterate over the item names we were given.  For each
-	 * item name, seperated from the next by a comma, stub that item
+	 * item name, separated from the next by a comma, stub that item
 	 * to the given filename(s) specified as the arguments.
 	 */
 	while (name && *name)
@@ -654,7 +650,7 @@ BUILT_IN_COMMAND(dumpcmd)
  * QUAL   := NUM "words"
  *
  * In English:
- *   An argument list is a comma seperated list of variable descriptors (TERM)
+ *   An argument list is a comma separated list of variable descriptors (TERM)
  *   enclosed in a parenthesis set.  Each variable descriptor may contain any
  *   valid alias name followed by an action qualifier, or may be the "..."
  *   literal string, or may be the "void" literal string.  If a variable
@@ -667,7 +663,7 @@ BUILT_IN_COMMAND(dumpcmd)
  *   string "void", then the balance of the remaining alias arguments are 
  *   discarded and $* will expand to the false value.  If neither "..." nor
  *   "void" are provided in the argument list, then that last variable in the
- *   list will recieve all of the remaining arguments left at its position.
+ *   list will receive all of the remaining arguments left at its position.
  * 
  * Examples:
  *
@@ -984,8 +980,8 @@ void	add_local_alias	(char *name, char *stuff)
 	}
 	/*
 	 * Now we see if this local variable exists anywhere
-	 * within our view.  If it is, we dont care where.
-	 * If it doesnt, then we add it to the current frame,
+	 * within our view.  If it is, we don't care where.
+	 * If it doesn't, then we add it to the current frame,
 	 * where it will be reaped later.
 	 */
 	if (!(tmp = find_local_alias (name, &list)))
@@ -1273,7 +1269,7 @@ static void unstub_alias (Alias *item)
 	 * we are un-stubbing this alias
 	 * because we are loading a file
 	 * that presumably it must be in.
-	 * So we dont load it again (duh).
+	 * So we don't load it again (duh).
 	 */
 	if (already_looking)
 		return;
@@ -1314,7 +1310,7 @@ static Alias *	find_local_alias (char *name, AliasSet **list)
 	 * Search our current local variable stack, and wind our way
 	 * backwards until we find a NAMED stack -- that is the enclosing
 	 * alias or ON call.  If we find a variable in one of those enclosing
-	 * stacks, then we use it.  If we dont, we progress.
+	 * stacks, then we use it.  If we don't, we progress.
 	 *
 	 * This needs to be optimized for the degenerate case, when there
 	 * is no local variable available...  It will be true 99.999% of
@@ -1660,7 +1656,7 @@ static  char	*get_variable_with_args (const char *str, const char *args, int *ar
 		copy = 1, ret = getenv(str);
 
 	if (x_debug & DEBUG_UNKNOWN && ret == NULL)
-		debugyell("Variable lookup to non-existant assign [%s]", name);
+		debugyell("Variable lookup to non-existent assign [%s]", name);
 	if ((internal_debug & DEBUG_VARIABLE) && alias_debug && !in_debug_yell)
 		debugyell("%3d \t@%s == %s", debug_count++, str, ret ? ret : empty_string); 
 	new_free(&freep);
@@ -1784,11 +1780,9 @@ char **	glob_assign_alias (char *name, int *howmany)
 char **	pmatch_cmd_alias (char *name, int *howmany)
 {
 	int	cnt;
-	int 	len;
 	char 	**matches = NULL;
 	int 	matches_size = 5;
 
-	len = strlen(name);
 	*howmany = 0;
 	RESIZE(matches, char *, matches_size);
 
@@ -1820,11 +1814,9 @@ char **	pmatch_cmd_alias (char *name, int *howmany)
 char **	pmatch_assign_alias (char *name, int *howmany)
 {
 	int    	cnt;
-	int     len;
 	char    **matches = NULL;
 	int     matches_size = 5;
 
-	len = strlen(name);
 	*howmany = 0;
 	RESIZE(matches, char *, matches_size);
 
@@ -1923,7 +1915,7 @@ char *	parse_line_alias_special (char *name, char *what, char *args, int d1, int
 	window_display = old_window_display;
 
 	will_catch_return_exceptions++;
-	parse_line(NULL, what, args, d1, d2, 1);
+	parse_line(NULL, what, args, d1, d2, 0);
 	will_catch_return_exceptions--;
 	return_exception = 0;
 
@@ -1947,7 +1939,7 @@ char *	parse_line_with_return (char *name, char *what, char *args, int d1, int d
 /*
  * call_user_function: Executes a user alias (by way of parse_command.
  * The actual function ends up being routed through execute_alias (below)
- * and we just keep track of the retval and stuff.  I dont know that anyone
+ * and we just keep track of the retval and stuff.  I don't know that anyone
  * depends on command completion with functions, so we can save a lot of
  * CPU time by just calling execute_alias() directly.
  */
@@ -1962,7 +1954,7 @@ char 	*call_user_function	(char *alias_name, char *args)
 	if (cnt < 0)
 		result = parse_line_alias_special(alias_name, sub_buffer, args, 0, 1, arglist, 1);
 	else if (x_debug & DEBUG_UNKNOWN)
-		debugyell("Function call to non-existant alias [%s]", alias_name);
+		debugyell("Function call to non-existent alias [%s]", alias_name);
 
 	if (!result)
 		result = m_strdup(empty_string);
@@ -2193,11 +2185,11 @@ void 	panic_dump_call_stack 	(void)
 
 
 /*
- * You may NOT call this unless youre about to exit.
- * If you do (call this when youre not about to exit), and you do it
- * very often, max_wind will get absurdly large.  So dont do it.
+ * You may NOT call this unless you're about to exit.
+ * If you do (call this when you're not about to exit), and you do it
+ * very often, max_wind will get absurdly large.  So don't do it.
  *
- * XXXX - this doesnt clean up everything -- but do i care?
+ * XXXX - this doesn't clean up everything -- but do I care?
  */
 void 	destroy_call_stack 	(void)
 {
@@ -2234,13 +2226,35 @@ char *lookup_member(char *varname, char *var_args, char *ptr, char *args)
 
 /****************************** ALIASCTL ************************************/
 #define EMPTY empty_string
-#define RETURN_EMPTY return m_strdup(EMPTY)
+#define EMPTY_STRING m_strdup(EMPTY)
+#define RETURN_EMPTY return EMPTY_STRING 
 #define RETURN_IF_EMPTY(x) if (empty( x )) RETURN_EMPTY
 #define GET_INT_ARG(x, y) {RETURN_IF_EMPTY(y); x = my_atol(safe_new_next_arg(y, &y));}
 #define GET_FLOAT_ARG(x, y) {RETURN_IF_EMPTY(y); x = atof(safe_new_next_arg(y, &y));}
 #define GET_STR_ARG(x, y) {RETURN_IF_EMPTY(y); x = new_next_arg(y, &y);RETURN_IF_EMPTY(x);}
 #define RETURN_STR(x) return m_strdup(x ? x : EMPTY)
+#define RETURN_MSTR(x) return ((x) ? (x) : EMPTY_STRING)
 #define RETURN_INT(x) return m_strdup(ltoa(x));
+
+/* glob_commands()
+ * Returns a space-separated list of commands beginning with 'prefix'.
+ */
+static char *glob_commands(const char *prefix, int *cnt)
+{
+	const IrcCommand *var;
+	char *mylist = NULL;
+	const size_t prefix_len = strlen(prefix);
+
+	*cnt = 0;
+	/* let's do a command completion here */
+	for (var = find_command(prefix, cnt);
+		var && var->name && !strncmp(prefix, var->name, prefix_len);
+		var++)
+	{
+		m_s3cat(&mylist, space, var->name);
+	}
+	RETURN_MSTR(mylist);
+}
 
 /* Used by function_aliasctl */
 /* MUST BE FIXED */
@@ -2328,7 +2342,7 @@ BUILT_IN_FUNCTION(aliasctl)
 			else if (list == VAR_ALIAS)
 				mlist = glob_assign_alias(listc, &num);
 			else if (list == -1)
-				return glob_commands(listc, &num, 0);
+				return glob_commands(listc, &num);
 
 			for (ctr = 0; ctr < num; ctr++)
 			{
@@ -2352,7 +2366,7 @@ BUILT_IN_FUNCTION(aliasctl)
 			else if (list == VAR_ALIAS)
 				mlist = pmatch_assign_alias(listc, &num);
 			else if (list == -1)
-				return glob_commands(listc, &num, 1);
+				return glob_commands(listc, &num);
 
 			for (ctr = 0; ctr < num; ctr++)
 			{
@@ -2389,19 +2403,16 @@ void	do_stack_alias (int type, char *args, int which)
 	AliasStack	*aptr, **aptrptr;
 	Alias		*alptr;
 	int		cnt;
-	int 		my_which = 0;
 	
 	if (which == STACK_DO_ALIAS)
 	{
 		name = "ALIAS";
 		aptrptr = &alias_stack;
-		my_which = COMMAND_ALIAS;
 	}
 	else
 	{
 		name = "ASSIGN";
 		aptrptr = &assign_stack;
-		my_which = VAR_ALIAS;
 	}
 
 	if (!*aptrptr && (type == STACK_POP || type == STACK_LIST))

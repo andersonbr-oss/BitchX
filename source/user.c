@@ -1,6 +1,6 @@
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: user.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(user_c)
 #include "struct.h"
 
@@ -23,7 +23,7 @@ HashEntry UserListByChannel_Table[USERCHAN_HASHSIZE];
 
 UserList *user_list = NULL;
 
-static long hash_name(char *str, unsigned int size)
+static long hash_name(const char *str, unsigned int size)
 {
 	const unsigned char *p = (const unsigned char *)str;
 	unsigned long g, hash = 0;
@@ -83,8 +83,7 @@ long hvalue;
 	if (!strchr(uptr->channels, '*'))
 	{
 		char *channel, *ptr;
-		channel = alloca(strlen(uptr->channels)+1);
-		strcpy(channel, uptr->channels);
+		channel = LOCAL_COPY(uptr->channels);
 		while ((ptr = next_in_comma_list(channel, &channel)))
 		{
 			if (!*ptr)
@@ -360,26 +359,26 @@ UserHist *next_userlist(UserList *uptr, int *size)
 }
 #endif
 
-static inline int check_best_passwd(char *passwd, char *test)
+static inline int check_best_passwd(const char *passwd, const char *test)
 {
 	if (passwd && test)
-		return !checkpass(test, passwd) ? 1 : 0;
+		return !checkpass(test, passwd);
 /*		return !strcmp(passwd, test) ? 1 : 0;*/
 	return 0;
 }
 
-UserList *find_bestmatch(char *nick, char *userhost, char *channel, char *passwd)
+UserList *find_bestmatch(const char *nick, const char *userhost, const char *channel, const char *passwd)
 {
-UserList *best = NULL;
-UserList *best_passwd = NULL;
-register UserList *tmp;
-long hvalue = 0;
-int	best_user_match = 0,
-	best_chan_match = 0;
-int	chan_match,
-	user_match,
-	passwd_match = 0;
-char	*check;
+	UserList *best = NULL;
+	UserList *best_passwd = NULL;
+	UserList *tmp;
+	long hvalue = 0;
+	int	best_user_match = 0,
+		best_chan_match = 0;
+	int	chan_match,
+		user_match,
+		passwd_match = 0;
+	const char *check;
 
 	/*check = clear_server_flags(userhost);*/
 	check = userhost;

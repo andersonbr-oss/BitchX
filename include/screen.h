@@ -7,11 +7,10 @@
  *
  * see the copyright file, or type help ircii copyright
  *
- * @(#)$Id: screen.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __screen_h_
-#define __screen_h_
+#ifndef SCREEN_H_
+#define SCREEN_H_
 
 #include "window.h"
 
@@ -29,7 +28,7 @@
 #define curr_scr_win	current_screen->current_window
 
 	void	clear_window (Window *);
-	int	BX_output_line (const unsigned char *);
+	int	BX_output_line (const char *);
 	Window	*BX_create_additional_screen (void);
 	void	BX_scroll_window (Window *);
 	void	update_all_windows (void);
@@ -41,18 +40,16 @@
 	void	window_redirect (char *, int);
 	void	redraw_resized (Window *, ShrinkInfo, int);
 	void	close_all_screen (void);
-RETSIGTYPE	sig_refresh_screen (int);
 	int	check_screen_redirect (char *);
 	void	BX_kill_screen (Screen *);
-	int	rite (Window *, const unsigned char *);
 	ShrinkInfo	resize_display (Window *);
 	void	redraw_window (Window *, int);
 	void	redraw_all_windows (void);
-	void	BX_add_to_screen (unsigned char *);
+	void	BX_add_to_screen (char *);
 	void	do_screens (fd_set *);
-	unsigned	char	**BX_split_up_line(const unsigned char *, int);
+	char	**BX_split_up_line(const char *, int);
 	void	BX_xterm_settitle(void);
-	void	BX_add_to_window(Window *, const unsigned char *);
+	void	BX_add_to_window(Window *, const char *);
 	
 Screen  * BX_create_new_screen(void);
 
@@ -60,13 +57,12 @@ Screen  * BX_create_new_screen(void);
 	void	refresh_window_screen(Window *);
 #endif
 			
-	u_char *BX_strip_ansi		(const u_char *);
-	char   *normalize_color		(int, int, int, int);
-const	u_char *BX_skip_ctl_c_seq		(const u_char *, int *, int *, int);
-	u_char **BX_prepare_display	(const u_char *, int, int *, int);
-	int	BX_output_with_count	(const unsigned char *, int, int);
-unsigned char	*BX_skip_incoming_mirc	(unsigned char *);
-void delchar(unsigned char **text, int cnum);
+char *BX_strip_ansi(const char *);
+char *normalize_color(int, int, int, int);
+char *BX_skip_ctl_c_seq(const char *, int *, int *, int);
+char **BX_prepare_display(const char *, int, int *, int);
+int	BX_output_with_count(const char *, int, int);
+char *BX_skip_incoming_mirc(char *);
 
 /* Dont do any word-wrapping, just truncate each line at its place. */
 #define PREPARE_NOWRAP	0x01
@@ -79,4 +75,4 @@ extern  Window	*debugging_window;
 
 extern	int	strip_ansi_never_xlate;
 
-#endif /* __screen_h_ */
+#endif /* SCREEN_H_ */

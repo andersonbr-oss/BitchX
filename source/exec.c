@@ -9,11 +9,10 @@
 #define _GNU_SOURCE /* Needed for strsignal from string.h on GLIBC systems */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: exec.c 156 2012-02-17 12:30:55Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(exec_c)
 #include "struct.h"
 
-#include "dcc.h"
 #include "exec.h"
 #include "vars.h"
 #include "ircaux.h"
@@ -79,7 +78,7 @@ static 	void 	cleanup_dead_processes 	(void);
 static 	void 	ignore_process 		(int index);
  	void 	kill_process 		(int, int);
 static 	void 	kill_all_processes 	(int signo);
-static 	int 	valid_process_index 	(int proccess);
+static 	int 	valid_process_index 	(int process);
 static 	int 	is_logical_unique 	(char *logical);
 	int 	logical_to_index 	(const char *logical);
 extern  int	dead_children_processes;
@@ -214,7 +213,7 @@ BUILT_IN_COMMAND(execcmd)
 
 		/*
 		 * /EXEC -NAME gives the /exec a logical name that can be
-		 * refered to as %name 
+		 * referred to as %name
 		 */
 		else if (my_strnicmp(flag, "NAME", len) == 0)
 		{
@@ -234,6 +233,24 @@ BUILT_IN_COMMAND(execcmd)
 		{
 			refnum_flag = 1;
 			refnum = current_refnum();
+		}
+
+		/*
+		 * /EXEC -WINTARGET sends all output for an /exec to
+		 * a given target window
+		 */
+		else if (my_strnicmp(flag, "WINTARGET", len) == 0)
+		{
+			const char *desc = next_arg(args, &args);
+			Window *w;
+
+			if (!desc || !(w = get_window_by_desc(desc)))
+			{
+				say("Target window not found");
+				return;
+			}
+			refnum_flag = 1;
+			refnum = w->refnum;
 		}
 
 		/*
@@ -570,8 +587,8 @@ BUILT_IN_COMMAND(execcmd)
 #if !defined(WINNT) && !defined(__EMX__)
 			setsid();
 #endif			
-			setuid(getuid());
 			setgid(getgid());
+			setuid(getuid());
 			my_signal(SIGINT, SIG_IGN, 0);
 			my_signal(SIGQUIT, SIG_DFL, 0);
 			my_signal(SIGSEGV, SIG_DFL, 0);
@@ -681,7 +698,7 @@ BUILT_IN_COMMAND(execcmd)
 				new_close(p2[1]);
 
 				/*
-				 * Init the proc list if neccesary
+				 * Init the proc list if necessary
 				 */
 				if (!process_list)
 				{
@@ -861,7 +878,7 @@ static void 	handle_filedesc (Process *proc, int *fd, int hook_nonl, int hook_nl
 
 			if (proc->redirect) 
 				redirect_text(proc->server, proc->who, 
-					exec_buffer, proc->redirect, 1, 0);
+					exec_buffer, !strcmp(proc->redirect, "NOTICE") ? STXT_NOTICE : 0);
 
 			if (hook_nl == EXEC_LIST && proc->stdoutc)
 				parse_line("EXEC", proc->stdoutc, exec_buffer, 0, 0, 1);
@@ -893,13 +910,13 @@ static void 	handle_filedesc (Process *proc, int *fd, int hook_nonl, int hook_nl
  * has exited, or the client has attempted to fork() off a helper process
  * (such as wserv or gzip) and that process has choked on itself.  
  *
- * When SIGCHLD is recieved, the global variable 'dead_children_processes'
+ * When SIGCHLD is received, the global variable 'dead_children_processes'
  * is incremented.  When this function is called, we go through and call
  * waitpid() on all of the outstanding zombies, conditionally stopping when
  * we reach a specific wanted sub-process.
  *
  * If you want to stop reaping children when a specific subprocess is 
- * reached, specify the process in 'wanted'.  If all youre doing is cleaning
+ * reached, specify the process in 'wanted'.  If all you're doing is cleaning
  * up after zombies and /exec's, then 'wanted' should be -1.
  */
 
@@ -985,7 +1002,7 @@ int get_child_exit (pid_t wanted)
 
 /*
  * clean_up_processes: In effect, we want to tell all of our sub processes
- * that we're going away.  We cant be 100% sure that theyre all dead by
+ * that we're going away.  We can't be 100% sure that they're all dead by
  * the time this function returns, but we can be 100% sure that they will
  * be killed off next time they come up to run.  This is the only thing that
  * can be guaranteed, and is in fact all we really need to know.
@@ -1077,14 +1094,14 @@ void 		add_process_wait (int proc_index, const char *cmd)
  * the client.  Either stage may happen first, but until both are completed
  * we keep the process around.
  *
- *	1) We must recieve an EOF on both stdin and stderr, or we must
+ *	1) We must receive an EOF on both stdin and stderr, or we must
  *	   have closed stdin and stderr already (handled by do_processes)
  *	2) The process must have died (handled by get_child_exit)
  *
- * The reason why both must happen is becuase the process can die (and
+ * The reason why both must happen is because the process can die (and
  * we would get an async signal) before we read all of its output on the
  * pipe, and if we simply deleted the process when it dies, we could lose
- * some of its output.  The reason why we cant delete a process that has
+ * some of its output.  The reason why we can't delete a process that has
  * asserted EOF on its output is because it could still be running (duh! ;-)
  * So we wait for both to happen.
  */
@@ -1309,7 +1326,7 @@ void 	kill_process (int kill_index, int sig)
  * condition (such as a swap in).  You do not know when the process will
  * actually die.  It could be 15 ns, it could be 15 minutes, it could be
  * 15 years.  Its also useful to note that we, as the parent process, will not
- * recieve the SIGCHLD signal until after the child dies.  That means it is
+ * receive the SIGCHLD signal until after the child dies.  That means it is
  * pointless to try to reap any children processes here.  The main io()
  * loop handles reaping children (by calling get_child_exit()).
  */
@@ -1372,7 +1389,7 @@ static int 	is_logical_unique (char *logical)
 
 
 /*
- * logical_to_index: converts a logical process name to it's approriate index
+ * logical_to_index: converts a logical process name to its approriate index
  * in the process list, or -1 if not found 
  */
 int 	logical_to_index (const char *logical)

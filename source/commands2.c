@@ -6,40 +6,30 @@
  */
  
 #include "irc.h"
-static char cvsrevision[] = "$Id: commands2.c 163 2012-04-30 08:05:04Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(commands2_c)
 #include "struct.h"
 #include <sys/stat.h>
-
-#if defined(_ALL_SOURCE) || defined(__EMX__) || defined(__QNX__) || defined(__FreeBSD__)
-#include <termios.h>
-#else
-#include <sys/termios.h>
-#endif
 #include <sys/ioctl.h>
-
 
 #ifdef HAVE_UNAME
 #include <sys/utsname.h>
 #endif
 
-#include <unistd.h>
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif
 
 #include <sys/wait.h>
-#include <sys/ioctl.h>
+
 #ifdef HAVE_SYS_FILIO_H
 #include <sys/filio.h>
 #endif
-
 
 #include "parse.h"
 #include "server.h"
 #include "chelp.h"
 #include "commands.h"
-#include "encrypt.h"
 #include "vars.h"
 #include "ircaux.h"
 #include "lastlog.h"
@@ -58,11 +48,9 @@ CVS_REVISION(commands2_c)
 #include "history.h"
 #include "funny.h"
 #include "ctcp.h"
-#include "dcc.h"
 #include "output.h"
 #include "exec.h"
 #include "notify.h"
-#include "numbers.h"
 #include "status.h"
 #include "if.h"
 #include "help.h"
@@ -146,14 +134,14 @@ int to_chan = 0;
 #ifdef ONLY_STD_CHARS
 						put_it("%s", convert_output_format("%B------------------------------------------------------------------------------", NULL, NULL));
 #else
-						put_it("%s", convert_output_format("%BÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ", NULL, NULL));
+						put_it("%s", convert_output_format("%B──────────────────────────────────────────────────────────────────────────────", NULL, NULL));
 #endif
 						once++;
 					}
 					put_it("%s", convert_output_format("$[10]0 %C$1 $2%w  %B$[16]3  %R$[6]4  %M$[4]5 $[4]6 $[4]7 $[4]8$[-4]9  $[-4]10 $[-6]11",
 						"%s %c %c %s %u %u %u %u %u %u %u %u",
 						to_chan ? tmp->channel: user->nick, 
-						nick_isop(user)? "@":"ÿ",nick_isvoice(user)?"v":"ÿ",
+						nick_isop(user)? '@':' ',nick_isvoice(user)?'v':' ',
 #ifdef WANT_USERLIST
 						user->userlist?convert_flags(user->userlist->flags):"none", 
 						user->shitlist?user->shitlist->level: 0,
@@ -302,26 +290,22 @@ char *s;
 
 int check_mode_lock(char *channel, char *mode_list, int server)
 {
-ChannelList *chan;
-char buffer[BIG_BUFFER_SIZE+1];
+	ChannelList *chan = lookup_channel(channel, server, CHAN_NOUNLINK);
 	
-	if ((chan = lookup_channel(channel, server, 0)) && chan->modelock_key)
+	if (chan && chan->modelock_key && (chan->have_op || chan->hop))
 	{
-		char *newmode;
-		char *modelock = NULL;
-		char *new_mode_list = NULL;
-		char *save, *save1;
+		char buffer[BIG_BUFFER_SIZE];
+		char *modelock, *new_mode_list, *newmode, *save, *save1;
 		char *args = NULL, *args1 = NULL;
 		int add = 0;
-		memset(buffer, 0, sizeof(buffer));
-		
-		
-		malloc_strcpy(&modelock, chan->modelock_key);
-		malloc_strcpy(&new_mode_list, mode_list);
-		save1 = new_mode_list;
+
+		*buffer = 0;
+		modelock = m_strdup(chan->modelock_key);
+		new_mode_list = m_strdup(mode_list);
 		save = modelock;
-		new_mode_list = next_arg(new_mode_list, &args1);
+		save1 = new_mode_list;
 		modelock = next_arg(modelock, &args);		
+		new_mode_list = next_arg(new_mode_list, &args1);
 
 		while (*modelock)
 		{
@@ -343,25 +327,25 @@ char buffer[BIG_BUFFER_SIZE+1];
 							key = next_arg(args1, &args1);
 							if (chan->key)
 							{
-								strcat(buffer, "-k " );
-								strcat(buffer, chan->key);
+								strlcat(buffer, "-k ", sizeof buffer);
+								strlcat(buffer, chan->key, sizeof buffer);
 							}
 							key = next_arg(args, &args);
 							if (key)
 							{
-								strcat(buffer, " +k ");
-								strcat(buffer, key);
-								strcat(buffer, space);
+								strlcat(buffer, " +k ", sizeof buffer);
+								strlcat(buffer, key, sizeof buffer);
+								strlcat(buffer, space, sizeof buffer);
 							}
 						}
 						else
 						{
 							if (!chan->key)
 								break;
-							strcat(buffer, "-k ");
-							strcat(buffer, chan->key);
+							strlcat(buffer, "-k ", sizeof buffer);
+							strlcat(buffer, chan->key, sizeof buffer);
 						}
-						strcat(buffer, space);
+						strlcat(buffer, space, sizeof buffer);
 					}
 					break;
 				case 'l':
@@ -374,15 +358,15 @@ char buffer[BIG_BUFFER_SIZE+1];
 								limit = strtoul(args, &args, 10);
 							if (limit > 0)
 							{
-								strcat(buffer, "+l ");
-								strcat(buffer, ltoa(limit));
-								strcat(buffer, space);
+								strlcat(buffer, "+l ", sizeof buffer);
+								strlcat(buffer, ltoa(limit), sizeof buffer);
+								strlcat(buffer, space, sizeof buffer);
 							}
 						}
 						else
 						{
 							chan->limit = 0;
-							strcat(buffer, "-l");
+							strlcat(buffer, "-l", sizeof buffer);
 						}
 					}
 					break;
@@ -391,21 +375,21 @@ char buffer[BIG_BUFFER_SIZE+1];
 					{
 						if (add)
 						{
-							strcat(buffer, "+");
+							strlcat(buffer, "+", sizeof buffer);
 						}
 						else
 						{
-							strcat(buffer, "-");
+							strlcat(buffer, "-", sizeof buffer);
 						}
 						buffer[strlen(buffer)] = *modelock;
-						strcat(buffer, space);
+						strlcat(buffer, space, sizeof buffer);
 					}
 					break;
 			}
 			modelock++;
 		}
-		if (chan && chan->have_op && buffer)
-			send_to_server("MODE %s %s", chan->channel, buffer);
+		if (*buffer)
+			my_send_to_server(server, "MODE %s %s", chan->channel, buffer);
 		new_free(&save);
 		new_free(&save1);
 		return 1;
@@ -658,8 +642,8 @@ BUILT_IN_COMMAND(sping)
 		while ((sname = next_arg(args, &args)))
 		{
 			if (*sname == '.')
-				if (!(sname = get_server_itsname(from_server)))
-					sname = get_server_name(from_server);
+				sname = get_server_itsname(from_server);
+
 			if (!wild_match("*.*", sname))
 			{
 				bitchsay("%s is not a server", sname);
@@ -667,56 +651,13 @@ BUILT_IN_COMMAND(sping)
 			}
 			tmp = new_malloc(sizeof(Sping));
 			tmp->sname = m_strdup(sname);
-#ifdef HAVE_GETTIMEOFDAY
-			gettimeofday(&tmp->in_sping, NULL);
+			get_time(&tmp->in_sping);
 			set_server_sping(from_server, tmp);
-#else
-			tmp->in_sping = now;
-			set_server_sping(from_server, tmp);
-#endif
-			if (!my_stricmp(sname, get_server_name(from_server)) || !my_stricmp(sname, get_server_itsname(from_server)))
-#ifdef HAVE_GETTIMEOFDAY
-				send_to_server("PING LAG%ld.%ld :%s", tmp->in_sping.tv_sec, tmp->in_sping.tv_usec, sname);
-#else
-				send_to_server("PING LAG%ld :%s", now, sname);
-#endif
-			else
-				send_to_server("PING %s :%s", 
-					get_server_itsname(from_server) ? 
-					get_server_itsname(from_server) : 
-					get_server_name(from_server), sname);
-		}
-		
-	}
-#if 0
-#ifdef HAVE_GETTIMEOFDAY
-	struct timeval in_sping = {0};
-#endif
-	if (!servern || !*servern)
-		if (!(servern = get_server_itsname(from_server)))
-			servern = get_server_name(from_server);
-	
-	if (servern && *servern && wild_match("*.*", servern))
-	{
-#ifdef HAVE_GETTIMEOFDAY
-			gettimeofday(&in_sping, NULL);
-			send_to_server("PING LAG%ld.%ld :%s", in_sping.tv_sec, in_sping.tv_usec, servern);
-#else
-			send_to_server("PING LAG%ld :%s", now, servern);
-#endif
-		}
-		else
-		{
-#ifdef HAVE_GETTIMEOFDAY
-			gettimeofday(&in_sping, NULL);
-			set_server_sping(from_server, in_sping);
-#else
-			set_server_sping(from_server, now);
-#endif
-			send_to_server("PING %s :%s", get_server_itsname(from_server), servern);
+
+			send_to_server("PING %s :%s", 
+				sname, sname);
 		}
 	}
-#endif
 }
 
 BUILT_IN_COMMAND(tog_fprot)
@@ -771,11 +712,11 @@ put_it("%s", convert_output_format("%G|   %Cdisp%clay_ansi  %K[%W$[-3]0%K]    %W
 
 #else
 
-put_it("%s", convert_output_format("%GÚÄÄÄÄÄ---%gÄ%G-%K[ %WBitchX %wToggles %K]-%gÄÄ%G-%gÄÄÄÄÄÄ---%KÄ%g--%KÄÄ%g-%KÄÄÄÄÄÄÄÄÄ--- --  - --- -- -", NULL));
-put_it("%s", convert_output_format("%G³   %Cauto_ns%clookup %K[%W$[-3]0%K]    %Cctcp_f%clood_protection %K[%W$[-3]1%K]    %Cbeep%c        %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(AUTO_NSLOOKUP_VAR)), on_off(get_int_var(CTCP_FLOOD_PROTECTION_VAR)), on_off(get_int_var(BEEP_VAR))));
-put_it("%s", convert_output_format("%G³   %Cpub%cflood      %K[%W$[-3]0%K]    %Cflood_p%crotection      %K[%W$[-3]1%K]    %Ckickf%clood   %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(PUBFLOOD_VAR)), on_off(get_int_var(FLOOD_PROTECTION_VAR)), on_off(get_int_var(KICKFLOOD_VAR))));
-put_it("%s", convert_output_format("%g³   %Cdcc_a%cutoget   %K[%W$[-3]0%K]    %Cflood_k%cick            %K[%W$[-3]1%K]    %Cmsg%clog      %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(DCC_AUTOGET_VAR)), on_off(get_int_var(FLOOD_KICK_VAR)), on_off(get_int_var(MSGLOG_VAR))));
-put_it("%s", convert_output_format("%G³   %Cll%cook         %K[%W$[-3]0%K]    %Cdeop%cflood             %K[%W$[-3]1%K]    %Cjoin%cflood   %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(LLOOK_VAR)), on_off(get_int_var(DEOPFLOOD_VAR)), on_off(get_int_var(JOINFLOOD_VAR))));
+put_it("%s", convert_output_format("%G┌─────---%g─%G-%K[ %WBitchX %wToggles %K]-%g──%G-%g──────---%K─%g--%K──%g-%K─────────--- --  - --- -- -", NULL));
+put_it("%s", convert_output_format("%G│   %Cauto_ns%clookup %K[%W$[-3]0%K]    %Cctcp_f%clood_protection %K[%W$[-3]1%K]    %Cbeep%c        %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(AUTO_NSLOOKUP_VAR)), on_off(get_int_var(CTCP_FLOOD_PROTECTION_VAR)), on_off(get_int_var(BEEP_VAR))));
+put_it("%s", convert_output_format("%G│   %Cpub%cflood      %K[%W$[-3]0%K]    %Cflood_p%crotection      %K[%W$[-3]1%K]    %Ckickf%clood   %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(PUBFLOOD_VAR)), on_off(get_int_var(FLOOD_PROTECTION_VAR)), on_off(get_int_var(KICKFLOOD_VAR))));
+put_it("%s", convert_output_format("%g│   %Cdcc_a%cutoget   %K[%W$[-3]0%K]    %Cflood_k%cick            %K[%W$[-3]1%K]    %Cmsg%clog      %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(DCC_AUTOGET_VAR)), on_off(get_int_var(FLOOD_KICK_VAR)), on_off(get_int_var(MSGLOG_VAR))));
+put_it("%s", convert_output_format("%G│   %Cll%cook         %K[%W$[-3]0%K]    %Cdeop%cflood             %K[%W$[-3]1%K]    %Cjoin%cflood   %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(LLOOK_VAR)), on_off(get_int_var(DEOPFLOOD_VAR)), on_off(get_int_var(JOINFLOOD_VAR))));
 put_it("%s", convert_output_format("%g|   %Cauto_w%chowas   %K[%W$[-3]0%K]    %Cverb%cose_ctcp          %K[%W$[-3]1%K]    %Cnickfl%cood   %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(AUTO_WHOWAS_VAR)), on_off(get_int_var(CTCP_VERBOSE_VAR)), on_off(get_int_var(NICKFLOOD_VAR))));
 put_it("%s", convert_output_format("%G:   %Ccl%coak         %K[%W$[-3]0%K]    %Coper%cview              %K[%W$[-3]1%K]    %Cshit%clist    %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(CLOAK_VAR)), on_off(get_int_var(OV_VAR)), on_off(get_int_var(SHITLIST_VAR))));
 put_it("%s", convert_output_format("%G:   %Ckick_o%cps      %K[%W$[-3]0%K]    %Cannoy%c_kick            %K[%W$[-3]1%K]    %Cuser%clist    %K[%W$[-3]2%K]", "%s %s %s", on_off(get_int_var(KICK_OPS_VAR)), on_off(get_int_var(ANNOY_KICK_VAR)), on_off(get_int_var(USERLIST_VAR))));
@@ -828,7 +769,7 @@ else
 		} else if (!my_strnicmp(arg, "ctcp_flood_protection", 6))
 		{
 			var = CTCP_FLOOD_PROTECTION_VAR;
-			str = "$G %cToggled %GCtcp Flood Protection %K[%W$[-3]0%K]","%s";
+			str = "$G %cToggled %GCtcp Flood Protection %K[%W$[-3]0%K]";
 		} else if (!my_strnicmp(arg, "flood_protection",7))
 		{
 			var = FLOOD_PROTECTION_VAR;
@@ -863,7 +804,7 @@ else
 		} else if (!my_strnicmp(arg, "kickflood",5))
 		{
 			var = KICKFLOOD_VAR;
-			str = "$G %cToggled %GKick Flood %K[%W$[-3]0%K]","%s";
+			str = "$G %cToggled %GKick Flood %K[%W$[-3]0%K]";
 		} else if (!my_strnicmp(arg, "msglog", 3))
 		{
 			var = MSGLOG_VAR;
@@ -891,11 +832,11 @@ else
 		} else if (!my_strnicmp(arg, "auto_rejoin", 8))
 		{
 			var = AUTO_REJOIN_VAR;
-			str = "$G %cToggled %GAuto_Rejoin %K[%W$[-3]0%K]","%s";
+			str = "$G %cToggled %GAuto_Rejoin %K[%W$[-3]0%K]";
 		} else if (!my_strnicmp(arg, "nick_completion", 6))
 		{
 			var = NICK_COMPLETION_VAR;
-			str = "$G %cToggled %GNick Completion %K[%W$[-3]0%K]","%s";
+			str = "$G %cToggled %GNick Completion %K[%W$[-3]0%K]";
 		} else if (!my_strnicmp(arg, "aop", 3))
 		{
 			var = AOP_VAR;
@@ -972,23 +913,27 @@ else
 
 BUILT_IN_COMMAND(show_version)
 {
-char *nick;
-char *version_buf = NULL;
-extern char tcl_versionstr[];
+	char *nick;
+	char *version_buf;
+	const char *sysname = "unknown";
+	const char *release = "unknown";
+	extern char tcl_versionstr[];
 
 #ifdef HAVE_UNAME
-struct utsname buf;
-	
+	struct utsname buf;
+
 	uname(&buf);
-	malloc_strcpy(&version_buf, stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, buf.sysname, buf.release?buf.release:empty_string, tcl_versionstr)));
-#else
-	malloc_strcpy(&version_buf, stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, "unknown", tcl_versionstr, empty_string)));
+	sysname = buf.sysname;
+	release = buf.release;
 #endif
+
+	version_buf = m_strdup(stripansicodes(convert_output_format(fget_string_var(FORMAT_VERSION_FSET), "%s %s %s %s %s", irc_version, internal_version, sysname, release, tcl_versionstr)));
+
 	if (args && *args)
 		nick = next_arg(args, &args);
 	else
 		nick = get_current_channel_by_refnum(0);
-	send_text(nick, version_buf, "PRIVMSG", 1, 0);
+	send_text(nick, version_buf, STXT_LOG);
 	new_free(&version_buf);
 }
 
@@ -1032,14 +977,14 @@ char *reason = NULL;
 
 void who_user_killend(WhoEntry *w, char *unused, char **unused1)
 {
-char *pattern, *match, *who_buff, *reason;
-int server = -1;
+	char *pattern, *match, *who_buff, *who_reason;
+	int server = -1;
 
 	if (w->who_buff)
 	{
 		who_buff = LOCAL_COPY(w->who_buff);
-		reason = strchr(who_buff, ':');
-		*reason++ = 0;
+		who_reason = strchr(who_buff, ':');
+		*who_reason++ = 0;
 		server = atol(next_arg(who_buff, &who_buff));
 		pattern = next_arg(who_buff, &who_buff);
 		match = next_arg(who_buff, &who_buff);
@@ -1049,8 +994,7 @@ int server = -1;
 			char *buffer = NULL;
 			char *save_buffer = NULL;
 			int num = 0, count = 0;
-			m_buff = alloca(strlen(match)+1);
-			strcpy(m_buff, match);
+			m_buff = LOCAL_COPY(match);
 			bitchsay("Killing all matching %s.", pattern);
 			while ((nick = next_in_comma_list(m_buff, &m_buff)))
 			{
@@ -1064,6 +1008,9 @@ int server = -1;
 				m_s3cat(&buffer, ",", nick);
 				if (num >= get_int_var(NUM_KILLS_VAR))
 				{
+					const char *reason = who_reason;
+					if (!*reason)
+						reason = get_kill_reason(buffer, get_server_nickname(from_server));
 					bitchsay("Killing %s :%s[%d]", save_buffer, reason, count);
 					my_send_to_server(server, "KILL %s :%s(%d)", buffer, reason, count);
 					new_free(&buffer);
@@ -1072,6 +1019,9 @@ int server = -1;
 			}
 			if (buffer)
 			{
+				const char *reason = who_reason;
+				if (!*reason)
+					reason = get_kill_reason(buffer, get_server_nickname(from_server));
 				bitchsay("Killing %s %s[%d]", save_buffer, reason, count);
 				my_send_to_server(server, "KILL %s :%s(%d)", buffer, reason, count);
 			}
@@ -1090,19 +1040,19 @@ BUILT_IN_COMMAND(whokill)
 	char *reason = NULL;
 	char *nick_arg = NULL;
 
-        if (!args || !*args)
+	if (!args || !*args)
 		return;
 	if ((reason = strchr(args, ':')))
 		*reason++ = 0;	
 	else
-		reason = get_reason(empty_string, NULL);
+		reason = empty_string;
 		
 	while ((pattern = next_arg(args, &args))) 
 	{
 		malloc_sprintf(&nick_arg, "%s%s%s", *pattern != '*'?"*":empty_string, pattern, *(pattern+strlen(pattern)-1) != '*'?"*":empty_string);
 		if ((p = strchr(nick_arg, '@')))
 			p++;
-		whobase(p ? p : nick_arg, who_user_kill, who_user_killend, "%d %s :%s", from_server, nick_arg, (reason && *reason) ? reason : empty_string);
+		whobase(p ? p : nick_arg, who_user_kill, who_user_killend, "%d %s :%s", from_server, nick_arg, reason);
 		new_free(&nick_arg);
 	} 
 }
@@ -1112,8 +1062,7 @@ static char *treason = NULL;
 
 void trace_handlekill(int comm, char *nick)
 {
-static int count = 0;
-
+	static int count = 0;
 	
 	if (!nick || !*nick)
 	{
@@ -1133,7 +1082,8 @@ static int count = 0;
 		return;
 	bitchsay("Killing %s[%s] %d", nick, tnick_arg, ++count);
 	if (!treason)
-		malloc_strcpy(&treason, get_reason(nick, NULL));
+		malloc_strcpy(&treason, 
+			get_kill_reason(nick, get_server_nickname(from_server)));
 	send_to_server("KILL %s :%s (%d)", nick, treason, count);
 }
 
@@ -1682,34 +1632,32 @@ BUILT_IN_COMMAND(url_grabber)
 
 BUILT_IN_COMMAND(serv_stat)
 {
-extern long nick_collisions, oper_kills, serv_fakes, serv_unauth, serv_split;
-extern long serv_rejoin, client_connects, serv_rehash, client_exits,serv_klines;
-extern long client_floods, client_invalid, stats_req, client_bot, client_bot_alarm;
+extern long nick_collisions, oper_kills, serv_fakes, serv_unauth;
+extern long client_connects, serv_rehash, client_exits,serv_klines;
+extern long client_floods, client_invalid, stats_req, client_bot;
 extern long oper_requests, serv_squits, serv_connects;
 #ifdef ONLY_STD_CHARS
 
 put_it("%s", convert_output_format("%G-----------%K[ %WServer %wStats %K]%G----------------------------------------------", NULL));
-put_it("%s", convert_output_format("%G| %CN%cick Collisions %K[%W$[-4]0%K]    %CO%cper Kills   %K[%W$[-4]1%K]", "%d %d", nick_collisions, oper_kills));
-put_it("%s", convert_output_format("%G| %CF%cake Modes      %K[%W$[-4]0%K]    %CU%cnauth       %K[%W$[-4]1%K]", "%d %d",serv_fakes, serv_unauth));
-put_it("%s", convert_output_format("%G| %CH%cigh Traffic    %K[%W$[-4]0%K]    %CN%corm Traffic %K[%W$[-4]1%K]", "%d %d",serv_split, serv_rejoin));
-put_it("%s", convert_output_format("%G| %CT%cotal Clients   %K[%W$[-4]0%K]    %CS%cerv rehash  %K[%W$[-4]1%K]", "%d %d",client_connects, serv_rehash));
-put_it("%s", convert_output_format("%G| %CC%client exits    %K[%W$[-4]0%K]    %CK%c-lines adds %K[%W$[-4]1%K]", "%d %d",client_exits, serv_klines));
-put_it("%s", convert_output_format("%G| %CC%client Floods   %K[%W$[-4]0%K]    %CS%ctats reqs   %K[%W$[-4]1%K]", "%d %d",client_floods, stats_req));
-put_it("%s", convert_output_format("%G| %CI%cnvalid User    %K[%W$[-4]0%K]    %CO%cper Reqs    %K[%W$[-4]1%K]", "%d %d",client_invalid, oper_requests));
-put_it("%s", convert_output_format("%G| %CP%cossible Bots   %K[%W$[-4]0%K]    %CB%cot Alarms   %K[%W$[-4]1%K]", "%d %d",client_bot, client_bot_alarm));
-put_it("%s", convert_output_format("%G| %CS%cerv Squits     %K[%W$[-4]0%K]    %CS%cerv Connect %K[%W$[-4]1%K]", "%d %d",serv_squits, serv_connects));
+put_it("%s", convert_output_format("%G| %CN%cick Collisions %K[%W$[-4]0%K]    %CO%cper Kills   %K[%W$[-4]1%K]", "%l %l", nick_collisions, oper_kills));
+put_it("%s", convert_output_format("%G| %CF%cake Modes      %K[%W$[-4]0%K]    %CU%cnauth       %K[%W$[-4]1%K]", "%l %l",serv_fakes, serv_unauth));
+put_it("%s", convert_output_format("%G| %CT%cotal Clients   %K[%W$[-4]0%K]    %CS%cerv rehash  %K[%W$[-4]1%K]", "%l %l",client_connects, serv_rehash));
+put_it("%s", convert_output_format("%G| %CC%client exits    %K[%W$[-4]0%K]    %CK%c-lines adds %K[%W$[-4]1%K]", "%l %l",client_exits, serv_klines));
+put_it("%s", convert_output_format("%G| %CC%client Floods   %K[%W$[-4]0%K]    %CS%ctats reqs   %K[%W$[-4]1%K]", "%l %l",client_floods, stats_req));
+put_it("%s", convert_output_format("%G| %CI%cnvalid User    %K[%W$[-4]0%K]    %CO%cper Reqs    %K[%W$[-4]1%K]", "%l %l",client_invalid, oper_requests));
+put_it("%s", convert_output_format("%G| %CP%cossible Bots   %K[%W$[-4]0%K]", "%l", client_bot));
+put_it("%s", convert_output_format("%G| %CS%cerv Squits     %K[%W$[-4]0%K]    %CS%cerv Connect %K[%W$[-4]1%K]", "%l %l",serv_squits, serv_connects));
 
 #else
 
-put_it("%s", convert_output_format("%GÚÄÄÄÄÄ---%gÄ%G-%K[ %WServer %wStats %K]-%gÄÄ%G-%gÄÄÄÄÄÄ---%KÄ%g--%KÄÄ%g-%KÄÄÄÄÄÄÄÄÄ--- --  - --- -- -", NULL));
-put_it("%s", convert_output_format("%G³ %CN%cick Collisions %K[%W$[-4]0%K]    %CO%cper Kills   %K[%W$[-4]1%K]", "%l %l", nick_collisions, oper_kills));
-put_it("%s", convert_output_format("%G³ %CF%cake Modes      %K[%W$[-4]0%K]    %CU%cnauth       %K[%W$[-4]1%K]", "%l %l",serv_fakes, serv_unauth));
-put_it("%s", convert_output_format("%g³ %CH%cigh Traffic    %K[%W$[-4]0%K]    %CN%corm Traffic %K[%W$[-4]1%K]", "%l %l",serv_split, serv_rejoin));
-put_it("%s", convert_output_format("%G³ %CT%cotal Clients   %K[%W$[-4]0%K]    %CS%cerv rehash  %K[%W$[-4]1%K]", "%l %l",client_connects, serv_rehash));
+put_it("%s", convert_output_format("%G┌─────---%g─%G-%K[ %WServer %wStats %K]-%g──%G-%g──────---%K─%g--%K──%g-%K─────────--- --  - --- -- -", NULL));
+put_it("%s", convert_output_format("%G│ %CN%cick Collisions %K[%W$[-4]0%K]    %CO%cper Kills   %K[%W$[-4]1%K]", "%l %l", nick_collisions, oper_kills));
+put_it("%s", convert_output_format("%G│ %CF%cake Modes      %K[%W$[-4]0%K]    %CU%cnauth       %K[%W$[-4]1%K]", "%l %l",serv_fakes, serv_unauth));
+put_it("%s", convert_output_format("%G│ %CT%cotal Clients   %K[%W$[-4]0%K]    %CS%cerv rehash  %K[%W$[-4]1%K]", "%l %l",client_connects, serv_rehash));
 put_it("%s", convert_output_format("%g| %CC%client exits    %K[%W$[-4]0%K]    %CK%c-lines adds %K[%W$[-4]1%K]", "%l %l",client_exits, serv_klines));
 put_it("%s", convert_output_format("%G: %CC%client Floods   %K[%W$[-4]0%K]    %CS%ctats reqs   %K[%W$[-4]1%K]", "%l %l",client_floods, stats_req));
 put_it("%s", convert_output_format("%G: %CI%cnvalid User    %K[%W$[-4]0%K]    %CO%cper Reqs    %K[%W$[-4]1%K]", "%l %l",client_invalid, oper_requests));
-put_it("%s", convert_output_format("%K| %CP%cossible Bots   %K[%W$[-4]0%K]    %CB%cot Alarms   %K[%W$[-4]1%K]", "%l %l",client_bot, client_bot_alarm));
+put_it("%s", convert_output_format("%K| %CP%cossible Bots   %K[%W$[-4]0%K]", "%l", client_bot));
 put_it("%s", convert_output_format("%g: %CS%cerv Squits     %K[%W$[-4]0%K]    %CS%cerv Connect %K[%W$[-4]1%K]", "%l %l",serv_squits, serv_connects));
 
 #endif
@@ -1901,7 +1849,7 @@ int clones = 0;
 		bitchsay("Found %d clones", clones);
 }
 
-void get_range(char *line, int *start, int *end)
+static void get_range(char *line, int *start, int *end)
 {
 char *q = line, *p = line;
 	while (*p && isdigit((unsigned char)*p))
@@ -1916,7 +1864,7 @@ char *q = line, *p = line;
 
 BUILT_IN_COMMAND(pastecmd)
 {
-	char *lines;
+	char *line_range;
 	char *channel = NULL;
 	Window *win;
 	int	winref = 0;
@@ -1929,8 +1877,8 @@ BUILT_IN_COMMAND(pastecmd)
 #else
 	Display *start_pos;
 #endif        
-	if ((lines = next_arg(args, &args)))
-		get_range(lines, &start_line, &end_line);
+	if ((line_range = next_arg(args, &args)))
+		get_range(line_range, &start_line, &end_line);
 	if (!args || !*args)
 		channel = get_current_channel_by_refnum(0);
 	else
@@ -2031,7 +1979,7 @@ BUILT_IN_COMMAND(pastecmd)
 		if (start_pos && start_pos->line)
 		{
 			if (do_hook(PASTE_LIST, "%s %s", channel, start_pos->line))
-				send_text(channel, convert_output_format(fget_string_var(FORMAT_PASTE_FSET),"%s %d %s", channel, line, start_pos->line), NULL, 1, 0);
+				send_text(channel, convert_output_format(fget_string_var(FORMAT_PASTE_FSET),"%s %d %s", channel, line, start_pos->line), STXT_LOG);
 			start_pos = start_pos->next;
 		}
 		count--;
@@ -2430,7 +2378,6 @@ extern HMQ hmq;
 
 #if !defined(__EMX__) && !defined(WINNT) && !defined(GUI) && defined(WANT_DETACH)
 #ifndef PUBLIC_ACCESS
-extern char socket_path[];
 extern char *old_pass;
 
 int displays = 0;
@@ -2459,7 +2406,7 @@ struct param parm;
 
 void handle_reconnect(int s)
 {
-int len;
+socklen_t len;
 struct sockaddr_in addr;
 int n;
 	memset(&addr, 0, sizeof(addr));
@@ -2527,7 +2474,7 @@ int n;
 		new_open(n);
 
 
-		term_init((parm.termid && *parm.termid) ? parm.termid : NULL);
+		term_init(*parm.termid ? parm.termid : NULL);
 		reset_cols(parm.cols);
 		reset_lines(parm.rows);
 		reinit_term(main_screen->fdin);
@@ -2568,42 +2515,60 @@ void kill_attached_if_needed(int type)
 
 void make_cookie(void)
 {
-int i, j;
-	memset(connect_cookie, 0, sizeof(connect_cookie));
-	for (i = 0; i < (int) (20.0 * rand()/RAND_MAX) + 5; i++)
-	{
-		j = (int)(95.0 * rand()/RAND_MAX);
-		connect_cookie[i] = j + 32;
-	}
+	unsigned char rand_bytes[21];
+	int i;
+	char *cookie;
+
+	for (i = 0; i < sizeof rand_bytes; i++)
+		rand_bytes[i] = random_number(0);
+
+	cookie = base64_encode(rand_bytes, sizeof rand_bytes);
+	strlcpy(connect_cookie, cookie, sizeof connect_cookie);
+	new_free(&cookie);
 }
 
 static int create_ipc_socket(void)
 {
-	int	s = -1, u = -1;
+	int	s, u;
 	unsigned short port = 0;
-	char buf[BIG_BUFFER_SIZE+1];
+	char buf[BIG_BUFFER_SIZE];
+	char host[BIG_BUFFER_SIZE];
+	char *p;
+	const char *socket_path = init_socketpath();
 
-	init_socketpath();
-
-	if ((s = connect_by_number(NULL, &port, SERVICE_SERVER, PROTOCOL_TCP, 0)) < 0)
+	if ((s = connect_by_number("127.0.0.1", &port, SERVICE_SERVER, PROTOCOL_TCP, 0)) < 0)
 	{
 		bitchsay("Error creating IPC socket: [%d] %s", s, strerror(errno));
 		return 1;
 	}
 
-	sprintf(buf, socket_path, port);
-	if ((u = open(buf, O_CREAT|O_WRONLY, 0600)) != -1)
+	gethostname(host, sizeof host);
+	if ((p = strchr(host, '.')))
+		*p = 0;
+
+	snprintf(buf, sizeof buf, "%s/%u.%s.%s", socket_path, (unsigned)port, stripdev(attach_ttyname), host);
+
+	if (strlen(socket_path) + 1 < sizeof buf)
+		for (p = buf + strlen(socket_path) + 1; *p; p++)
+			if (*p == '/')
+				*p = '-';
+
+	if ((u = open(buf, O_CREAT|O_WRONLY, 0600)) < 0)
 	{
-		chmod(buf, SOCKMODE);
-		chown(buf, getuid(), getgid());
-		make_cookie();
-		write(u, connect_cookie, strlen(connect_cookie));
-		write(u, "\n", 1);
-		close(u);
+		bitchsay("Error creating IPC file: %s", strerror(errno));
+		new_close(s);
+		return 1;
 	}
 
+	fchmod(u, SOCKMODE);
+	fchown(u, getuid(), getgid());
+	make_cookie();
+	write(u, connect_cookie, strlen(connect_cookie));
+	write(u, "\n", 1);
+	close(u);
+
 	set_non_blocking(s);
-	add_socketread(s, port, 0, socket_path, handle_reconnect, NULL);
+	add_socketread(s, port, 0, NULL, handle_reconnect, NULL);
 	save_ipc = s;
 
 	return 0;
@@ -2748,11 +2713,9 @@ ChannelList *chan = NULL;
 
 BUILT_IN_COMMAND(send_kline)
 {
-	char 	*dur,
-		*target = NULL,
-		*t;
-	time_t	t_time = DEFAULT_TKLINE_TIME;
-	int	tkline = 0;
+	char *dur, *target = NULL, *t;
+	long t_time = DEFAULT_TKLINE_TIME;
+	int tkline = 0;
 
 	if (*command == 'U')
 	{
@@ -2776,7 +2739,7 @@ BUILT_IN_COMMAND(send_kline)
 			command++, tkline++;
 		if (dur && is_number(dur))
 		{
-			int l;
+			long l;
 			if ((l = my_atol(dur)))
 				t_time = l;
 			target = next_arg(args, &args);
@@ -2796,7 +2759,7 @@ BUILT_IN_COMMAND(send_kline)
 	{
 		if (!t || !*t) break;
 		if (tkline)
-			send_to_server("%s %u %s :%s", command, t_time, t, args);
+			send_to_server("%s %ld %s :%s", command, t_time, t, args);
 		else
 			send_to_server("%s %s :%s", command, t, args);
 	}

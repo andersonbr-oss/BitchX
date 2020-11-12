@@ -8,7 +8,7 @@
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  */
 #include "irc.h"
-static char cvsrevision[] = "$Id: ircaux.c 206 2012-06-13 12:34:32Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(ircaux_c)
 #include "struct.h"
 
@@ -73,7 +73,7 @@ void start_memdebug(void)
 /*
  * really_new_malloc is the general interface to the malloc(3) call.
  * It is only called by way of the ``new_malloc'' #define.
- * It wont ever return NULL.
+ * It won't ever return NULL.
  */
 
 /*
@@ -174,7 +174,7 @@ char *	n_malloc_strcpy (char **ptr, const char *src, const char *module, const c
 {
 	if (!src)
 		return *ptr = n_free(*ptr, module, file, line);
-	if (ptr && *ptr)
+	if (*ptr)
 	{
 		if (*ptr == src)
 			return *ptr;
@@ -183,8 +183,8 @@ char *	n_malloc_strcpy (char **ptr, const char *src, const char *module, const c
 		*ptr = n_free(*ptr, module, file, line);
 	}
 	*ptr = n_malloc(strlen(src) + 1, module, file, line);
+
 	return strcpy(*ptr, src);
-	return *ptr;
 }
 
 /* malloc_strcat: Yeah, right */
@@ -274,59 +274,71 @@ char *BX_m_s3cat_s (char **one, const char *maybe, const char *ifthere)
 
 char	*BX_m_3cat(char **one, const char *two, const char *three)
 {
-	int len = 0;
+	size_t one_len = 0, two_len = 0, three_len = 0;
 	char *str;
 
 	if (*one)
-		len = strlen(*one);
+		one_len = strlen(*one);
 	if (two)
-		len += strlen(two);
+		two_len = strlen(two);
 	if (three)
-		len += strlen(three);
-	len += 1;
+		three_len = strlen(three);
 
-	str = (char *)new_malloc(len);
+	str = new_malloc(one_len + two_len + three_len + 1);
 	if (*one)
-		strcpy(str, *one);
+		memcpy(str, *one, one_len);
 	if (two)
-		strcat(str, two);
+		memcpy(str + one_len, two, two_len);
 	if (three)
-		strcat(str, three);
+		memcpy(str + one_len + two_len, three, three_len);
+	str[one_len + two_len + three_len] = 0;
 
 	new_free(one);
-	return ((*one = str));
+	return (*one = str);
 }
 
-char	*BX_upper (char *str)
+/* upper()
+ *
+ * Convert in-place every lower-case character in a string to upper-case.
+ */
+char *BX_upper(char *str)
 {
-register char	*ptr = NULL;
+	char *ptr;
 
 	if (str)
 	{
-		ptr = str;
-		for (; *str; str++)
+		for (ptr = str; *ptr; ptr++)
 		{
-			if (islower((unsigned char)*str))
-				*str = toupper(*str);
+			unsigned char c = *ptr;
+
+			if (islower(c))
+				*ptr = toupper(c);
 		}
 	}
-	return (ptr);
+
+	return str;
 }
 
-char	*BX_lower (char *str)
+/* lower()
+ *
+ * Convert in-place every upper-case character in a string to lower-case.
+ */
+char *BX_lower(char *str)
 {
-register char	*ptr = NULL;
+	char *ptr;
 
 	if (str)
 	{
-		ptr = str;
-		for (; *str; str++)
+		for (ptr = str; *ptr; ptr++)
 		{
-			if (isupper((unsigned char)*str))
-				*str = tolower(*str);
+			unsigned char c = *ptr;
+
+			if (isupper(c))
+				*ptr = tolower(c);
 		}
 	}
-	return (ptr);
+
+	return str;
 }
 
 char *BX_malloc_sprintf (char **to, const char *pattern, ...)
@@ -460,25 +472,28 @@ extern  int     word_scount (char *str)
 }
 #endif
 
-char	*BX_next_arg (char *str, char **new_ptr)
+char *BX_next_arg(char *str, char **new_ptr)
 {
-	char	*ptr;
+	char *ptr;
 
-	/* added by Sheik (kilau@prairie.nodak.edu) -- sanity */
-	if (!str || !*str)
+	if (!str)
 		return NULL;
 
-	if ((ptr = sindex(str, "^ ")) != NULL)
+	if ((ptr = inv_strpbrk(str, " ")) != NULL)
 	{
-		if ((str = sindex(ptr, space)) != NULL)
-			*str++ = (char) 0;
+		if ((str = strchr(ptr, ' ')) != NULL)
+			*str++ = 0;
 		else
 			str = empty_string;
 	}
 	else
+	{
 		str = empty_string;
+	}
+
 	if (new_ptr)
 		*new_ptr = str;
+
 	return ptr;
 }
 
@@ -600,7 +615,7 @@ char	*BX_new_next_arg (char *str, char **new_ptr)
 }
 
 /*
- * This function is "safe" because it doesnt ever return NULL.
+ * This function is "safe" because it doesn't ever return NULL.
  * XXXX - this is an ugly kludge that needs to go away
  */
 char	*safe_new_next_arg (char *str, char **new_ptr)
@@ -611,12 +626,12 @@ char	*safe_new_next_arg (char *str, char **new_ptr)
 	if (!str || !*str)
 		return empty_string;
 
-	if ((ptr = sindex(str, "^ \t")) != NULL)
+	if ((ptr = inv_strpbrk(str, " \t")) != NULL)
 	{
 		if (*ptr == '"')
 		{
 			start = ++ptr;
-			while ((str = sindex(ptr, "\"\\")) != NULL)
+			while ((str = strpbrk(ptr, "\"\\")) != NULL)
 			{
 				switch (*str)
 				{
@@ -637,7 +652,7 @@ char	*safe_new_next_arg (char *str, char **new_ptr)
 		}
 		else
 		{
-			if ((str = sindex(ptr, " \t")) != NULL)
+			if ((str = strpbrk(ptr, " \t")) != NULL)
 				*str++ = '\0';
 			else
 				str = empty_string;
@@ -663,18 +678,15 @@ char	*BX_new_new_next_arg (char *str, char **new_ptr, char *type)
 	if (!str || !*str)
 		return NULL;
 
-	if ((ptr = sindex(str, "^ \t")) != NULL)
+	if ((ptr = inv_strpbrk(str, " \t")) != NULL)
 	{
 		if ((*ptr == '"') || (*ptr == '\''))
 		{
-			char blah[3];
-			blah[0] = *ptr;
-			blah[1] = '\\';
-			blah[2] = '\0';
+			char accept[] = { *ptr, '\\', 0 };
 
 			*type = *ptr;
 			start = ++ptr;
-			while ((str = sindex(ptr, blah)) != NULL)
+			while ((str = strpbrk(ptr, accept)) != NULL)
 			{
 				switch (*str)
 				{
@@ -697,7 +709,7 @@ char	*BX_new_new_next_arg (char *str, char **new_ptr, char *type)
 		else
 		{
 			*type = '\"';
-			if ((str = sindex(ptr, " \t")) != NULL)
+			if ((str = strpbrk(ptr, " \t")) != NULL)
 				*str++ = 0;
 			else
 				str = empty_string;
@@ -768,9 +780,9 @@ int	BX_my_strnicmp (const char *str1, const char *str2, size_t n)
 }
 
 /* my_strnstr: case insensitive version of strstr */
-int	BX_my_strnstr (register const unsigned char *str1, register const unsigned char *str2, register size_t n)
+int	BX_my_strnstr (const char *str1, const char *str2, size_t n)
 {
-	char *p = (char *)str1;
+	const char *p = str1;
 	if (!p) return 0;
 	for (; *p; p++)
 		if (!strncasecmp(p, str2, strlen(str2)))
@@ -791,9 +803,9 @@ char *BX_chop (char *stuff, int nchar)
 
 /*
  * strext: Makes a copy of the string delmited by two char pointers and
- * returns it in malloced memory.  Useful when you dont want to munge up
- * the original string with a null.  end must be one place beyond where
- * you want to copy, ie, its the first character you dont want to copy.
+ * returns it in malloced memory.  Useful when you don't want to munge up
+ * the original string with a null.  End must be one place beyond where
+ * you want to copy, ie, it's the first character you don't want to copy.
  */
 char *strext(char *start, char *end)
 {
@@ -989,8 +1001,8 @@ char	*BX_expand_twiddle (char *str)
 		if (*str == '/')
 #endif
 		{
-			strmcpy(buffer, my_path, BIG_BUFFER_SIZE/4);
-			strmcat(buffer, str, BIG_BUFFER_SIZE/4);
+			strlcpy(buffer, my_path, sizeof buffer);
+			strlcat(buffer, str, sizeof buffer);
 		}
 		else
 		{
@@ -1004,21 +1016,21 @@ char	*BX_expand_twiddle (char *str)
 			if (((entry = getpwnam(str)) != NULL) || (p = getenv("HOME")))
 			{
 				if (p)
-					strmcpy(buffer, p, BIG_BUFFER_SIZE/4);
+					strlcpy(buffer, p, sizeof buffer);
 				else
-					strmcpy(buffer, entry->pw_dir, BIG_BUFFER_SIZE/4);
+					strlcpy(buffer, entry->pw_dir, sizeof buffer);
 #else
 			if ((entry = getpwnam(str)) != NULL || (p = getenv("HOME")))
 			{
 				if (p)
-					strmcpy(buffer, p, BIG_BUFFER_SIZE/4);
+					strlcpy(buffer, p, sizeof buffer);
 				else
-					strmcpy(buffer, entry->pw_dir, BIG_BUFFER_SIZE/4);
+					strlcpy(buffer, entry->pw_dir, sizeof buffer);
 #endif
 				if (rest)
 				{
-					strmcat(buffer, "/", BIG_BUFFER_SIZE/4);
-					strmcat(buffer, rest, BIG_BUFFER_SIZE/4);
+					strlcat(buffer, "/", sizeof buffer);
+					strlcat(buffer, rest, sizeof buffer);
 				}
 			}
 			else
@@ -1026,9 +1038,9 @@ char	*BX_expand_twiddle (char *str)
 		}
 	}
 	else
-		strmcpy(buffer, str, BIG_BUFFER_SIZE/4);
+		strlcpy(buffer, str, sizeof buffer);
 
-	/* This isnt legal! */
+	/* This isn't legal! */
 	str2 = NULL;
 	malloc_strcpy(&str2, buffer);
 #ifdef __EMX__
@@ -1066,78 +1078,71 @@ char	*BX_check_nickname (char *nick)
 	return *nick ? nick : NULL;
 }
 
-/*
- * sindex: much like index(), but it looks for a match of any character in
- * the group, and returns that position.  If the first character is a ^, then
- * this will match the first occurence not in that group.
+/* inv_strcpbrk()
+ *
+ * Returns a pointer to the first character in a string which is NOT found
+ * in 'reject'.
+ *
+ * This is the inverse of the standard function strpbrk().
  */
-char	*BX_sindex (register char *string, char *group)
+char *inv_strpbrk(const char *s, const char *reject)
 {
-	char	*ptr;
+	s += strspn(s, reject);
 
-	if (!string || !group)
-		return (char *) NULL;
-	if (*group == '^')
-	{
-		group++;
-		for (; *string; string++)
-		{
-			for (ptr = group; *ptr; ptr++)
-			{
-				if (*ptr == *string)
-					break;
-			}
-			if (*ptr == '\0')
-				return string;
-		}
-	}
-	else
-	{
-		for (; *string; string++)
-		{
-			for (ptr = group; *ptr; ptr++)
-			{
-				if (*ptr == *string)
-					return string;
-			}
-		}
-	}
-	return (char *) NULL;
+	if (!*s)
+		return NULL;
+
+	return (char *)s;
 }
 
-/*
- * rsindex: much like rindex(), but it looks for a match of any character in
- * the group, and returns that position.  If the first character is a ^, then
- * this will match the first occurence not in that group.
+/* sindex()
+ *
+ * Returns a pointer to the first matching character in a string, or NULL if
+ * there are no matching characters.
+ *
+ * A matching character is any character in 'group', unless the first
+ * character of 'group' is a ^, in which case a matching character is any
+ * character NOT in 'group'.
  */
-char	*BX_rsindex (register char *string, char *start, char *group, int howmany)
+char *BX_sindex(const char *string, const char *group)
 {
-	register char	*ptr;
+	if (!string || !group)
+		return NULL;
 
-	if (howmany && string && start && group && start <= string)
+	if (*group == '^')
+		return inv_strpbrk(string, group + 1);
+	else
+		return strpbrk(string, group);
+}
+
+/* rsindex()
+ *
+ * Returns a pointer to the last matching character that appears in a string BEFORE the
+ * initial search point (to search the entire string, set the initial search point to
+ * the terminating NUL). Returns NULL if no matching characters are found.
+ *
+ * The string to be searched starts at 'start' and the initial search point is 'ptr'.
+ *
+ * A matching character is any character in 'group', unless the first character of 'group'
+ * is a ^, in which case a matching character is any character NOT in 'group'.
+ */
+char *BX_rsindex(const char *ptr, const char *start, const char *group)
+{
+	if (ptr && start && group && start <= ptr)
 	{
+		int invert = 0;
+
 		if (*group == '^')
 		{
 			group++;
-			for (ptr = string; (ptr >= start) && howmany; ptr--)
-			{
-				if (!strchr(group, *ptr))
-				{
-					if (--howmany == 0)
-						return ptr;
-				}
-			}
+			invert = 1;
 		}
-		else
+
+		while (ptr > start)
 		{
-			for (ptr = string; (ptr >= start) && howmany; ptr--)
-			{
-				if (strchr(group, *ptr))
-				{
-					if (--howmany == 0)
-						return ptr;
-				}
-			}
+			ptr--;
+			if (invert == !strchr(group, *ptr))
+				return (char *)ptr;
 		}
 	}
 	return NULL;
@@ -1202,13 +1207,12 @@ char	*BX_rfgets (char *buffer, int size, FILE *file)
  */
 char	*BX_path_search (char *name, char *path)
 {
-	static	char	buffer[BIG_BUFFER_SIZE/2 + 1];
-	char	*ptr,
-		*free_path = NULL;
+	char *free_path, *ptr;
+	static char buffer[BIG_BUFFER_SIZE/2];
 
 	/* A "relative" path is valid if the file exists */
 	/* A "relative" path is searched in the path if the
-	   filename doesnt really exist from where we are */
+	   filename doesn't really exist from where we are */
 	if (strchr(name, '/'))
 		if (!access(name, F_OK))
 			return name;
@@ -1242,12 +1246,12 @@ char	*BX_path_search (char *name, char *path)
 		*buffer = 0;
 		if (path[0] == '~')
 		{
-			strmcat(buffer, my_path, BIG_BUFFER_SIZE/4);
+			strlcat(buffer, my_path, sizeof buffer);
 			path++;
 		}
-		strmcat(buffer, path, BIG_BUFFER_SIZE/4);
-		strmcat(buffer, "/", BIG_BUFFER_SIZE/4);
-		strmcat(buffer, name, BIG_BUFFER_SIZE/4);
+		strlcat(buffer, path, sizeof buffer);
+		strlcat(buffer, "/", sizeof buffer);
+		strlcat(buffer, name, sizeof buffer);
 
 		if (access(buffer, F_OK) == 0)
 			break;
@@ -1285,29 +1289,6 @@ char	*BX_double_quote (const char *str, const char *stuff, char *buffer)
 	return buffer;
 }
 
-char	*quote_it (const char *str, const char *stuff, char *buffer)
-{
-	register char	c;
-	register int	pos;
-
-	*buffer = 0;
-	for (pos = 0; (c = *str); str++)
-	{
-		if (stuff && strchr(stuff, c))
-		{
-			if (c == '%')
-				buffer[pos++] = '%';
-			else
-				buffer[pos++] = '\\';
-		}
-		else if (c == '%')
-			buffer[pos++] = '%';
-		buffer[pos++] = c;
-	}
-	buffer[pos] = '\0';
-	return buffer;
-}
-
 void	BX_ircpanic (char *format, ...)
 {
 	char buffer[3 * BIG_BUFFER_SIZE + 1];
@@ -1325,10 +1306,10 @@ void	BX_ircpanic (char *format, ...)
 		va_end(arglist);
 	}
 
-	yell("An unrecoverable logic error has occured.");
+	yell("An unrecoverable logic error has occurred.");
 	yell("Please email " BUG_EMAIL " and include the following message:");
 
-	yell("Panic: [%s:%s %s]", irc_version, buffer, cx_function?cx_function:empty_string);
+	yell("Panic: [%s:%s %s]", irc_version, buffer, cx_function);
 	dump_call_stack();
 	irc_exit(1, "BitchX panic... Could it possibly be a bug?  Nahhhh...", NULL);
 }
@@ -1345,14 +1326,11 @@ int BX_end_strcmp (const char *one, const char *two, int bytes)
 /* beep_em: Not hard to figure this one out */
 void BX_beep_em (int beeps)
 {
-	int	cnt,
-		i;
+	int i;
 
-	for (cnt = beeps, i = 0; i < cnt; i++)
+	for (i = 0; i < beeps; i++)
 		term_beep();
 }
-
-
 
 FILE *open_compression (char *executable, char *filename, int hook)
 {
@@ -1389,8 +1367,8 @@ FILE *open_compression (char *executable, char *filename, int hook)
 #if !defined(WINNT) && !defined(__EMX__)
 			setsid();
 #endif			
-			setuid (getuid ());
-			setgid (getgid ());
+			setgid(getgid());
+			setuid(getuid());
 			dup2 (pipes[1], 1);
 			close (pipes[0]);
 			for (i = 2; i < 256; i++)
@@ -1459,7 +1437,7 @@ FILE *BX_uzfopen (char **filename, char *path, int hook)
 	}
 
 	/* It is allowed to pass to this function either a true filename
-	   with the compression extention, or to pass it the base name of
+	   with the compression extension, or to pass it the base name of
 	   the filename, and this will look to see if there is a compressed
 	   file that matches the base name */
 
@@ -1520,7 +1498,7 @@ FILE *BX_uzfopen (char **filename, char *path, int hook)
 			return NULL;
 		}
 	}
-	/* Right now it doesnt look like the file is a full compressed fn */
+	/* Right now it doesn't look like the file is a full compressed fn */
 	else
 	{
 		struct stat file_info;
@@ -1528,7 +1506,7 @@ FILE *BX_uzfopen (char **filename, char *path, int hook)
 		/* Trivially, see if the file we were passed exists */
 		filename_path = path_search (filename_trying, path);
 
-		/* Nope. it doesnt exist. */
+		/* Nope. it doesn't exist. */
 		if (!filename_path)
 		{
 			/* Is there a "filename.gz"? */
@@ -1638,7 +1616,7 @@ FILE *BX_uzfopen (char **filename, char *path, int hook)
 	if ((doh = fopen(filename_path, "r")) != NULL)
 		return doh;
 
-	/* nope.. we just cant seem to open this file... */
+	/* nope.. we just can't seem to open this file... */
 	if (hook)
 		yell("Cannot open file %s: %s", filename_path, strerror(errno));
 	new_free(filename);
@@ -1668,7 +1646,7 @@ extern int lw_strcmp(comp_func *compar, char *one, char *two)
 {
 	char *pos = one + strlen(one) - 1;
 
-	if (pos > one)			/* cant do pos[-1] if pos == one */
+	if (pos > one)			/* can't do pos[-1] if pos == one */
 		while (!my_isspace(pos[-1]) && (pos > one))
 			pos--;
 	else
@@ -1705,7 +1683,7 @@ off_t file_size (char *filename)
 		return -1;
 }
 
-/* Gets the time in second/usecond if you can,  second/0 if you cant. */
+/* Gets the time in second/usecond if you can,  second/0 if you can't. */
 struct timeval BX_get_time(struct timeval *timer)
 {
 	static struct timeval timer2;
@@ -1745,6 +1723,53 @@ double BX_time_diff (struct timeval one, struct timeval two)
 	td.tv_usec = two.tv_usec - one.tv_usec;
 
 	return (double)td.tv_sec + ((double)td.tv_usec / 1000000.0);
+}
+
+/* Calculate time elapsed since a time in the past. */
+double time_since(const struct timeval *tv_from)
+{
+    struct timeval tv_now;
+
+	get_time(&tv_now);
+	return BX_time_diff(*tv_from, tv_now);
+}
+
+/* Calculate time from now until a time in the future. */
+double time_until(const struct timeval *tv_to)
+{
+	struct timeval tv_now;
+
+	get_time(&tv_now);
+	return BX_time_diff(tv_now, *tv_to);
+}
+
+/* Compare two timevals - returns 1, 0 or -1 if a is >, = or < b */
+int time_cmp(const struct timeval *a, const struct timeval *b)
+{
+	if (a->tv_sec == b->tv_sec)
+		return (a->tv_usec > b->tv_usec) - (a->tv_usec < b->tv_usec);
+	else
+		return (a->tv_sec > b->tv_sec) - (a->tv_sec < b->tv_sec);
+}
+
+/* Add an offset, in seconds, to a timeval */
+struct timeval *time_offset(struct timeval *tv, double offset)
+{
+	time_t seconds = offset;		/* Discards fractional part */
+
+	offset -= seconds;
+	if (offset < 0.0)
+	{
+		/* This ensures we never make tv_usec go negative, since it might be unsigned. */
+		offset += 1.0;
+		seconds -= 1;
+	}
+	tv->tv_usec += offset * 1000000.0;
+	seconds += tv->tv_usec / 1000000;
+	tv->tv_usec %= 1000000;
+	tv->tv_sec += seconds;
+
+	return tv;
 }
 
 int BX_time_to_next_minute (void)
@@ -1806,16 +1831,15 @@ char *BX_my_ltoa (long foo)
  * zero, nothing happens.  Sure, i cheat, but its cheaper then doing
  * two sprintf's.
  */
-char *BX_strformat (char *dest, const char *src, int length, char pad_char)
+char *BX_strformat (char *dest, const char *src, int length, char padc)
 {
 	char *ptr1 = dest, 
 	     *ptr2 = (char *)src;
 	int tmplen = length;
 	int abslen;
-	char padc;
 		
 	abslen = (length >= 0 ? length : -length);
-	if (!(padc = pad_char))
+	if (!padc)
 		padc = ' ';
 
 	/* Cheat by spacing out 'dest' */
@@ -2074,8 +2098,8 @@ char *strmccat(char *str, char c, int howmany)
 
 /*
  * Pull a substring out of a larger string
- * If the ending delimiter doesnt occur, then we dont pass
- * anything (by definition).  This is because we dont want
+ * If the ending delimiter doesn't occur, then we don't pass
+ * anything (by definition).  This is because we don't want
  * to introduce a back door into CTCP handlers.
  */
 extern char *BX_pullstr (char *source_string, char *dest_string)
@@ -2307,17 +2331,11 @@ char *BX_strmopencat (char *dest, int maxlen, ...)
 }
 
 /*
- * An strcpy that is guaranteed to be safe for overlaps.
+ * A strcpy that is guaranteed to be safe for overlaps.
  */
 char *BX_ov_strcpy (char *one, const char *two)
 {
-	if (two > one)
-	{
-		while (two && *two)
-			*one++ = *two++;
-		*one = 0;
- 	}
-	return one;
+	return memmove(one, two, strlen(two) + 1);
 }
 
 char *BX_next_in_comma_list (char *str, char **after)
@@ -2439,7 +2457,7 @@ int	BX_figure_out_address (char *nuh, char **nick, char **user, char **host, cha
 	char 	*bang, *at, *myhost = star, *endstring;
 	int	number;
 
-	/* Dont bother with channels, theyre ok. */
+	/* Don't bother with channels, they're OK. */
 	if (*nuh == '#' || *nuh == '&')
 		return -1;
 
@@ -2534,8 +2552,8 @@ int	BX_figure_out_address (char *nuh, char **nick, char **user, char **host, cha
 	 */
 	else if (fourthback && 
 			(firstback - secondback == 3) &&
-			!strncmp(thirdback, ".k12.", 5) &&
-			!strncmp(firstback, ".us", 3))
+			strbegins(thirdback, ".k12.") &&
+			strbegins(firstback, ".us"))
 	{
 		*host = myhost;
 		*domain = fourthback;
@@ -2548,8 +2566,8 @@ int	BX_figure_out_address (char *nuh, char **nick, char **user, char **host, cha
 	 */
 	else if (thirdback && !fourthback && 
 			(firstback - secondback == 3) &&
-			!strncmp(thirdback, ".k12.", 5) &&
-			!strncmp(firstback, ".us", 3))
+			strbegins(thirdback, ".k12.") &&
+			strbegins(firstback, ".us"))
 	{
 		*host = empty_string;
 		*domain = myhost;
@@ -2803,13 +2821,13 @@ char *	BX_strmpcat (char *source, size_t siz, const char *format, ...)
 
 
 
-u_char	*BX_strcpy_nocolorcodes (u_char *dest, const u_char *source)
+char *BX_strcpy_nocolorcodes(char *dest, const char *source)
 {
-	u_char	*save = dest;
+	char *save = dest;
 
 	do
 	{
-		while (*source == 3)
+		while (*source == COLOR_CHAR)
 			source = skip_ctl_c_seq(source, NULL, NULL, 0);
 		*dest++ = *source;
 	}
@@ -2823,11 +2841,11 @@ char *crypt();
 char *BX_cryptit(const char *string) 
 {
 static char saltChars[] = 
-	"abcdefghijklmnopqrstuvwxyzABCDEFGHJIKLMNOPQRSTUVWXYZ./";
+	"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ./0123456789";
 char *cpass = (char *)string;
 char salt[3];
-	salt[0] = saltChars[random_number(0) % 64];
-	salt[1] = saltChars[random_number(0) % 64];
+	salt[0] = saltChars[random_number(0) % (sizeof(saltChars) - 1)];
+	salt[1] = saltChars[random_number(0) % (sizeof(saltChars) - 1)];
 	salt[2] = 0;
 #if !defined(WINNT)
 	cpass = crypt(string, salt);
@@ -2856,56 +2874,34 @@ char *BX_stripdev(char *ttynam)
 		return NULL;
 #ifdef SVR4
   /* unixware has /dev/pts012 as synonym for /dev/pts/12 */
-	if (!strncmp(ttynam, "/dev/pts", 8) && ttynam[8] >= '0' && ttynam[8] <= '9')
+	if (strbegins(ttynam, "/dev/pts") && ttynam[8] >= '0' && ttynam[8] <= '9')
 	{
 		static char b[13];
 		sprintf(b, "pts/%d", atoi(ttynam + 8));
 		return b;
 	}
 #endif /* SVR4 */
-	if (!strncmp(ttynam, "/dev/", 5))
+	if (strbegins(ttynam, "/dev/"))
 		return ttynam + 5;
 	return ttynam;
 }
 
-
-void init_socketpath(void)
+const char *init_socketpath(void)
 {
-#if !defined(__EMX__) && !defined(WINNT)
-struct stat st;
-extern char socket_path[], attach_ttyname[];
+	static char socket_path[BIG_BUFFER_SIZE];
 
-	sprintf(socket_path, "%s/.BitchX/screens", my_path);
-	if (access(socket_path, F_OK))
-	{
-		if (mkdir(socket_path, 0700) != -1)
-			(void) chown(socket_path, getuid(), getgid());
-		else
-			return;
-	}
-	if (stat(socket_path, &st) != -1)
-	{
-		char host[BIG_BUFFER_SIZE+1];
-		char *ap;
-		if (!S_ISDIR(st.st_mode))
-			return;
-		gethostname(host, BIG_BUFFER_SIZE);
-		if ((ap = strchr(host, '.')))
-			*ap = 0;
-		ap = &socket_path[strlen(socket_path)];
-		sprintf(ap, "/%%d.%s.%s", stripdev(attach_ttyname), host);
-		ap++;
-		for ( ; *ap; ap++)
-			if (*ap == '/')
-				*ap = '-';
-	}	        
-#endif
+	snprintf(socket_path, sizeof socket_path, "%s/.BitchX/screens", my_path);
+
+	if (mkdir(socket_path, 0700) != -1)
+		(void)chown(socket_path, getuid(), getgid());
+
+	return socket_path;
 }
 
 /*
  * This mangles up 'incoming' corresponding to the current values of
  * /set mangle_inbound or /set mangle_outbound.  
- * 'incoming' needs to be at _least_ thrice as big as neccesary 
+ * 'incoming' needs to be at _least_ thrice as big as necessary 
  * (ie, sizeof(incoming) >= strlen(incoming) * 3 + 1)
  */
 size_t	BX_mangle_line	(char *incoming, int how, size_t how_much)
@@ -2949,8 +2945,8 @@ size_t	BX_mangle_line	(char *incoming, int how, size_t how_much)
 	{
 		for (i = 0; incoming[i]; i++)
 		{
-			if (incoming[i] == 0x1b)
-				incoming[i] = 0x5b;
+			if (incoming[i] == '\x1b')
+				incoming[i] = '\x5b';
 		}
 	}
 
@@ -2976,13 +2972,13 @@ size_t	BX_mangle_line	(char *incoming, int how, size_t how_much)
 	{
 		switch (*s)
 		{
-			case 003:		/* color codes */
+			case COLOR_CHAR:	/* color codes */
 			{
-				int 		lhs = 0, 
-						rhs = 0;
-				char 		*end;
+				int lhs = 0, 
+					rhs = 0;
+				char *end;
 
-				end = (char *)skip_ctl_c_seq(s, &lhs, &rhs, 0);
+				end = skip_ctl_c_seq(s, &lhs, &rhs, 0);
 				if (!(stuff & STRIP_COLOR))
 				{
 					while (s < end)
@@ -3107,12 +3103,12 @@ int i = 0, j = 0, len;
 	return buff;
 }
 
-/* XXXX this doesnt belong here. im not sure where it goes, though. */
+/* XXXX this doesn't belong here. I'm not sure where it goes, though. */
 char *	get_userhost (void)
 {
-	strmcpy(userhost, username, NAME_LEN);
-	strmcat(userhost, "@", NAME_LEN);
-	strmcat(userhost, hostname, NAME_LEN);
+	strlcpy(userhost, username, sizeof userhost);
+	strlcat(userhost, "@", sizeof userhost);
+	strlcat(userhost, hostname, sizeof userhost);
 	return userhost;
 }
 
@@ -3120,9 +3116,9 @@ char *	get_userhost (void)
 
 /* RANDOM NUMBERS */
 /*
- * Random number generator #1 -- psuedo-random sequence
+ * Random number generator #1 -- pseudo-random sequence
  * If you do not have /dev/random and do not want to use gettimeofday(), then
- * you can use the psuedo-random number generator.  Its performance varies
+ * you can use the pseudo-random number generator.  Its performance varies
  * from weak to moderate.  It is a predictable mathematical sequence that
  * varies depending on the seed, and it provides very little repetition,
  * but with 4 or 5 samples, it should be trivial for an outside person to
@@ -3132,22 +3128,29 @@ char *	get_userhost (void)
  * to call it once to set the seed.  Subsequent calls should use 'l' 
  * as 0, and it will return a value.
  */
-static	unsigned long	randm (unsigned long l)
+unsigned long randm(unsigned long l)
 {
 	/* patch from Sarayan to make $rand() better */
-static	const	long	RAND_A = 16807L;
-static	const	long	RAND_M = 2147483647L;
-static	const	long	RAND_Q = 127773L;
-static	const	int	RAND_R = 2836L;
-static		u_long	z = 0;
-		long	t;
+	static const long RAND_A = 16807L;
+	static const long RAND_M = 2147483647L;
+	static const long RAND_Q = 127773L;
+	static const int RAND_R = 2836L;
+	static unsigned long z = 0;
 
 	if (z == 0)
-		z = (u_long) getuid();
+	{
+		struct timeval tv;
+
+		get_time(&tv);
+		z = tv.tv_usec << 12;
+		z ^= (unsigned long)tv.tv_sec;
+		z ^= (unsigned long)getuid() << 16;
+		z ^= (unsigned long)getpid();
+	}
 
 	if (l == 0)
 	{
-		t = RAND_A * (z % RAND_Q) - RAND_R * (z / RAND_Q);
+		long t = RAND_A * (z % RAND_Q) - RAND_R * (z / RAND_Q);
 		if (t > 0)
 			z = t;
 		else
@@ -3156,10 +3159,7 @@ static		u_long	z = 0;
 	}
 	else
 	{
-		if (l < 0)
-			z = (u_long) getuid();
-		else
-			z = l;
+		z = l;
 		return 0;
 	}
 }
@@ -3178,7 +3178,7 @@ static unsigned long randt_2 (void)
 	return (unsigned long) tp1.tv_usec;
 }
 
-static	unsigned long randt (unsigned long l)
+unsigned long randt(unsigned long l)
 {
 #ifdef HAVE_GETTIMEOFDAY
 	unsigned long t1, t2, t;
@@ -3200,10 +3200,10 @@ static	unsigned long randt (unsigned long l)
  * Random number generator #3 -- /dev/urandom.
  * If you have the /dev/urandom device, then we will use it.  Its performance
  * varies from moderate to very strong.  At best, it is a source of pretty
- * substantial unpredictable numbers.  At worst, it is mathematical psuedo-
+ * substantial unpredictable numbers.  At worst, it is mathematical pseudo-
  * random sequence (which randm() is).
  */
-static unsigned long randd (unsigned long l)
+unsigned long randd(unsigned long l)
 {
 	unsigned long	value;
 static	int		random_fd = -1;
@@ -3227,18 +3227,55 @@ static	int		random_fd = -1;
 	return value;
 }
 
-
-unsigned long	BX_random_number (unsigned long l)
+unsigned long BX_random_number(unsigned long l)
 {
-	switch (get_int_var(RANDOM_SOURCE_VAR))
-	{
-		case 0:
-		default:
-			return randd(l);
-		case 1:
-			return randm(l);
-		case 2:
-			return randt(l);
-	}
+	/* Always use the strongest random source for internal client use. */
+	return randd(l);
 }
 
+/*
+ * Copyright (c) 1995-2001 Kungliga Tekniska H÷gskolan
+ * (Royal Institute of Technology, Stockholm, Sweden).
+ * All rights reserved.
+ *
+ * This is licensed under the 3-clause BSD license, which is found above.
+ */
+/*
+ * Return a malloced, base64 string representation of the first 'size' bytes
+ * starting at 'data'.
+ */
+char *base64_encode(const void *data, size_t size)
+{
+	static const char base64_chars[] = 
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	char *s, *p;
+	size_t i;
+	unsigned c;
+	const unsigned char * const q = data;
+
+	p = s = new_malloc((size + 2) / 3 * 4 + 1);
+
+	for (i = 0; i < size;) {
+		c = q[i++];
+		c *= 256;
+		if (i < size)
+			c += q[i];
+		i++;
+		c *= 256;
+		if (i < size)
+			c += q[i];
+		i++;
+		p[0] = base64_chars[(c & 0x00fc0000) >> 18];
+		p[1] = base64_chars[(c & 0x0003f000) >> 12];
+		p[2] = base64_chars[(c & 0x00000fc0) >> 6];
+		p[3] = base64_chars[(c & 0x0000003f) >> 0];
+		if (i > size)
+			p[3] = '=';
+		if (i > size + 1)
+			p[2] = '=';
+		p += 4;
+	}
+	*p = 0;
+
+	return s;
+}

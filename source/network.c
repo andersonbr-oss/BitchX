@@ -7,10 +7,9 @@
 #define SET_SOURCE_SOCKET
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: network.c 203 2012-06-02 11:38:37Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(network_c)
 #include "struct.h"
-#include "ircterm.h"
 
 #include "ircaux.h"
 #include "output.h"
@@ -34,7 +33,11 @@ CVS_REVISION(network_c)
 #endif
 
 extern char hostname[NAME_LEN+1];
+#ifndef WTERM_C
 extern int  use_socks;
+#else
+#define use_socks 0
+#endif
 char *socks_user = NULL;
 
 #if !defined(WTERM_C) && !defined(STERM_C)
@@ -318,7 +321,7 @@ int handle_socks(int fd, struct sockaddr_in addr, char *host, int portnum)
 		bitchsay("Unable to resolve SOCKS proxy host address: %s", host);
 		return -1;
 	}
-	bcopy(hp->h_addr, (char *)&proxy.sin_addr, hp->h_length);
+	memcpy(&proxy.sin_addr, hp->h_addr, hp->h_length);
 	proxy.sin_family = AF_INET;
 	proxy.sin_port = htons(portnum);
 	alarm(get_int_var(CONNECT_TIMEOUT_VAR));
@@ -365,7 +368,7 @@ int handle_socks(int fd, struct sockaddr_in addr, char *host, int portnum)
  * we now take four arguments:
  *
  *	- hostname - name of the host (pathname) to connect to (if applicable)
- *	- portnum - port number to connect to or listen on (0 if you dont care)
+ *	- portnum - port number to connect to or listen on (0 if you don't care)
  *	- service -	0 - set up a listening socket
  *			1 - set up a connecting socket
  *	- protocol - 	0 - use the TCP protocol
@@ -451,7 +454,7 @@ int BX_connect_by_number(char *hostn, unsigned short *portnum, int service, int 
 	/* Inet domain server */
 	if (!is_unix && (service == SERVICE_SERVER))
 	{
-		int length;
+		socklen_t length;
 #ifdef IP_PORTRANGE
 		int ports;
 #endif
@@ -462,7 +465,11 @@ int BX_connect_by_number(char *hostn, unsigned short *portnum, int service, int 
 
 		memset(&name, 0, sizeof name);
 		name.sin_family = AF_INET;
-		name.sin_addr.s_addr = htonl(INADDR_ANY);
+
+		if (hostn)
+			inet_aton(hostn, &name.sin_addr);
+		else
+			name.sin_addr.s_addr = htonl(INADDR_ANY);
 
 		name.sin_port = htons(*portnum);
 #ifdef PARANOID
@@ -500,14 +507,15 @@ int BX_connect_by_number(char *hostn, unsigned short *portnum, int service, int 
 	else if (!is_unix && (service == SERVICE_CLIENT))
 	{
 		struct sockaddr_foobar server;
-		int server_len;
-		struct hostent *hp;
+		socklen_t server_len;
 #ifdef WINNT
 		char buf[BIG_BUFFER_SIZE+1];
 #endif		
 #ifdef IPV6
-		struct addrinfo hints, *res;
+		struct addrinfo hints = { 0 };
+		struct addrinfo *res_list, *res;
 #else
+		struct hostent *hp;
 		struct sockaddr_in localaddr;
 		if (LocalHostName)
 		{
@@ -524,39 +532,46 @@ int BX_connect_by_number(char *hostn, unsigned short *portnum, int service, int 
 #ifndef WINNT
 
 #ifdef IPV6
-		memset(&hints, 0, sizeof hints);
 		hints.ai_family = AF_UNSPEC;
 		hints.ai_flags = AI_ADDRCONFIG;
 		hints.ai_socktype = proto_type;
 
-		if (!getaddrinfo(hostn, NULL, &hints, &res) && res)
-		{
-			close(fd);
-
-			if ((fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
-				return -1;
-			set_socket_options (fd);
-
-			memcpy(&server, res->ai_addr, res->ai_addrlen);
-			server_len = res->ai_addrlen;
-			server.sf_port = htons(*portnum);
-
-			memset(&hints, 0, sizeof hints);
-			hints.ai_family = res->ai_family;
-			freeaddrinfo(res);
- 
-			if (LocalHostName && !getaddrinfo(LocalHostName, NULL, &hints, &res) && res)
-			{
-				int retval = bind(fd, (struct sockaddr *) res->ai_addr, res->ai_addrlen);
-				freeaddrinfo(res);
-
-				if (retval)	
-					return close(fd), -2;
-			}
-		}
-		else
+		if (getaddrinfo(hostn, NULL, &hints, &res_list) != 0)
 			return close(fd), -6;
 
+		close(fd);
+		fd = -1;
+
+		for (res = res_list; res; res = res->ai_next)
+		{
+			fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+			if (fd >= 0)
+				break;
+		}
+
+		if (fd < 0)
+		{
+			freeaddrinfo(res_list);
+			return -1;
+		}
+		set_socket_options(fd);
+
+		memcpy(&server, res->ai_addr, res->ai_addrlen);
+		server_len = res->ai_addrlen;
+		server.sf_port = htons(*portnum);
+
+		memset(&hints, 0, sizeof hints);
+		hints.ai_family = res->ai_family;
+		freeaddrinfo(res_list);
+ 
+		if (LocalHostName && !getaddrinfo(LocalHostName, NULL, &hints, &res) && res)
+		{
+			int retval = bind(fd, (struct sockaddr *) res->ai_addr, res->ai_addrlen);
+			freeaddrinfo(res);
+
+			if (retval)	
+				return close(fd), -2;
+		}
 #else
 		if (isdigit((unsigned char)hostn[strlen(hostn)-1]))
 			inet_aton(hostn, (struct in_addr *)&server.sf_addr);
@@ -584,8 +599,7 @@ int BX_connect_by_number(char *hostn, unsigned short *portnum, int service, int 
 			if ((hp = gethostbyname(hostn)) != NULL)
 			{
 				memset(&server, 0, sizeof(server));
-				bcopy(hp->h_addr, (char *) &server.sf_addr,
-					hp->h_length);
+				memcpy(&server.sf_addr, hp->h_addr, hp->h_length);
 				server.sf_family = hp->h_addrtype;
 			}
 			else
@@ -744,11 +758,12 @@ extern char *BX_host_to_ip (const char *host)
 	struct hostent *hep = gethostbyname(host);
 	static char ip[30];
 
-	return (hep ? sprintf(ip,"%u.%u.%u.%u",	hep->h_addr[0] & 0xff,
-						hep->h_addr[1] & 0xff,
-						hep->h_addr[2] & 0xff,
-						hep->h_addr[3] & 0xff),
-						ip : empty_string);
+	return (hep ? snprintf(ip, sizeof ip, "%u.%u.%u.%u",	
+					hep->h_addr[0] & 0xff,
+					hep->h_addr[1] & 0xff,
+					hep->h_addr[2] & 0xff,
+					hep->h_addr[3] & 0xff),
+					ip : empty_string);
 }
 
 extern char *BX_ip_to_host (const char *ip)
@@ -776,12 +791,12 @@ extern char *BX_one_to_another (const char *what)
 
 /*
  * It is possible for a race condition to exist; such that select()
- * indicates that a listen()ing socket is able to recieve a new connection
+ * indicates that a listen()ing socket is able to receive a new connection
  * and that a later accept() call will still block because the connection
  * has been closed in the interim.  This wrapper for accept() attempts to
  * defeat this by making the accept() call nonblocking.
  */
-int	my_accept (int s, struct sockaddr *addr, int *addrlen)
+int	my_accept (int s, struct sockaddr *addr, socklen_t *addrlen)
 {
 	int	retval;
 	set_non_blocking(s);

@@ -11,7 +11,7 @@
 #include "irc.h"
 #include "struct.h"
 
-static char cvsrevision[] = "$Id: irc.c 206 2012-06-13 12:34:32Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(irc_c)
 
 #include <sys/types.h>
@@ -43,7 +43,6 @@ CVS_REVISION(irc_c)
 #include "history.h"
 #include "exec.h"
 #include "notify.h"
-#include "numbers.h"
 #include "mail.h"
 #include "debug.h"
 #include "newio.h"
@@ -62,18 +61,14 @@ CVS_REVISION(irc_c)
 #include <signame.h>
 #endif
 
-#ifndef VERSION
-	const char irc_version[] = "BitchX-1.3-git";
-#else
-	const char irc_version[] = VERSION;
-#endif
+const char irc_version[] = VERSION;
 
 /* Format of bitchx_numver: MMmmpp
  * MM = major version (eg 10 = 1.0)
  * mm = minor version
  * pp = patchlevel (00 = development, 01 = release)
  */
-const unsigned long bitchx_numver = 120100;
+const unsigned long bitchx_numver = 120101;
 
 /*
  * INTERNAL_VERSION is the number that the special alias $V returns.
@@ -82,7 +77,7 @@ const unsigned long bitchx_numver = 120100;
  * Its format is actually YYYYMMDD, for the _release_ date of the
  * client..
  */
-const char internal_version[] = "20121231";
+const char internal_version[] = "20141114";
 
 int	irc_port = IRC_PORT,			/* port of ircd */
 	strip_ansi_in_echo,
@@ -101,7 +96,7 @@ int	irc_port = IRC_PORT,			/* port of ircd */
 	waiting_out = 0,				/* used by /WAIT command */
 	waiting_in = 0,				/* used by /WAIT command */
 	who_mask = 0,				/* keeps track of which /who
-						 * switchs are set */
+						 * switches are set */
 	dead	   = 0, 
 	inhibit_logging = 0,
 #ifndef ONLY_STD_CHARS
@@ -114,7 +109,7 @@ int	irc_port = IRC_PORT,			/* port of ircd */
 	background = 0,
 	do_check_pid = 0,
 	do_ignore_ajoin = 0,
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 	do_use_ssl = 0,
 #endif
 	run_level = 0,
@@ -159,7 +154,7 @@ int		inbound_line_mangler = 0,
 
 char	*invite_channel = NULL,		/* last channel of an INVITE */
 	*ircrc_file = NULL,		/* full path .ircrc file */
-	*bircrc_file = NULL,		/* full path .ircrc file */
+	*bircrc_file = NULL,		/* full path .bitchxrc file */
 	*my_path = NULL,		/* path to users home dir */
 	*irc_path = NULL,		/* paths used by /load */
 	*irc_lib = NULL,		/* path to the ircII library */
@@ -170,7 +165,6 @@ char	*invite_channel = NULL,		/* last channel of an INVITE */
 	realname[REALNAME_LEN + 1],	/* real name of user */
 	username[NAME_LEN + 1],		/* usernameof user */
 	attach_ttyname[500],		/* ttyname for this term */
-	socket_path[500],		/* ttyname for this term */
 	*forwardnick = NULL,		/* used for /forward */
 	*send_umode = NULL,		/* sent umode */
 	*args_str = NULL,		/* list of command line args */
@@ -205,7 +199,6 @@ struct in_addr nat_address;
 
 
 static	void	quit_response (char *, char *);
-static	void	versionreply (void);
 static	char	*parse_args (char **, int, char **);
 static	void	remove_pid(void);
 	void	do_ansi_logo(int);
@@ -216,55 +209,43 @@ static	volatile int	cntl_c_hit = 0;
 
 	char	version[] = _VERSION_;
 	
-static		char	*switch_help[] = {
-"Usage: BitchX [switches] [nickname] [server list] \n",
-"  The [nickname] can be at most 15 characters long\n",
-"  The [server list] is a whitespace separate list of server name\n",
-"  The [switches] may be any or all of the following\n",
+static const char * const switch_help =
+	"Usage: BitchX [switches] [nickname] [server list] \n"
+	"  The [nickname] can be at most 15 characters long.\n"
+	"  The [server list] is a whitespace-separated list of server descriptions.  Each\n"
+	"    server description is of the form hostname[:port[:password[:nick[:network]]]].\n"
+	"  The [switches] may be any or all of the following:\n"
 #ifndef WINNT
-"   -H <hostname>\tuses the virtual hostname if possible\n",
+	"   -H <hostname>\tuses the virtual hostname if possible\n"
 #endif
-"   -N do not auto-connect to the first server\n",
-"   -A do not display the startup ansi\n",
-"   -c <channel>\tjoins <channel> on startup. don\'t forget to escape the # using \\\n",
-#if defined(WINNT) || defined(__EMX__)
-"   -b\t\tload bx-rc or irc-rc after connecting to a server\n",
-#else
-"   -b\t\tload .bitchxrc  or .ircrc after connecting to a server\n",
-#endif
-"   -p <port>\tdefault server connection port (usually 6667)\n",
+	"   -N do not auto-connect to the first server\n"
+	"   -A do not display the startup ansi\n"
+	"   -c <channel>\tjoins <channel> on startup. don\'t forget to escape the # using \\\n"
+	"   -b\t\tload " BITCHXRC_NAME " or " IRCRC_NAME " after connecting to a server\n"
+	"   -p <port>\tdefault server connection port (usually 6667)\n"
 #ifndef WINNT
-"   -f\t\tyour terminal uses flow controls (^S/^Q), so BitchX shouldn't\n",
-"   -F\t\tyour terminal doesn't use flow control (default)\n",
+	"   -f\t\tyour terminal uses flow controls (^S/^Q), so BitchX shouldn't\n"
+	"   -F\t\tyour terminal doesn't use flow control (default)\n"
 #endif
-	"   -d\t\truns BitchX in \"dumb\" terminal mode\n",
-#if defined(WINNT) || defined(__EMX__)
-"   -q\t\tdoes not load ~/irc-rc\n",
-#else
-"   -q\t\tdoes not load ~/.ircrc\n",
+	"   -d\t\truns BitchX in \"dumb\" terminal mode\n"
+	"   -q\t\tdoes not load ~/" IRCRC_NAME "\n"
+	"   -r file\tload file as list of servers\n"
+	"   -n nickname\tnickname to use\n"
+	"   -a\t\tadds default servers and command line servers to server list\n"
+	"   -x\t\truns BitchX in \"debug\" mode\n"
+	"   -Z\t\tuse NAT address when doing DCC\n"
+	"   -P\t\ttoggle check pid.nickname for running program\n"
+	"   -v\t\ttells you about the client's version\n"
+#ifdef HAVE_LIBSSL
+	"   -s\t\tnext server specified is SSL (may be used multiple times)\n"
 #endif
-"   -r file\tload file as list of servers\n",
-"   -n nickname\tnickname to use\n",
-"   -a\t\tadds default servers and command line servers to server list\n",
-"   -x\t\truns BitchX in \"debug\" mode\n",
-"   -Z\t\tuse NAT address when doing dcc.\n",
-"   -P\t\ttoggle check pid.nickname for running program.\n",
-"   -v\t\ttells you about the client's version\n",
-#ifdef HAVE_SSL
-"   -s\t\tservers specified are SSL.\n",
-#endif
-"   -i\t\tignores the autojoin list entries.\n",
-#if defined(WINNT) || defined(__EMX__)
-"   -l <file>\tloads <file> in place of your irc-rc\n\
-   -L <file>\tloads <file> in place of your irc-rc and expands $ expandos\n",
-#else
-"   -l <file>\tloads <file> in place of your .ircrc\n\
-   -L <file>\tloads <file> in place of your .ircrc and expands $ expandos\n",
-#endif
+	"   -i\t\tignores the autojoin list entries\n"
+	"   -l <file>\tloads <file> in place of your " IRCRC_NAME "\n"
+	"   -L <file>\tloads <file> in place of your " IRCRC_NAME " and expands $ expandos\n"
 #if !defined(WINNT) && !defined(__EMX__)
-"   -B\t\tforce BitchX to fork and return you to shell. pid check on.\n",
+	"   -B\t\tforce BitchX to fork and return you to shell. pid check on.\n"
 #endif
-NULL };
+	;
 
 char	*time_format = NULL;	/* XXX Bogus XXX */
 #ifdef __EMX__
@@ -275,55 +256,8 @@ char	*strftime_24hour = "%R";
 char	*strftime_12hour = "%I:%M%p";
 char	time_str[61];
 
-char    saved_termvar[BUFSIZ];
-
 void detachcmd(char *, char *, char *, char *);
 
-
-int
-munge_term_env_var(void)
-{
-  char *termvar = getenv("TERM");
-  int i;
-
-  /*
-   * Initialize saved_termvar
-   */
-
-  for (i = 0; i < BUFSIZ; i++)
-      saved_termvar[i] = '\0';
-
-  /*
-   * TERM var not there?  It'll get detected later.  Exit silently.
-   */
-
-  if (!termvar)
-      return 0;
-
-  if (!strcmp(termvar, "xterm-256color"))
-    {
-      snprintf(saved_termvar, BUFSIZ, "TERM=%s", termvar);
-      return 1;
-    }
-  else if (!strcmp(termvar, "xterm"))
-    {
-      snprintf(saved_termvar, BUFSIZ, "TERM=%s", termvar);
-      return 1;
-    }
-
-  /*
-   * Add more if's here, if needed.
-   */
-}
-
-void
-restore_term_env_var(void)
-{
-  if (strlen(saved_termvar) > 0)
-    {
-      putenv(saved_termvar);
-    }
-}
 
 
 /* update_clock: figUres out the current time and returns it in a nice format */
@@ -386,8 +320,6 @@ char	*BX_update_clock(int flag)
 			}
 			check_channel_limits();
 		}
-		if (!((hideous - start_time) % 20))
-			check_serverlag();
 		from_server = ofs;
 		if (flag != RESET_TIME || new_minute)
 			return time_str;
@@ -406,24 +338,22 @@ void reset_clock(Window *win, char *unused, int unused1)
 	update_all_status(win, NULL, 0);
 }
 
-
-
 /* sig_refresh_screen: the signal-callable version of refresh_screen */
-SIGNAL_HANDLER(sig_refresh_screen)
+static SIGNAL_HANDLER(sig_refresh_screen)
 {
 	refresh_screen(0, NULL);
 }
 
 /* irc_exit: cleans up and leaves */
-SIGNAL_HANDLER(irc_exit_old)
+static SIGNAL_HANDLER(irc_exit_old)
 {
 	irc_exit(1,NULL, NULL);
 }
 
 volatile int dead_children_processes;
 
-/* This is needed so that the fork()s we do to read compressed files dont
- * sit out there as zombies and chew up our fd's while we read more.
+/* This is needed so that the fork()s we do to read compressed files don't
+ * sit out there as zombies and chew up our fds while we read more.
  */
 SIGNAL_HANDLER(child_reap)
 {
@@ -433,7 +363,7 @@ SIGNAL_HANDLER(child_reap)
 #endif
 }
 
-SIGNAL_HANDLER(nothing)
+static SIGNAL_HANDLER(nothing)
 {
       /* nothing to do! */
 }
@@ -446,11 +376,11 @@ static int sigpipe_hit = 0;
 }
           
 #if 0
-SIGNAL_HANDLER(sigusr2)
+static SIGNAL_HANDLER(sigusr2)
 {
 	mtrace();
 }
-SIGNAL_HANDLER(sigusr3)
+static SIGNAL_HANDLER(sigusr3)
 {
 	muntrace();
 }
@@ -484,8 +414,7 @@ void BX_irc_exit (int really_quit, char *reason, char *format, ...)
 
 	close_all_servers(reason ? reason : buffer);
 
-	put_it("%s", buffer ? buffer : reason ? reason : empty_string);
-
+	put_it("%s", !format && reason ? reason : buffer);
 
 	clean_up_processes();
 	if (!dumb_mode && term_initialized)
@@ -524,7 +453,7 @@ void BX_irc_exit (int really_quit, char *reason, char *format, ...)
 volatile int segv_recurse = 0;
 /* sigsegv: something to handle segfaults in a nice way */
 /* this needs to be changed to *NOT* use printf(). */
-SIGNAL_HANDLER(coredump)
+static SIGNAL_HANDLER(coredump)
 {
 #if defined(WINNT)
 extern char *sys_siglist[];
@@ -576,7 +505,7 @@ void irc_quit(char key, char * ptr)
  * cntl_c: emergency exit.... if somehow everything else freezes up, hitting
  * ^C five times should kill the program. 
  */
-SIGNAL_HANDLER(cntl_c)
+static SIGNAL_HANDLER(cntl_c)
 {
 
 	if (cntl_c_hit++ >= 4)
@@ -585,7 +514,7 @@ SIGNAL_HANDLER(cntl_c)
 		kill(getpid(), SIGALRM);
 }
 
-SIGNAL_HANDLER(sig_user1)
+static SIGNAL_HANDLER(sig_user1)
 {
 	bitchsay("Got SIGUSR1, closing DCC connections and EXECed processes");
 	close_all_dcc();
@@ -593,7 +522,7 @@ SIGNAL_HANDLER(sig_user1)
 }
 
 
-SIGNAL_HANDLER(sig_detach)
+static SIGNAL_HANDLER(sig_detach)
 {
 	detachcmd(NULL, NULL, NULL, NULL);
 }
@@ -604,13 +533,6 @@ void set_detach_on_hup(Window *dummy, char *unused, int value)
 		my_signal(SIGHUP, sig_detach, 0);
 	else
 		my_signal(SIGHUP, irc_exit_old, 0);
-}
-
-/* shows the version of irc */
-static	void versionreply(void)
-{
-	printf("BitchX version %s (%s)\n\r", irc_version, internal_version);
-	exit (0);
 }
 
 #ifndef RAND_MAX
@@ -662,8 +584,8 @@ int old_strip_ansi = strip_ansi_in_echo;
  * major rewrite 12/22/94 -jfn
  *
  *
- * Im going to break backwards compatability here:  I think that im 
- * safer in doing this becuase there are a lot less shell script with
+ * I'm going to break backwards compatibility here:  I think that I'm
+ * safer in doing this because there are a lot less shell scripts with
  * the command line flags then there are ircII scripts with old commands/
  * syntax that would be a nasty thing to break..
  *
@@ -677,12 +599,12 @@ int old_strip_ansi = strip_ansi_in_echo;
  *   Each flag may or may not have a space between the flag and the argument.
  *   		-lfoo  is the same as -l foo
  *   Anything surrounded by quotation marks is honored as one word.
- *   The -c, -p, -L, -l, -s, -z flags all take arguments.  If no argumenTs
+ *   The -c, -p, -L, -l, -s, -z flags all take arguments.  If no arguments
  *		are given between the flag and the next flag, an error
  * 		message is printed and the program is halted.
- *		Exception: the -s flag will be accepted without a argument.
- *		(ick: backwards compatability sucks. ;-)
- *   Arguments occuring after a flag that does not take an argument
+ *		Exception: the -s flag will be accepted without an argument.
+ *		(ick: backwards compatibility sucks. ;-)
+ *   Arguments occurring after a flag that does not take an argument
  * 		will be parsed in the following way: the first instance
  *		will be an assumed nickname, and the second instance will
  *		will be an assumed server. (some semblance of back compat.)
@@ -693,10 +615,9 @@ int old_strip_ansi = strip_ansi_in_echo;
  *   The -n flag means "nickname"
  *
  * Bugs:
- *   The -s flag is hard to use without an argument unless youre careful.
+ *   The -s flag is hard to use without an argument unless you're careful.
  */
 #ifdef CLOAKED
-extern char proctitlestr[140];
 extern char **Argv;
 extern char *LastArgv;
 #endif
@@ -710,7 +631,6 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 	struct passwd *entry;
 #endif
 	char *channel = NULL;
-	struct hostent * hp;
 	char *ptr;
 	
 	*nickname = 0;
@@ -731,12 +651,8 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 			case 'A': /* turn off startup ansi */
 				startup_ansi =  0;
 				break;
-			case 'v': /* Output ircII version */
-			{
-				versionreply();
-				/* NOTREACHED */
-			}
-
+			case 'v': /* Output client version (already done) and exit */
+				exit(0);
 			case 'c': /* Default channel to join */
 			{
 				char *what = empty_string;
@@ -792,7 +708,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 				break;
 			}
 
-			case 'F': /* dont use flow control */
+			case 'F': /* don't use flow control */
 			{
 				use_flow_control = 0;
 				if (argv[ac][2])
@@ -930,7 +846,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 					fprintf(stderr,"Missing argument for -n\n");
 					exit(1);
 				}
-				strmcpy(nickname, what, NICKNAME_LEN);
+				strlcpy(nickname, what, sizeof nickname);
 				break;
 			}
 			case 'N':
@@ -963,7 +879,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 				}
 				else
 					break;
-				strmcpy(username, what, NAME_LEN);
+				strlcpy(username, what, sizeof username);
 				break;
 			}
 			case 'H':
@@ -992,7 +908,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 			case 'i':
 				do_ignore_ajoin = 1;
 				break;
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 			case 's':
 				do_use_ssl = 1;
 				break;
@@ -1003,32 +919,27 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 			default:
 				fprintf(stderr, "Unknown flag: %s\n",argv[ac]);
 			case 'h':
-				{
-					int t = 0;
-
-					while(switch_help[t])
-					{
-						fprintf(stderr, "%s", switch_help[t]);
-						t++;
-					}
-					exit(1);
-				}
+				fputs(switch_help, stderr);
+				exit(1);
 		   } /* End of switch */
 		}
 		else
 		{
 			if (!strchr(argv[ac], '.') && !strchr(argv[ac], ',') && !*nickname)
-				strmcpy(nickname, argv[ac], NICKNAME_LEN);
+				strlcpy(nickname, argv[ac], sizeof nickname);
 			else
+			{
 				build_server_list(argv[ac]);
-#ifdef HAVE_SSL
-			do_use_ssl = 0;
+#ifdef HAVE_LIBSSL
+				/* -s flag only applies to next server specified */
+				do_use_ssl = 0;
 #endif
+			}
 		}
 	}
 
 	if (!*nickname && (ptr = getenv("IRCNICK")))
-		strmcpy(nickname, ptr, NICKNAME_LEN);
+		strlcpy(nickname, ptr, sizeof nickname);
 
 	if (!ircservers_file)
 #if defined(WINNT) || defined(__EMX__)
@@ -1052,9 +963,9 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 		malloc_strcpy(&send_umode, ptr);
 
 	if ((ptr = getenv("IRCNAME")))
-		strmcpy(realname, ptr, REALNAME_LEN);
+		strlcpy(realname, ptr, sizeof realname);
 	else if ((ptr = getenv("NAME")))
-		strmcpy(realname, ptr, REALNAME_LEN);
+		strlcpy(realname, ptr, sizeof realname);
 
 	if ((ptr = getenv("IRCPATH")))
 		malloc_strcpy(&irc_path, ptr);
@@ -1080,8 +991,8 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
         * option. If not check IRCUSER, then USER, then the IDENT_HACK file, then
         * fallback to gecos below.
         */
-	if (!*username && (ptr = getenv("IRCUSER"))) strmcpy(username, ptr, NAME_LEN);
-	else if (!*username && (ptr = getenv("USER"))) strmcpy(username, ptr, NAME_LEN);
+	if (!*username && (ptr = getenv("IRCUSER"))) strlcpy(username, ptr, sizeof username);
+	else if (!*username && (ptr = getenv("USER"))) strlcpy(username, ptr, sizeof username);
 	else if (!*username)
 	{
 #ifdef IDENT_FAKE
@@ -1099,7 +1010,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 		new_free(&p); new_free(&q);
 		if (!*username)
 #endif
-			strmcpy(username, "Unknown", NAME_LEN); 
+			strlcpy(username, "Unknown", sizeof username); 
 
 	}
 
@@ -1109,28 +1020,33 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 		if (!*realname && entry->pw_gecos && *(entry->pw_gecos))
 		{
 #ifdef GECOS_DELIMITER
-			if ((ptr = index(entry->pw_gecos, GECOS_DELIMITER)))
-				*ptr = (char) 0;
+			if ((ptr = strchr(entry->pw_gecos, GECOS_DELIMITER)))
+				*ptr = 0;
 #endif
-			if ((ptr = strchr(entry->pw_gecos, '&')) == NULL)
-				strmcpy(realname, entry->pw_gecos, REALNAME_LEN);
-			else {
-				int len = ptr - entry->pw_gecos;
+			/* The first '&' character in pw_gecos is replaced with pw_name */
+			if ((ptr = strchr(entry->pw_gecos, '&')))
+				*ptr = 0;
 
-				if (len < REALNAME_LEN && *(entry->pw_name)) {
-					char *q = realname + len;
+			strlcpy(realname, entry->pw_gecos, sizeof realname);
 
-					strmcpy(realname, entry->pw_gecos, len);
-					strmcat(realname, entry->pw_name, REALNAME_LEN);
-					strmcat(realname, ptr + 1, REALNAME_LEN);
-					if (islower((unsigned char)*q) && (q == realname || isspace((unsigned char)*(q - 1))))
-						*q = toupper(*q);
-				} else
-					strmcpy(realname, entry->pw_gecos, REALNAME_LEN);
+			if (ptr)
+			{
+				size_t len = ptr - entry->pw_gecos;
+
+				strlcat(realname, entry->pw_name, sizeof realname);
+				strlcat(realname, ptr + 1, sizeof realname);
+
+				/* Make the first character of the username uppercase, if
+				   it's preceded by a space */
+				if (len < sizeof realname && *(entry->pw_name) && 
+				   (len == 0 || isspace((unsigned char)realname[len - 1])))
+				{
+					realname[len] = toupper((unsigned char)realname[len]);
+				}
 			}
 		}
 		if (entry->pw_name && *(entry->pw_name) && !*username)
-			strmcpy(username, entry->pw_name, NAME_LEN);
+			strlcpy(username, entry->pw_name, sizeof username);
 		if (entry->pw_dir && *(entry->pw_dir))
 			malloc_strcpy(&my_path, entry->pw_dir);
 	}
@@ -1156,7 +1072,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 	convert_unix(my_path);
 #endif
 	if (!*realname)
-		strmcpy(realname, "* I'm too lame to read BitchX.doc *", REALNAME_LEN);
+		strlcpy(realname, "* I'm too lame to read BitchX.doc *", sizeof realname);
 
 	if (!LocalHostName && ((ptr = getenv("IRC_HOST")) || (ptr = getenv("IRCHOST"))))
 		LocalHostName = m_strdup(ptr);
@@ -1168,20 +1084,28 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 	if (LocalHostName)
 	{
 		printf("Your hostname appears to be [%s]\n", LocalHostName);
+	}
+
 #ifndef IPV6
-		memset((void *)&LocalHostAddr, 0, sizeof(LocalHostAddr));
+	if (LocalHostName)
+	{
+		struct hostent *hp;
+
+		memset(&LocalHostAddr, 0, sizeof(LocalHostAddr));
 		if ((hp = gethostbyname(LocalHostName)))
 			memcpy((void *)&LocalHostAddr.sf_addr, hp->h_addr, sizeof(struct in_addr));
 	} 
 	else
 	{
-		if ((hp = gethostbyname(hostname)))
-			memcpy((char *) &MyHostAddr.sf_addr, hp->h_addr, sizeof(struct in_addr));
-#endif
-	}
+		struct hostent *hp;
 
-	if (!nickname || !*nickname)
-		strmcpy(nickname, username, NICKNAME_LEN);
+		if ((hp = gethostbyname(hostname)))
+			memcpy(&MyHostAddr.sf_addr, hp->h_addr, sizeof(struct in_addr));
+	}
+#endif
+
+	if (!*nickname)
+		strlcpy(nickname, username, sizeof nickname);
 
 	if (!check_nickname(nickname))
 	{
@@ -1189,18 +1113,12 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
 		fprintf(stderr, "Please restart IRC II with a valid nickname\n");
 		exit(1);
 	}
+
 	if (ircrc_file == NULL)
-	{
-		ircrc_file = (char *) new_malloc(strlen(my_path) + strlen(IRCRC_NAME) + 1);
-		strcpy(ircrc_file, my_path);
-		strcat(ircrc_file, IRCRC_NAME);
-	}
+		ircrc_file = m_sprintf("%s/%s", my_path, IRCRC_NAME);
+
 	if (bircrc_file == NULL)
-#if defined(WINNT) || defined(__EMX__)
-		malloc_sprintf(&bircrc_file, "%s/bx-rc", my_path);
-#else
-		malloc_sprintf(&bircrc_file, "%s/.bitchxrc", my_path);
-#endif
+		bircrc_file = m_sprintf("%s/%s", my_path, BITCHXRC_NAME);
 
 	if ((ptr = getenv("IRCPORT")))
 		irc_port = my_atol(ptr);
@@ -1234,7 +1152,7 @@ static	char	*parse_args (char *argv[], int argc, char **envp)
  * dcc, ttys, notify, the whole ball o wax, but it does NOT iterate!
  * 
  * You should usually NOT call io() unless you are specifically waiting
- * for something from a file descriptor.  It doesnt look like bad things
+ * for something from a file descriptor.  It doesn't look like bad things
  * will happen if you call this elsewhere, but its long time behavior has
  * not been observed.  It *does* however, appear to be much more reliable
  * then the old irc_io, and i even know how this works. >;-)
@@ -1243,29 +1161,19 @@ extern void set_screens (fd_set *, fd_set *);
 
 void BX_io (const char *what)
 {
-	static	int	first_time = 1,	
-			level = 0;
-		long	clock_timeout = 0, 
-			timer_timeout = 0,
-			server_timeout = 0,
-			real_timeout = 0; 
-static	struct	timeval my_now,
-			my_timer,
-			*time_ptr = &my_timer;
-
-	int		hold_over,
-			rc;
-	fd_set		rd, 
-			wd;
-	static int 	old_level = 0;
-static	const	char	*caller[51] = { NULL }; /* XXXX */
-	static	int	last_warn = 0;
+	static int level = 0;
+	long clock_timeout = 0;
+	struct timeval my_now,
+		my_timer,
+		timeout;
+	int hold_over, rc;
+	fd_set rd, wd;
+	static int old_level = 0;
+	static const char *caller[51] = { NULL }; /* XXXX */
+	static int last_warn = 0;
 
 	level++;
 
-	get_time(&my_now);
-	now = my_now.tv_sec;
-	
 	if (x_debug & DEBUG_WAITS)
 	{
 		if (level != old_level)
@@ -1289,6 +1197,9 @@ static	const	char	*caller[51] = { NULL }; /* XXXX */
 
 	caller[level] = what;
 
+	get_time(&my_now);
+	now = my_now.tv_sec;
+
 	/* CHECK FOR CPU SAVER MODE */
 	if (!cpu_saver && get_int_var(CPU_SAVER_AFTER_VAR))
 		if (now - idle_time > get_int_var(CPU_SAVER_AFTER_VAR) * 60)
@@ -1302,7 +1213,6 @@ static	const	char	*caller[51] = { NULL }; /* XXXX */
 #ifndef GUI
 	set_screens(&rd, &wd);
 #endif
-	server_timeout = set_server_bits(&rd, &wd);
 	set_process_bits(&rd);
 	set_socket_read(&rd, &wd);
 	set_nslookupfd(&rd);
@@ -1310,43 +1220,44 @@ static	const	char	*caller[51] = { NULL }; /* XXXX */
 	gui_setfd(&rd);
 #endif
 
-	clock_timeout = (60 - (my_now.tv_sec % 60)) * 1000;
+	clock_timeout = 60 - (my_now.tv_sec % 60);
 	if (cpu_saver && get_int_var(CPU_SAVER_EVERY_VAR))
-		clock_timeout += (get_int_var(CPU_SAVER_EVERY_VAR) - 1) * 60000;
+		clock_timeout += (get_int_var(CPU_SAVER_EVERY_VAR) - 1) * 60;
 
-	timer_timeout = TimerTimeout();
+	my_timer.tv_sec = my_now.tv_sec + clock_timeout;
+	my_timer.tv_usec = 0;
 
-	if ((hold_over = unhold_windows()))
-		real_timeout = 0;
-	else if (timer_timeout <= clock_timeout)
-		real_timeout = timer_timeout;
-	else
-		real_timeout = clock_timeout;
+	set_server_bits(&rd, &wd, &my_timer);
 
-	if(server_timeout && (server_timeout == -1 || server_timeout < real_timeout))
-		real_timeout = server_timeout;
+	tclTimerTimeout(&my_timer);
 
-	time_ptr = &my_timer;
+	TimerTimeout(&my_timer);
 
-	if (real_timeout == -1)
-		time_ptr = NULL;
+	if ((hold_over = unhold_windows()) || time_cmp(&my_timer, &my_now) < 0)
+	{
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 0;
+	}
 	else
 	{
-		time_ptr->tv_sec = real_timeout / 1000;
-		time_ptr->tv_usec = ((real_timeout % 1000) * 1000);
+		timeout.tv_sec = my_timer.tv_sec - my_now.tv_sec;
+		timeout.tv_usec = my_timer.tv_usec - my_now.tv_usec;
+		if (timeout.tv_usec < 0)
+		{
+			timeout.tv_sec--;
+			timeout.tv_usec += 1000000;
+		}
 	}
 	
 	/* GO AHEAD AND WAIT FOR SOME DATA TO COME IN */
-	switch ((rc = new_select(&rd, &wd, time_ptr)))
+	switch ((rc = new_select(&rd, &wd, &timeout)))
 	{
 		case 0:
-			if(server_timeout)
-				do_idle_server();
+			do_idle_server();
 			break;
 		case -1:
 		{
 			/* if we just got a sigint */
-			first_time = 0;
 			if (cntl_c_hit)
 			{
 				edit_char('\003');
@@ -1362,7 +1273,8 @@ static	const	char	*caller[51] = { NULL }; /* XXXX */
 		default:
 		{
 			cntl_c_hit = 0;
-			now = time(NULL);
+			get_time(&my_now);
+			now = my_now.tv_sec;
 			make_window_current(NULL);
 			do_server(&rd, &wd);
 			do_processes(&rd);
@@ -1380,7 +1292,8 @@ static	const	char	*caller[51] = { NULL }; /* XXXX */
 		} 
 	}
 
-	now = time(NULL);
+	get_time(&my_now);
+	now = my_now.tv_sec;
 	ExecuteTimers();
 #ifdef WANT_TCL
 	check_utimers();
@@ -1446,7 +1359,7 @@ FILE *t;
 	if (!do_check_pid)
 		return;
 	p = expand_twiddle(DEFAULT_CTOOLZ_DIR);
-	snprintf(pidfile, 79, "%s/pid.%s", p, nickname);
+	snprintf(pidfile, sizeof pidfile, "%s/pid.%s", p, nickname);
 	if ((t = fopen(pidfile, "r")))
 	{
 		char buffer[80];
@@ -1472,7 +1385,7 @@ FILE *t;
 	if (!do_check_pid)
 		return;
 	p = expand_twiddle(DEFAULT_CTOOLZ_DIR);
-	snprintf(pidfile, 79, "%s/pid.%s", p, nickname);
+	snprintf(pidfile, sizeof pidfile, "%s/pid.%s", p, nickname);
 	if ((t = fopen(pidfile, "r")))
 	{
 #if !defined(__EMX__) && !defined(WINNT) && !defined(GUI)
@@ -1482,7 +1395,7 @@ FILE *t;
 		if (save_ipc != -1 && (s = get_socket(save_ipc)))
 		{
 			char buf[500];
-			sprintf(buf, s->server, s->port);
+			snprintf(buf, sizeof buf, s->server, s->port);
 			unlink(buf);
 		}
 #endif
@@ -1493,7 +1406,7 @@ FILE *t;
 void setup_pid(void)
 {
 #ifdef WANT_DETACH
-pid_t pid;
+	pid_t pid;
 	if (!do_check_pid)
 		return;
 	if ((pid = getpid()))
@@ -1502,7 +1415,7 @@ pid_t pid;
 		unlink(pidfile);
 		if ((t = fopen(pidfile, "w")))
 		{
-			fprintf(t, "%u\n", pid);
+			fprintf(t, "%ld\n", (long)pid);
 			fclose(t);
 		}
 	}
@@ -1516,9 +1429,6 @@ int main(int argc, char *argv[], char *envp[])
 	time(&start_time);
 	time(&idle_time);
 	time(&now);
-
-	if (munge_term_env_var())
-	    putenv("TERM=vt100");
 
 	/* We need to zero these early */
 	FD_ZERO(&readables);
@@ -1549,11 +1459,10 @@ int main(int argc, char *argv[], char *envp[])
 	*cx_function = 0;
 #endif
 
-#if !defined(GUI) 
-
 	printf("BitchX - Based on EPIC Software Labs epic ircII (1998).\r\n");
 	printf("Version (%s) -- Date (%s).\r\n", irc_version, internal_version);
 	printf("Process [%d]", getpid());
+#if !defined(GUI) 
 	if ((isatty(0) && !background) || (!isatty(0) && background))
 	{
 		char s[90];
@@ -1574,7 +1483,6 @@ int main(int argc, char *argv[], char *envp[])
 	
 	channel = parse_args(argv, argc, envp);
 	check_pid();
-	init_socketpath();
 
 #ifdef WANT_TCL
 	tcl_interp = Tcl_CreateInterp();
@@ -1682,7 +1590,7 @@ int main(int argc, char *argv[], char *envp[])
 #endif
 	add_tcl_vars();
 #endif
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 	{
 		char *entropy = malloc(100);
 		int i;
@@ -1700,8 +1608,7 @@ int main(int argc, char *argv[], char *envp[])
 
 #ifdef CLOAKED
 	initsetproctitle(argc, argv, envp);
-	sprintf(proctitlestr, CLOAKED);
-	setproctitle("%s", proctitlestr);
+	setproctitle("%s", CLOAKED);
 #endif
 
 	/* We move from run level 0 to run level 1
@@ -1740,6 +1647,5 @@ int main(int argc, char *argv[], char *envp[])
 #else
 	ircpanic("get_line() returned");
 #endif
-	restore_term_env_var ();
 	return (-((int)0xdead));
 }

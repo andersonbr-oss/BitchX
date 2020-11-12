@@ -3,7 +3,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: struct.c 110 2011-02-02 12:34:13Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(struct_c)
 #include "struct.h"
 #include "hash.h"
@@ -214,7 +214,7 @@ static LookupStruct win_struct[] = {
 	{ "LINE_CNT",		offsetof(Window, line_cnt),	INT_TYPE_VAR , VAR_READ_ONLY },
 	{ "SCROLL",		offsetof(Window, noscroll),	BOOL_TYPE_VAR , VAR_READ_WRITE },
 	{ "SCRATCH",		offsetof(Window, scratch_line), BOOL_TYPE_VAR , VAR_READ_WRITE },	
-	{ "COLUMNS",		offsetof(Window, columns),	INT_TYPE_VAR , VAR_READ_ONLY },
+	{ "COLUMNS",		offsetof(Window, saved_columns),	INT_TYPE_VAR , VAR_READ_ONLY },
 	{ "NOTIFY_LEVEL",	offsetof(Window, notify_level), INT_TYPE_VAR , VAR_READ_WRITE },
 	{ "WINDOW_LEVEL",	offsetof(Window, window_level), INT_TYPE_VAR , VAR_READ_WRITE },
 	{ "CURRENT_CHANNEL",	offsetof(Window, current_channel),STR_TYPE_VAR , VAR_READ_ONLY },

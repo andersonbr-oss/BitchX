@@ -12,7 +12,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: names.c 137 2011-09-06 06:48:57Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(names_c)
 #include "struct.h"
 
@@ -25,7 +25,6 @@ CVS_REVISION(names_c)
 #include "lastlog.h"
 #include "list.h"
 #include "output.h"
-#include "numbers.h"
 #include "userlist.h"
 #include "timer.h"
 #include "input.h"
@@ -88,7 +87,7 @@ char *	check_channel_type (char *channel)
 	if (*channel != '!' || strlen(channel) < 6)
 		return channel;
 
-	sprintf(new_channel_format, "[%.6s] %s", channel, channel + 6);
+	snprintf(new_channel_format, sizeof new_channel_format, "[%.6s] %s", channel, channel + 6);
 	return new_channel_format;
 }
 
@@ -106,7 +105,7 @@ NickList *Nick, *n;
 	chan->totalnicks = 0;
 }
 
-extern	ChannelList *BX_lookup_channel(char *channel, int server, int unlink)
+ChannelList *BX_lookup_channel(const char *channel, int server, int unlink)
 {
 	register ChannelList	*chan = NULL,
 				*last = NULL;
@@ -373,7 +372,7 @@ ChannelList *BX_add_to_channel(char *channel, char *nick, int server, int oper, 
 					new->bancount = new->nickcount = 
 					new->dopcount = new->kickcount = 
 					new->floodcount = new->ip_count = 
-					new->sent_voice = 0;
+					new->sent_voice = new->sent_kick = 0;
 					new->flags = 0;
 					new->serverhops = server_hops;
 					new->next = NULL;
@@ -624,7 +623,7 @@ NickList	*tnl = NULL;
 					tucm->v_ed = 1;
 					tucm->dev_ed = 0;
 				} 
-				else if (!add & isvoiced) 
+				else if (!add && isvoiced) 
 				{
 					tucm->v_ed = 0;
 					tucm->dev_ed = 1;
@@ -829,7 +828,7 @@ int in_join = 0;
 	else if (!add && add != channel->have_op && !in_join)
  	{
 		for(tmp = next_nicklist(channel, NULL); tmp; tmp = next_nicklist(channel, tmp))
-			tmp->sent_reop = tmp->sent_deop = tmp->sent_voice = 0;
+			tmp->sent_reop = tmp->sent_deop = tmp->sent_voice = tmp->sent_kick = 0;
 	}
 	return have_op;
 }
@@ -1208,48 +1207,30 @@ void BX_clear_bans(ChannelList *channel)
 	channel->exemptbans = NULL;
 }
 
-/*
- * remove_channel: removes the named channel from the
- * server_list[server].chan_list.  If the channel is not on the
- * server_list[server].chan_list, nothing happens.  If the channel was
- * the current channel, this will select the top of the
- * server_list[server].chan_list to be the current_channel, or 0 if the
- * list is empty. 
+/* remove_channel()
+ *
+ * Removes the named channel from the channel list for the current context
+ * server. If the channel was the current channel for a window, this will
+ * select a new current channel if possible.
+ *
+ * Should be called in direct response to a message from the server indicating
+ * that we are no longer on the channel.
  */
-
-void BX_remove_channel (char *channel, int server)
+void BX_remove_channel(const char *channel)
 {
 	ChannelList *tmp;
-	int old_from_server = from_server;
 	
-	if (channel)
+	if (*channel == '*')
+		return;
+	if ((tmp = lookup_channel(channel, from_server, CHAN_UNLINK)))
 	{
-		if (*channel == '*')
-			return;
-		from_server = server;
-		from_server = old_from_server;
-		if ((tmp = lookup_channel(channel, server, CHAN_UNLINK)))
-		{
-			clear_bans(tmp);
-			clear_channel(tmp);
-			add_to_whowas_chan_buffer(tmp);
-		}
-		if (is_current_channel(channel, server, 1))
-			switch_channels(0, NULL);
+		clear_bans(tmp);
+		clear_channel(tmp);
+		add_to_whowas_chan_buffer(tmp);
 	}
-	else
-	{
-		ChannelList *next;
+	if (is_current_channel(channel, from_server, 1))
+		switch_channels(0, NULL);
 
-		for (tmp = get_server_channels(server); tmp; tmp = next)
-		{
-			next = tmp->next;
-			clear_channel(tmp);
-			clear_bans(tmp);
-			add_to_whowas_chan_buffer(tmp);
-		}
-		set_server_channels(server, NULL);
-	}
 	xterm_settitle();
 	update_all_windows();
 }
@@ -1334,14 +1315,13 @@ void BX_remove_from_channel(char *channel, char *nick, int server, int netsplit,
 	}
 }
 
-void handle_nickflood(char *old_nick, char *new_nick, register NickList *nick, register ChannelList *chan, int flood_time)
+static void handle_nickflood(char *old_nick, char *new_nick, register NickList *nick, register ChannelList *chan, int flood_time)
 {
-time_t floodtime = now - nick->bantime;
-	if (isme(new_nick))
-		return;
+	time_t floodtime = now - nick->bantime;
+
 	if ((!nick->bancount) || (nick->bancount && (floodtime > 3)))
 	{
-		if (!nick->kickcount++ && ((nick->userlist && (nick->userlist->flags & ADD_FLOOD)) || !nick->userlist))
+		if (!nick->sent_kick++)
 			send_to_server("KICK %s %s :\002Niq flood (%d nicks in %dsecs of %dsecs)\002", chan->channel, new_nick, get_cset_int_var(chan->csets, KICK_ON_NICKFLOOD_CSET), flood_time, get_cset_int_var(chan->csets, NICKFLOOD_TIME_CSET));
 	}
 }
@@ -1491,35 +1471,35 @@ static	void show_channel(ChannelList *chan)
 void list_channels(void)
 {
 	ChannelList *tmp;
-	int	server,
-		no = 1;
+	int server;
+	int shown_current = 0;
+	int shown_others = 0;
 	
-	if (get_server_channels(from_server))
+	if (get_current_channel_by_refnum(0))
+		say("Current channel %s", get_current_channel_by_refnum(0));
+	else
+		say("No current channel for this window");
+
+	for (tmp = get_server_channels(get_window_server(0)); tmp; tmp = tmp->next)
 	{
-		if (get_current_channel_by_refnum(0))
-			say("Current channel %s", get_current_channel_by_refnum(0));
-		else
-			say("No current channel for this window");
-		if ((tmp = get_server_channels(get_window_server(0))))
+		show_channel(tmp);
+		shown_current = 1;
+	}
+
+	for (server = 0; server < server_list_size(); server++)
+	{
+		if (server == get_window_server(0))
+			continue;
+		for (tmp = get_server_channels(server); tmp; tmp = tmp->next)
 		{
-			for (; tmp; tmp = tmp->next)
-				show_channel(tmp);
-			no = 0;
-		}
-		if (connected_to_server != 1)
-		{
-			for (server = 0; server < server_list_size(); server++)
-			{
-				if (server == get_window_server(0))
-					continue;
+			if (!shown_others)
 				say("Other servers:");
-				for (tmp = get_server_channels(server); tmp; tmp = tmp->next)
-					show_channel(tmp);
-				no = 0;
-			}
+			show_channel(tmp);
+			shown_others = 1;
 		}
 	}
-	else
+
+	if (!shown_current && !shown_others)
 		say("You are not on any channels");
 }
 
@@ -1749,18 +1729,15 @@ extern	void set_channel_window(Window *window, char *channel, int server)
 
 extern	char	* BX_create_channel_list(Window *window)
 {
-	ChannelList	*tmp;
-	char	buffer[BIG_BUFFER_SIZE + 1];
+	ChannelList *chan;
+	char buffer[BIG_BUFFER_SIZE];
+
+	buffer[0] = 0;
 	
-	
-	*buffer = 0;
-	for (tmp = get_server_channels(window->server); tmp; tmp = tmp->next)
+	for (chan = get_server_channels(window->server); chan; chan = chan->next)
 	{
-		if (tmp->server == from_server)
-		{
-			strmcat(buffer, tmp->channel, BIG_BUFFER_SIZE);
-			strmcat(buffer, space, BIG_BUFFER_SIZE);
-		}
+		strlcat(buffer, chan->channel, sizeof buffer);
+		strlcat(buffer, space, sizeof buffer);
 	}
 	return m_strdup(buffer);
 }
@@ -1847,21 +1824,32 @@ int in_join_list(char *chan, int server)
 	return 0;
 }
 
-void show_channel_sync(struct joinlist *tmp, char *chan)
+void channel_sync(struct joinlist *tmp, char *channel)
 {
-struct timeval tv;
-	get_time(&tv);
-	set_display_target(chan, LOG_CRAP);
-	if (do_hook(CHANNEL_SYNCH_LIST, "%s %1.3f", chan, BX_time_diff(tmp->tv,tv)))
-		bitchsay("Join to %s was synched in %1.3f secs!!", chan, BX_time_diff(tmp->tv,tv));
+	double synch_time = time_since(&tmp->tv);
+
+	if (tmp->gotinfo & GOTNEW)
+	{
+		/* A channel that we just created.  */
+		ChannelList *chan;
+		char *chanmode;
+
+		if ((chan = lookup_channel(channel, tmp->server, CHAN_NOUNLINK)))
+			if ((chanmode = get_cset_str_var(chan->csets, CHANMODE_CSET)))
+				my_send_to_server(tmp->server, "MODE %s :%s", channel, chanmode);
+	}
+
+	set_display_target(channel, LOG_CRAP);
+	if (do_hook(CHANNEL_SYNCH_LIST, "%s %1.3f", channel, synch_time))
+		bitchsay("Join to %s was synched in %1.3f secs!!", channel, synch_time);
 #ifdef WANT_USERLIST
-	delay_check_auto(chan);
+	delay_check_auto(channel);
 #endif
 	update_all_status(current_window, NULL, 0);
 	reset_display_target();
 	xterm_settitle();
 #ifdef GUI
-	gui_update_nicklist(chan);
+	gui_update_nicklist(channel);
 #endif
 }
 
@@ -1874,17 +1862,17 @@ int got_info(char *chan, int server, int type)
 	for (tmp = join_list; tmp; tmp = tmp->next)
 		if (!my_stricmp(tmp->chan, chan) && tmp->server == server)
 		{
-			int what_info = (GOTNAMES | GOTMODE | GOTBANS | GOTWHO);
-			int ver;
+			int required = (GOTNAMES | GOTMODE | GOTBANS | GOTWHO);
+			int ver = get_server_version(server);
 
-			ver = get_server_version(server);
 			if ((ver == Server2_8ts4) || (ver == Server2_10))
-				what_info |= GOTEXEMPT;
+				required |= GOTEXEMPT;
 
-			if ((tmp->gotinfo |= type) == what_info)
+			tmp->gotinfo |= type;
+
+			if ((tmp->gotinfo & required) == required)
 			{
-				if (prepare_command(&tmp->server, chan, PC_SILENT))
-					show_channel_sync(tmp, chan);
+				channel_sync(tmp, chan);
 				remove_from_join_list(chan, tmp->server);
 				return 1;
 			}

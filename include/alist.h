@@ -2,11 +2,10 @@
  * alist.h -- resizeable arrays
  * Copyright 1997 EPIC Software Labs
  */
+#ifndef ALIST_H_
+#define ALIST_H_
 
-#ifndef __alist_h__
-#define __alist_h__
-
-#include "irc.h"
+#include "irc_std.h"
 #include "ircaux.h"
 
 /*
@@ -14,7 +13,7 @@
  */
 
 #ifdef _cs_alist_hash_
-static __inline u_32int_t 	cs_alist_hash (const char *s, u_32int_t *mask)
+static inline u_32int_t 	cs_alist_hash (const char *s, u_32int_t *mask)
 {
 	u_32int_t x;
 
@@ -44,7 +43,7 @@ static __inline u_32int_t 	cs_alist_hash (const char *s, u_32int_t *mask)
 #endif
 
 #ifdef _ci_alist_hash_
-static __inline u_32int_t 	ci_alist_hash (const char *s, u_32int_t *mask)
+static inline u_32int_t 	ci_alist_hash (const char *s, u_32int_t *mask)
 {
 	u_32int_t x;
 
@@ -111,6 +110,6 @@ Array_item *BX_remove_all_from_array (Array *, char *);
 Array_item *BX_array_lookup	(Array *, char *, int wild, int delete);
 Array_item *BX_find_array_item	(Array *, char *, int *cnt, int *loc);
 
-void *BX_find_fixed_array_item	(void *Array, size_t size, int siz, char *, int *cnt, int *loc);
+void *BX_find_fixed_array_item	(void *Array, size_t size, int siz, const char *, int *cnt, int *loc);
 
 #endif

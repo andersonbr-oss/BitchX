@@ -3,11 +3,10 @@
  *
  * Tomten, tomten@solace.hsh.se / tomten@lysator.liu.se
  *
- * @(#)$Id: translat.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __translat_h_
-#define __translat_h_
+#ifndef TRANSLAT_H_
+#define TRANSLAT_H_
 
 	void	set_translation (Window *, char *, int);
 	void	enter_digraph (char, char *);
@@ -27,4 +26,4 @@ extern	unsigned char	dig_table_di[DIG_TABLE_SIZE];
 extern	char	digraph_hit;
 extern	unsigned char	digraph_first;
 
-#endif /* __translat_h_ */
+#endif /* TRANSLAT_H_ */

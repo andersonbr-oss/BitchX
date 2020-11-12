@@ -7,17 +7,17 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: server.h 87 2010-06-26 08:18:34Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __server_h_
-#define __server_h_
+#ifndef SERVER_H_
+#define SERVER_H_
   
 /* for ChannelList */
 #include "who.h"
 #include "names.h"
 #include "struct.h"
 #include "ssl.h"
+#include "notify.h"
 
 /*
  * type definition to distinguish different
@@ -50,11 +50,7 @@ typedef struct _queued_send
 typedef struct _sping_ {
 	struct _sping_ *next;
 	char *sname;
-#ifdef HAVE_GETTIMEOFDAY
 	struct timeval in_sping;
-#else
-	time_t in_sping;
-#endif
 } Sping;
 
 
@@ -98,8 +94,10 @@ typedef	struct
 	int	sent;			/* set if something has been sent,
 					 * used for redirect */
 	int	lag;			/* indication of lag from server CDE*/
-	time_t	lag_time;		/* time ping sent to server CDE */
-	time_t	last_msg;		/* last mesg recieved from the server CDE */
+	struct timeval lag_sent;	/* time lag ping sent to server CDE */
+	struct timeval lag_recv;	/* time last lag ping reply was received */
+	unsigned long lag_cookie;	/* cookie to identify our lag check pings */
+	time_t	last_msg;		/* last mesg received from the server CDE */
 
 	time_t		last_sent;	/* last mesg time sent */
 	QueueSend 	*queue;		/* queue of lines to send to a server */	
@@ -158,8 +156,8 @@ typedef	struct
 	int from_server;
 #endif
 	char *orignick;
-	time_t connect_time;
-#if defined(HAVE_SSL) && !defined(IN_MODULE)   
+	struct timeval connect_time;
+#if defined(HAVE_LIBSSL) && !defined(IN_MODULE)   
 	SSL_CTX* ctx;
 	int enable_ssl;
 	int ssl_error;
@@ -187,7 +185,7 @@ typedef	unsigned	short	ServerType;
 	int	find_server_group (char *, int);
 	char *	find_server_group_name (int);
 
-	void	BX_add_to_server_list (char *, int, char *, char *, char *, char *, char *, int, int);
+	void	BX_add_to_server_list (char *, int, char *, char *, char *, int, int);
 	int	BX_build_server_list (char *);
 	int	connect_to_server (char *, int, int);
 	void	BX_get_connected (int, int);
@@ -218,7 +216,6 @@ extern	SGroup	*server_group_list;
 	char	*BX_get_server_itsname (int);
 	char	*get_server_pass (int);
 	int	BX_find_in_server_list (char *, int);
-	char	*BX_create_server_list (char *);
 	void	BX_set_server_motd (int, int);
 	int	BX_get_server_motd (int);
 	int	BX_get_server_operator (int);
@@ -229,19 +226,17 @@ extern	SGroup	*server_group_list;
 	void	BX_set_server_operator (int, int);
 	void	BX_server_is_connected (int, int);
 	int	BX_parse_server_index (char *);
-	void	BX_parse_server_info (char *, char **, char **, char **, char **, char **, char **);
-	long	set_server_bits (fd_set *, fd_set *);
+	void	BX_parse_server_info (char *, char **, char **, char **, char **);
+	void set_server_bits (fd_set *rd, fd_set *wr, struct timeval *wake_time);
 	void	BX_set_server_itsname (int, char *);
 	void	BX_set_server_version (int, int);
-	char	*BX_get_possible_umodes(int);
 		
 	int	BX_is_server_open (int);
 	int	BX_get_server_port (int);
 	
 	int	BX_get_server_lag (int);
 	void	BX_set_server_lag (int, int);
-	time_t	get_server_lagtime (int);
-	void	set_server_lagtime (int, time_t);
+	void server_lag_reply(int s, unsigned long cookie, struct timeval lag_recv, struct timeval lag_sent);
 	
 	char	*BX_set_server_password (int, char *);
 	void	BX_set_server_nickname (int, char *);
@@ -253,6 +248,7 @@ extern	SGroup	*server_group_list;
 	void	disconnectcmd (char *, char *, char *, char *);
 	char	*BX_get_umode (int);
 	int	BX_server_list_size (void);
+	void	reinstate_user_modes (int);
 
 	void    BX_set_server_away                 (int, char *, int);
 	char *  BX_get_server_away                 (int);
@@ -273,8 +269,8 @@ extern	SGroup	*server_group_list;
 	void	send_from_server_queue		(void);
 	void	clear_sent_to_server		(int);
 	int	sent_to_server			(int);
-	void	BX_set_server_flag			(int, int, int);
-	int	BX_get_server_flag			(int, int);
+	void	BX_update_server_umode			(int, char, int);
+	int	BX_get_server_umode			(int, char);
 	char *	get_server_userhost		(int);
 	void	got_my_userhost			(UserhostItem *item, char *nick, char *stuff);
 	void	BX_set_server_version		(int, int);
@@ -287,7 +283,7 @@ extern	SGroup	*server_group_list;
 		
 	void	change_server_nickname		(int, char *);
 	void	register_server			(int, char *);
-	void	BX_fudge_nickname			(int, int);
+	void	BX_fudge_nickname			(int);
 	char	*BX_get_pending_nickname		(int);
 	void	accept_server_nickname		(int, char *);
 	void	BX_reset_nickname			(int);
@@ -331,21 +327,12 @@ ChannelList	*BX_get_server_channels		(int);
 	int	get_server_reconnect		(int);
 	int	get_server_reconnecting		(int);
 	int get_server_change_pending   (int);
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 	void set_server_ssl(int, int);
 	int get_server_ssl(int);
 #endif
     int is_server_valid(char *name, int server);
 
-#if 0
-#ifdef HAVE_GETTIMEOFDAY
-struct	timeval	get_server_sping		(int);
-	void	set_server_sping		(int, struct timeval);
-#else
-	time_t	get_server_sping		(int);
-	void	set_server_sping		(int, time_t);
-#endif
-#endif
 	Sping	*get_server_sping		(int, char *);
 	void	clear_server_sping		(int, char *);
 	void	set_server_sping		(int, Sping *);
@@ -373,8 +360,6 @@ struct	timeval	get_server_sping		(int);
 	void	set_who_queue_top		(int, WhoEntry *);
 	WhoEntry *who_queue_top			(int);
 
-	void reconnect_server(int *, int *, time_t *);
-	int finalize_server_connect(int, int, int);
 	int next_server(int);
 	void	do_idle_server (void);
 
@@ -386,9 +371,8 @@ void password_sendline (char *data, char *line);
 	int	get_server_local_port		(int);
 struct sockaddr_foobar	get_server_local_addr		(int);
 struct sockaddr_foobar	get_server_uh_addr		(int);
-NotifyItem	*get_server_notify_list		(int);
 	void	BX_send_msg_to_nicks		(ChannelList *, int, char *);        
-	void	BX_send_msg_to_channels		(ChannelList *, int, char *);        
+	void	BX_send_msg_to_channels		(int, const char *);        
 	int	BX_is_server_queue			(void);
 	int	save_servers			(FILE *);	        
 	void	add_split_server		(char *, char *, int);
@@ -402,38 +386,7 @@ NotifyItem	*get_server_notify_list		(int);
 //	void set_server_sasl_pass(int, const char *);
 	char *get_server_sasl_pass(int);
 				
-#define USER_MODE	0x0001
-#define USER_MODE_A	USER_MODE << 0
-#define USER_MODE_B	USER_MODE << 1
-#define USER_MODE_C	USER_MODE << 2
-#define USER_MODE_D	USER_MODE << 3
-#define USER_MODE_E	USER_MODE << 4
-#define USER_MODE_F	USER_MODE << 5
-#define USER_MODE_G	USER_MODE << 6
-#define USER_MODE_H	USER_MODE << 7
-#define USER_MODE_I	USER_MODE << 8
-#define USER_MODE_J	USER_MODE << 9
-#define USER_MODE_K	USER_MODE << 10
-#define USER_MODE_L	USER_MODE << 11
-#define USER_MODE_M	USER_MODE << 12
-#define USER_MODE_N	USER_MODE << 13
-#define USER_MODE_O	USER_MODE << 14
-#define USER_MODE_P	USER_MODE << 15
-#define USER_MODE_Q	USER_MODE << 16
-#define USER_MODE_R	USER_MODE << 17
-#define USER_MODE_S	USER_MODE << 18
-#define USER_MODE_T	USER_MODE << 19
-#define USER_MODE_U	USER_MODE << 20
-#define USER_MODE_V	USER_MODE << 21
-#define USER_MODE_W	USER_MODE << 22
-#define USER_MODE_X	USER_MODE << 23
-#define USER_MODE_Y	USER_MODE << 24
-#define USER_MODE_Z	USER_MODE << 25
-
-#define LOGGED_IN	USER_MODE << 29
-#define CLOSE_PENDING	USER_MODE << 30
-#define CLOSING_SERVER  USER_MODE << 31
-extern const char *umodes;
+#define SF_LOGGED_IN	0x0001U
 
 #define IMMED_SEND	0
 #define QUEUE_SEND	1
@@ -441,4 +394,4 @@ extern const char *umodes;
 #define LLOOK_SPLIT 0
 #define CHAN_SPLIT 1
 
-#endif /* __server_h_ */
+#endif /* SERVER_H_ */

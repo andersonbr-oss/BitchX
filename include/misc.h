@@ -2,9 +2,8 @@
  * Copyright Colten Edwards 1997.
  * various miscellaneous routines needed for irc functions
  */
- 
-#ifndef _misc_h
-#define _misc_h
+#ifndef MISC_H_
+#define MISC_H_
 
 #define KICKLIST		0x01
 #define LEAVELIST		0x02
@@ -75,16 +74,13 @@ extern LastMsg last_sent_ctcp[2];
 	void	BX_userage		(char *, char *);
 	void	stats_k_grep_end (void);
 	char	*stripansicodes (const char *);
-	char	*stripansi	(unsigned char *);
 	NickTab	*BX_gettabkey (int, int, char *);
 	void	BX_addtabkey (char *, char *, int);
 	void	clear_array (NickTab **, char *);
 	char	*BX_random_str (int, int);
-	int	check_serverlag (void);
 	void	check_auto_away (time_t);
 ChannelList *	BX_prepare_command (int *, char *, int);
-	int	rename_file (char *, char **);
-	void	putlog (int, ...);
+void putlog(int type, const char *chname, const char *format, ...);
 
 	void	add_mode_buffer ( char *, int);
 	void	flush_mode (ChannelList *);
@@ -97,21 +93,24 @@ ChannelList *	BX_prepare_command (int *, char *, int);
 	void	log_toggle (int, ChannelList *);
 
 	char	*cluster (char *);
-	int	caps_fucknut (register unsigned char *);
 
 	void    do_reconnect (char *);
 
 	int	are_you_opped (char *);
 	void	error_not_opped (const char *);
 
-	char	*get_reason (char *, char *);
-	char	*get_realname(char *);
-	char	*get_signoffreason (char *);
+char *get_reason(const char *target, const char *nick, const char *file);
+char *get_kick_reason(const char *target, const char *nick);
+char *get_kill_reason(const char *target, const char *nick);
+char *get_realname(const char *nick);
+char *get_signoffreason(const char *nick);
 	int	isme (char *);
 
 	char 		*BX_convert_output_format (const char *, const char *, ...);
+#ifdef GUI
 	char 		*convert_output_format2 (const char *);
-	void		add_last_type (LastMsg *, int, char *, char *, char *, char *);
+#endif
+void add_last_type(LastMsg *array, int size, const char *from, const char *uh, const char *to, const char *msg);
 	int		check_last_type (LastMsg *, int, char *, char *);
 	int		matchmcommand (char *, int);
 	char		*convert_time (time_t);
@@ -122,7 +121,6 @@ ChannelList *	BX_prepare_command (int *, char *, int);
 	void		check_server_connect (int);
 	const char	*country(const char *);
 	int		do_newuser (char *, char *, char *);
-	int		char_fucknut (register unsigned char *, char, int);
 	BanList		*ban_is_on_channel(register char *, register ChannelList *);
 	BanList		*eban_is_on_channel(register char *, register ChannelList *);
 	void		check_orig_nick(char *);
@@ -131,8 +129,7 @@ ChannelList *	BX_prepare_command (int *, char *, int);
 	void		set_nslookupfd(fd_set *);
 	long		print_nslookup(fd_set *);
 	void		auto_nslookup();
-	int		freadln(FILE *, char *);
-
+int freadln(FILE *, char *, size_t);
 
 	void		BX_close_socketread(int);
 	int		BX_add_socketread(int, int, unsigned long, char *, void (*func_read)(int), void (*func_write)(int));
@@ -142,8 +139,8 @@ ChannelList *	BX_prepare_command (int *, char *, int);
 	void		read_clonelist(int);
 	void		read_clonenotify(int);
 	void		read_netfinger(int);
-	int		BX_write_sockets(int, unsigned char *, int, int);
-	int		BX_read_sockets(int, unsigned char *, int);
+	int		BX_write_sockets(int, char *, int, int);
+	int		BX_read_sockets(int, char *, int);
 	unsigned long	BX_set_socketflags(int, unsigned long);
 	void		*BX_get_socketinfo(int);
 	void		BX_set_socketinfo(int, void *);

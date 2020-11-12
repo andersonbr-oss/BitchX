@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: notify.c 26 2008-04-30 13:57:56Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(notify_c)
 #include "struct.h"
 
@@ -47,37 +47,34 @@ void dispatch_notify_userhosts (void);
 void notify_userhost_dispatch (UserhostItem *, char *, char *);
 void notify_userhost_reply (char *, char *);
 
-void	rebuild_notify_ison (int server)
+static void rebuild_notify_ison(int server)
 {
-	char *stuff;
+	NotifyList *notify_list;
 	int i;
-	if (from_server == -1)
+
+	if (server < 0 || server >= server_list_size())
 		return;
-	stuff = NOTIFY_LIST(from_server)->ison;
 
-	if (NOTIFY_LIST(from_server)->ison)
-		NOTIFY_LIST(from_server)->ison[0] = 0;
+	notify_list = NOTIFY_LIST(server);
 
-	for (i = 0; i < NOTIFY_MAX(from_server); i++)
+	if (notify_list->ison)
+		notify_list->ison[0] = 0;
+
+	for (i = 0; i < notify_list->max; i++)
 	{
-		m_s3cat(&(NOTIFY_LIST(from_server)->ison),
-			space, NOTIFY_ITEM(from_server, i)->nick);
+		m_s3cat(&notify_list->ison, space, notify_list->list[i]->nick);
 	}
 }
 
-void	rebuild_all_ison (void)
+static void rebuild_notify_ison_all(void)
 {
 	int i;
-	int ofs = from_server;
+
 	for (i = 0; i < server_list_size(); i++)
 	{
-		from_server = i;
 		rebuild_notify_ison(i);
 	}
-	from_server = ofs;
 }
-
-
 
 void ison_notify(char *AskedFor, char *AreOn)
 {
@@ -324,7 +321,7 @@ BUILT_IN_COMMAND(notify)
 	}
 	
 	new_free(&list);	
-	rebuild_all_ison();
+	rebuild_notify_ison_all();
 	if (no_nicks)
 		show_notify_list(0);
 }
@@ -336,21 +333,21 @@ BUILT_IN_COMMAND(notify)
  */
 void do_notify(void)
 {
-	int	old_from_server = from_server;
+	static time_t last_notify = 0;
+
+	const int old_from_server = from_server;
+	const int interval = get_int_var(NOTIFY_INTERVAL_VAR);
 	int	servnum;
-	static	time_t		last_notify = 0;
-	int		interval = get_int_var(NOTIFY_INTERVAL_VAR);
 	time_t current_time = time(NULL);
 
-	if (current_time < last_notify)
-		last_notify = current_time;
-	else if (!interval || interval > (current_time - last_notify))
+	if (!interval || !get_int_var(NOTIFY_VAR))
+		return;
+
+	if ((current_time > last_notify) && (interval > (current_time - last_notify)))
 		return;		/* Not yet */
 
 	last_notify = current_time;
 
-	if (!server_list_size() || !get_int_var(NOTIFY_VAR))
-		return;
 	for (servnum = 0; servnum < server_list_size(); servnum++)
 	{
 		if (is_server_connected(servnum) && !get_server_watch(servnum))
@@ -367,31 +364,27 @@ void do_notify(void)
 	return;
 }
 
-void check_auto_invite(char *nick, char *userhost)
+static void check_auto_invite(const char *nick, const char *userhost)
 {
 #ifdef WANT_USERLIST
-ChannelList *chan = NULL;
-UserList *tmp = NULL;
+	ChannelList *chan = NULL;
+
 	for (chan = get_server_channels(from_server); chan; chan = chan->next)
 	{
-		if ((tmp = lookup_userlevelc("*", userhost, chan->channel, NULL)))
+		if (chan->have_op && get_cset_int_var(chan->csets, AINV_CSET))
 		{
-			NickList *n = NULL;
-			n = find_nicklist_in_channellist(nick, chan, 0);
-			if (!n && chan->have_op && get_cset_int_var(chan->csets, AINV_CSET) && (tmp->flags & ADD_INVITE) && get_cset_int_var(chan->csets, AINV_CSET))
+			const UserList *ul = lookup_userlevelc("*", userhost, chan->channel, NULL);
+
+			if (ul && (ul->flags & ADD_INVITE) && !find_nicklist_in_channellist(nick, chan, 0))
 			{
 				bitchsay("Auto-inviting %s to %s", nick, chan->channel);
 				send_to_server("NOTICE %s :Auto-invite from %s", nick, get_server_nickname(from_server));
 				send_to_server("INVITE %s %s%s%s", nick, chan->channel, chan->key?space:empty_string, chan->key?chan->key:empty_string);
 			}
 		}
-		tmp = NULL;
 	}
 #endif
 }
-
-
-
 
 static char *batched_notify_userhosts = NULL;
 static int batched_notifies = 0;
@@ -418,7 +411,7 @@ void notify_userhost_dispatch (UserhostItem *stuff, char *nick, char *text)
 {
 	char userhost[BIG_BUFFER_SIZE + 1];
 
-	snprintf(userhost, BIG_BUFFER_SIZE, "%s@%s", stuff->user, stuff->host);
+	snprintf(userhost, sizeof userhost, "%s@%s", stuff->user, stuff->host);
 	notify_userhost_reply(stuff->nick, userhost);
 }
 

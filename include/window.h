@@ -7,11 +7,10 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: window.h 26 2008-04-30 13:57:56Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __window_h_
-#define __window_h_
+#ifndef WINDOW_H_
+#define WINDOW_H_
 
 #include "irc_std.h"
 #include "lastlog.h"
@@ -38,6 +37,7 @@
 	Window	*BX_new_window			(struct ScreenStru *);
 	void	BX_delete_window			(Window *);
 	void	BX_add_to_invisible_list		(Window *);
+int window_columns(Window *window);
 	Window	*BX_add_to_window_list		(struct ScreenStru *, Window *);
 	void	BX_remove_from_window_from_screen	(Window *);
 	void	BX_recalculate_window_positions	(struct ScreenStru *);
@@ -63,7 +63,7 @@
 	char	*BX_get_prompt_by_refnum		(unsigned);
 	char	*BX_get_target_by_refnum		(unsigned);
 	void	BX_set_query_nick			(char *, char *, char *);
-	int	BX_is_current_channel		(char *, int, int);
+	int	BX_is_current_channel		(const char *, int, int);
 const	char	*BX_set_current_channel_by_refnum	(unsigned, char *);
 	char	*BX_get_current_channel_by_refnum	(unsigned);
 	int	BX_is_bound_to_window		(const Window *, const char *);
@@ -173,4 +173,4 @@ BUILT_IN_WINDOW(window_server);
 #define WINDOW_NOTIFY	((unsigned) 0x0001)
 #define WINDOW_NOTIFIED	((unsigned) 0x0002)
 
-#endif /* __window_h_ */
+#endif /* WINDOW_H_ */

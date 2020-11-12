@@ -8,7 +8,7 @@
  
  /* 
   * Version 1.0 released with BitchX 75
-  * $Id: scr-bx.c 119 2011-04-08 12:29:55Z keaston $
+  * $Id$
   */
 
 #include "irc.h"
@@ -25,16 +25,11 @@
 #include "ircterm.h"
 #include "screen.h"
 #include "ircaux.h"
-
-#if defined(_ALL_SOURCE) || defined(__EMX__) || defined(__QNX__) || defined(_FreeBSD__)
-#include <termios.h>
-#else
-#include <sys/termios.h>
-#endif
+#include "vars.h"
+#define STERM_C
+#include "modval.h"
 
 #include <sys/ioctl.h>
-
-
 
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
@@ -52,9 +47,7 @@ unsigned char   transToClient[256];    /* Server to client translation. */
 int dumb_mode = 0;
 int already_detached = 1;
 int do_check_pid = 0;
-char socket_path[500];
-char attach_ttyname[500];
-
+char *my_path;
 
 struct param 
 {
@@ -81,7 +74,6 @@ static int displays = 0;
 #define SOCKMODE (S_IWRITE | S_IREAD | (displays ? S_IEXEC : 0))
 
 #ifdef CLOAKED
-extern char proctitlestr[140];
 extern char **Argv;             /* pointer to argument vector */
 extern char *LastArgv;          /* end of argv */
 #endif
@@ -101,12 +93,12 @@ void ircpanic(char *string, ...)
 	return;
 }
 
-int get_int_var(int var)
+int get_int_var(enum VAR_TYPES var)
 {
 	return 1;
 }
 
-char *ltoa (long foo)
+char *my_ltoa(long foo)
 {
 	static char buffer[BIG_BUFFER_SIZE/8+1];
 	char *pos = buffer + BIG_BUFFER_SIZE/8-1;
@@ -186,23 +178,18 @@ char *q;
 	return ttypath;
 }
 
-void display_socket_list(char *path, int unl, char *arg)
+void display_socket_list(const char *path, int unl, char *arg)
 {
-DIR	*dptr;
-struct	dirent	*dir;
-struct	stat	st;
-char buffer[2000];
-char *new_path, *p;
-int count = 0;
-int doit = 0;
+	DIR	*dptr;
+	struct dirent *dir;
+	struct stat st;
+	char buffer[2000];
+	int count = 0;
+	int doit = 0;
 
-	new_path = alloca(strlen(path)+1);
-	strcpy(new_path, path);
-	if ((p = strrchr(new_path, '/')))
-		*p = 0;
-	if (!(dptr = opendir(new_path)))
+	if (!(dptr = opendir(path)))
 	{
-		fprintf(stderr, "No such directory %s\r\n ", new_path);
+		fprintf(stderr, "No such directory %s\n", path);
 		exit(1);
 	}
 	while ((dir = readdir(dptr)))
@@ -212,7 +199,7 @@ int doit = 0;
 			continue;
 		if (dir->d_name[0] == '.')
 			continue;
-		sprintf(buffer, "%s/%s", new_path, dir->d_name);
+		sprintf(buffer, "%s/%s", path, dir->d_name);
 		if ((stat(buffer, &st) == -1))
 			continue;
 		if (arg && strstr(dir->d_name, arg))
@@ -239,84 +226,58 @@ int doit = 0;
 	exit(1);
 }
 
-char *find_detach_socket(char *path, char *name)
+char *find_detach_socket(const char *path, char *name)
 {
-char	*new_path;
-DIR	*dptr;
-struct	dirent	*dir;
-struct	stat	st;
-char *ret = NULL, *p;
-int count = 0;
-	new_path = alloca(strlen(path)+1);
-	strcpy(new_path, path);
-	if ((p = strrchr(new_path, '/')))
-		*p = 0;
-	else
+	const size_t path_len = strlen(path);
+	DIR	*dptr;
+	struct	dirent	*dir;
+	struct	stat	st;
+	char *ret = NULL;
+	char *path_name = NULL;
+	int count = 0;
+
+	if (!(dptr = opendir(path)))
 		return NULL;
-	if (!(dptr = opendir(new_path)))
-		return NULL;
-	ret = malloc(2000);
-	*ret = 0;
+
+	/* Count matching detach sockets */
 	while ((dir = readdir(dptr)))
 	{
-		*ret = 0;
 		if (!dir->d_ino)
 			continue;
 		if (dir->d_name[0] == '.')
 			continue;
-		sprintf(ret, "%s/%s", new_path, dir->d_name);
-		p = strrchr(ret, '/'); p++;
-		if ((stat(ret, &st) == -1) || (st.st_uid != getuid()) || S_ISDIR(st.st_mode))
-		{
-			*ret = 0;
+
+		if (name && !strstr(dir->d_name, name))
 			continue;
-		}
-		if (name)
+
+		path_name = realloc(path_name, path_len + 2 + strlen(dir->d_name));
+		sprintf(path_name, "%s/%s", path, dir->d_name);
+
+		if (stat(path_name, &st) == -1)
+			continue;
+
+		if (((st.st_mode & 0700) == 0600) && (st.st_uid == getuid()) && !S_ISDIR(st.st_mode))
 		{
-			char *pid, *n_tty, *h_name;
-			pid = alloca(strlen(p)+1);
-			strcpy(pid, p);
-			n_tty = strchr(pid, '.'); *n_tty++ = 0;
-			h_name = strchr(n_tty, '.'); *h_name++ = 0;
-			if (strcmp(name, pid))
-			{
-				if (strcmp(n_tty, name))
-				{
-					if (strcmp(h_name, name))
-					{
-						if (strcmp(p, name))
-						{
-							if (!strstr(p, name))
-							{
-								*ret = 0;
-								continue;
-							}
-						}
-					}
-				}
-			}
+			count++;
+			free(ret);
+			ret = path_name;
+			path_name = NULL;
 		}
-		if ((st.st_mode & 0700) == 0600)
-			break;
-		count++;
-		*ret = 0;
 	}
+	free(path_name);
 	closedir(dptr);
-	if (ret && !*ret)
-	{
-		free(ret);
-		ret = NULL;
-	}
+
 	switch (count)
 	{
+		default:
+			display_socket_list(path, 0, name);
+			/* fallthrough */
 		case 0:
+			free(ret);
+			ret = NULL;
 			break;
 		case 1:
 			break;
-		default:
-			display_socket_list(path, 0, name);
-			if (ret) free(ret);
-			ret = NULL;
 	}
 	return ret;
 }
@@ -332,7 +293,7 @@ SIGNAL_HANDLER(handle_pipe)
 	term_cr();
 	term_clear_to_eol();
 	term_reset2();
-	fprintf(stdout, "\rdetached from %s. To re-attach type scr-bx %s\n\r", attach_ttyname, old_pass? "password":"");
+	fprintf(stdout, "\rdetached from %s. To re-attach type scr-bx %s\n\r", ttyname(0), old_pass? "password":"");
 	fflush(stdout);
 	exit(0);
 }
@@ -389,25 +350,27 @@ char *get_cookie(char *name)
 
 void reattach_tty(char *tty, char *password)
 {
-int s = -1;
-char *name;
-struct sockaddr_in addr;
-struct hostent *hp;
-int len = 0;
-fd_set rd_fd;
-struct timeval tm = {0};
-char chr_c[] = "\003";
+	int s = -1;
+	char *name;
+	struct sockaddr_in addr;
+	struct hostent *hp;
+	int len = 0;
+	fd_set rd_fd;
+	struct timeval tm = {0};
+	char chr_c[] = "\003";
 
-/* 
- * this buffer has to be big enough to handle a full screen of 
- * information from the detached process.
- */
-unsigned char buffer[6 * BIG_BUFFER_SIZE+1];
-char *p;
-int port = 0;
+	/* 
+	 * this buffer has to be big enough to handle a full screen of 
+	 * information from the detached process.
+	 */
+	unsigned char buffer[6 * BIG_BUFFER_SIZE+1];
+	char *p;
+	int port = 0;
 #if defined (TIOCGWINSZ)
-struct winsize window;
+	struct winsize window;
 #endif
+	const char *socket_path = init_socketpath();
+
 	memset(&parm, 0, sizeof(struct param));
 
 	if (!(name = find_detach_socket(socket_path, tty)))
@@ -523,12 +486,14 @@ struct winsize window;
 				if (FD_ISSET(0, &rd_fd))
 				{
 					len = read(0, buffer, sizeof(buffer)-1);
-					write(s, buffer, len);
+					if (len > 0)
+						write(s, buffer, len);
 				}
 				if (FD_ISSET(s, &rd_fd))
 				{
 					len = read(s, buffer, sizeof(buffer)-1);
-					write(1, buffer, len);
+					if (len > 0)
+						write(1, buffer, len);
 				}
 			}
 		}
@@ -540,53 +505,17 @@ struct winsize window;
 	return; /* error return */
 }
 
-char *stripdev(char *ttynam)
+const char *init_socketpath(void)
 {
-	if (ttynam == NULL)
-		return NULL;
-#ifdef SVR4
-  /* unixware has /dev/pts012 as synonym for /dev/pts/12 */
-	if (!strncmp(ttynam, "/dev/pts", 8) && ttynam[8] >= '0' && ttynam[8] <= '9')
-	{
-		static char b[13];
-		sprintf(b, "pts/%d", atoi(ttynam + 8));
-		return b;
-	}
-#endif /* SVR4 */
-	if (!strncmp(ttynam, "/dev/", 5))
-		return ttynam + 5;
-	return ttynam;
+	static char socket_path[BIG_BUFFER_SIZE];
+
+	snprintf(socket_path, sizeof socket_path, "%s/.BitchX/screens", my_path);
+
+	if (mkdir(socket_path, 0700) != -1)
+		(void)chown(socket_path, getuid(), getgid());
+
+	return socket_path;
 }
-
-
-void init_socketpath(void)
-{
-#if !defined(__EMX__) && !defined(WINNT)
-struct stat st;
-extern char socket_path[], attach_ttyname[];
-
-	sprintf(socket_path, "%s/.BitchX/screens", getenv("HOME"));
-	if (access(socket_path, F_OK))
-		return;
-	if (stat(socket_path, &st) != -1)
-	{
-		char host[BIG_BUFFER_SIZE+1];
-		char *ap;
-		if (!S_ISDIR(st.st_mode))
-			return;
-		gethostname(host, BIG_BUFFER_SIZE);
-		if ((ap = strchr(host, '.')))
-			*ap = 0;
-		ap = &socket_path[strlen(socket_path)];
-		sprintf(ap, "/%%d.%s.%s", stripdev(attach_ttyname), host);
-		ap++;
-		for ( ; *ap; ap++)
-			if (*ap == '/')
-				*ap = '-';
-	}	        
-#endif
-}
-
 
 char *old_tty = NULL;
 void parse_args(int argc, char **argv)
@@ -630,7 +559,7 @@ int disp_sock = 0;
 		}
 	}
 	if (disp_sock)
-		display_socket_list(socket_path, disp_sock - 1, old_tty);
+		display_socket_list(init_socketpath(), disp_sock - 1, old_tty);
 }
 
 
@@ -639,11 +568,9 @@ int main(int argc, char **argv)
 #ifdef MEM_DEBUG
 	dmalloc_debug(0x1df47dfb);
 #endif
-	*socket_path = 0;
-	strcpy(attach_ttyname, ttyname(0));
-	init_socketpath();
+	my_path = getenv("HOME");
 	parse_args(argc, argv);
-        chdir(getenv("HOME"));
+	chdir(getenv("HOME"));
 	reattach_tty(old_tty, old_pass);
 	return 0;
 }

@@ -10,64 +10,75 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: words.c 26 2008-04-30 13:57:56Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(words_c)
 #include "ircaux.h"
 #include "modval.h"
 
-/*
- * search() looks for a character forward or backward from mark 
+/* strsearch()
+ *
+ * If how > 0, returns a pointer to the how'th matching character forwards
+ * from the beginning of the string starting at start.
+ * If how < 0, returns a pointer to the -how'th matching character backwards
+ * from the end of the string starting at start.
+ * If how == 0, returns NULL.
+ *
+ * A matching character is any character in chars, unless chars starts with ^, 
+ * in which case a matching character is any character NOT in chars.
+ *
+ * If there are insufficient matching characters, NULL is returned.
  */
-extern char	*BX_strsearch(register char *start, char *mark, char *chars, int how)
+extern char	*BX_strsearch(const char *start, const char *chars, int how)
 {
-        if (!mark)
-                mark = start;
+	const char *ptr = NULL;
 
-        if (how > 0)   /* forward search */
-        {
-		mark = sindex(mark, chars);
-		how--;
-		for (; how > 0 && mark && *mark; how--)
-			mark = sindex(mark + 1, chars);
-	}
-
-	else if (how == 0)
-		return NULL;
-
-	else  /* how < 0 */
+	if (how > 0)   /* forward search */
 	{
-		mark = rsindex(mark, start, chars, -how);
-#if 0
-		how++;
-		for (;(how < 0) && *mark && **mark;how++)
-			*mark = rsindex(*mark-1, start, chars);
-#endif
+		const char *mark = start;
+
+		for (; how > 0 && mark; how--)
+		{
+			ptr = sindex(mark, chars);
+			if (ptr)
+				mark = ptr + 1;
+			else
+				mark = NULL;
+		}
+	}
+	else if (how < 0)
+	{
+		ptr = start + strlen(start);
+
+		for (; how < 0 && ptr; how++)
+			ptr = rsindex(ptr, start, chars);
 	}
 
-	return mark;
+	return (char *)ptr;
 }
 
-/* Move to an absolute word number from start */
-/* First word is always numbered zero. */
-extern char	*BX_move_to_abs_word (const register char *start, char **mark, int word)
+/* move_to_word()
+ *
+ * Return a pointer to the first character of the Nth word in a string.
+ * The first word is always numbered zero.
+ */
+extern char	*BX_move_to_word(const char *start, int word)
 {
-	register char *pointer = (char *)start;
-	register int counter = word;
+	const char *pointer = start;
 
 	/* This fixes a bug that counted leading spaces as
-	 * a word, when theyre really not a word.... 
+	 * a word, when they're really not a word.... 
 	 * (found by Genesis K.)
 	 *
 	 * The stock client strips leading spaces on both
 	 * the cases $0 and $-0.  I personally think this
-	 * is not the best choice, but im not going to stick
-	 * my foot in this one... im just going to go with
+	 * is not the best choice, but I'm not going to stick
+	 * my foot in this one... I'm just going to go with
 	 * what the stock client does...
 	 */
-	 while (pointer && *pointer && my_isspace(*pointer))
+	while (*pointer && my_isspace(*pointer))
 		pointer++;
 
-	for (;counter > 0 && *pointer;counter--)
+	for (; word > 0 && *pointer; word--)
 	{
 		while (*pointer && !my_isspace(*pointer))
 			pointer++;
@@ -75,53 +86,57 @@ extern char	*BX_move_to_abs_word (const register char *start, char **mark, int w
 			pointer++;
 	}
 
-	if (mark)
-		*mark = pointer;
-	return pointer;
+	return (char *)pointer;
 }
 
-/* Move a relative number of words from the present mark */
-extern char	*BX_move_word_rel (const register char *start, char **mark, int word)
+/* move_word_rel()
+ *
+ * Take a string and return a pointer offset a number of words relative to a given mark.
+ * Positive offset N returns a pointer to Nth next word (not counting the current word,
+ * if the mark is within a word).  Negative offset -N returns a pointer to the Nth
+ * previous word, counting the current word.  Offset 0 leaves the mark unchanged.
+ */
+extern char	*BX_move_word_rel (const char *start, char **mark, int word)
 {
-	register char *pointer = *mark;
-	register int counter = word;
-	char *end = (char *)start + strlen((char *)start);
+	const char *pointer = *mark;
 
-	if (end == start) 	/* null string, return it */
+	if (!*start) 	/* null string, return it */
 		return (char *)start;
 
-	/* 
-	 * XXXX - this is utterly pointless at best, and
-	 * totaly wrong at worst.
- 	 */
-
-	if (counter > 0)
+	if (word >= 0)
 	{
-		for (;counter > 0 && pointer;counter--)
+		for (;word > 0 && *pointer;word--)
 		{
+			/* Move pointer to first space after current word */
 			while (*pointer && !my_isspace(*pointer))
 				pointer++;
+			/* Move pointer to first character of next word */
 			while (*pointer && my_isspace(*pointer)) 
 				pointer++;
 		}
 	}
-	else if (counter == 0)
-		pointer = *mark;
-	else /* counter < 0 */
+	else /* word < 0 */
 	{
-		for (;counter < 0 && pointer > start;counter++)
+		/* If we are in between words, find the previous word */
+		while (pointer > start && my_isspace(pointer[0]))
+			pointer--;
+		/* Move pointer to first character of current word */
+		while (pointer > start && !my_isspace(pointer[-1]))
+			pointer--;
+
+		for (word++; word < 0 && pointer > start; word++)
 		{
-			while (pointer >= start && my_isspace(*pointer))
+			/* Move pointer to first space after previous word. */
+			while (pointer > start && my_isspace(pointer[-1]))
 				pointer--;
-			while (pointer >= start && !my_isspace(*pointer))
+
+			/* Move pointer to first character of word */
+			while (pointer > start && !my_isspace(pointer[-1]))
 				pointer--;
 		}
-		pointer++; /* bump up to the word we just passed */
 	}
 
-	if (mark)
-		*mark = pointer;
-	return pointer;
+	return *mark = (char *)pointer;
 }
 
 /*
@@ -133,9 +148,9 @@ extern char	*BX_move_word_rel (const register char *start, char **mark, int word
  * Note that because of a lot of flak, if you do an expando that is
  * a "range" of words, unless you #define STRIP_EXTRANEOUS_SPACES,
  * the "n"th word will be backed up to the first character after the
- * first space after the "n-1"th word.  That apparantly is what everyone
- * wants, so thats whatll be the default.  Those of us who may not like
- * that behavior or are at ambivelent can just #define it.
+ * first space after the "n-1"th word.  That apparently is what everyone
+ * wants, so that will be the default.  Those of us who may not like
+ * that behavior or are at ambivalent can just #define it.
  */
 #undef STRIP_EXTRANEOUS_SPACES
 extern char	*BX_extract2(const char *start, int firstword, int lastword)
@@ -155,7 +170,7 @@ extern char	*BX_extract2(const char *start, int firstword, int lastword)
 		/* 
 		 * Really. the only case where firstword == EOS is
 		 * when the user wants $~, in which case we really
-		 * dont need to do all the following crud.  Of
+		 * don't need to do all the following crud.  Of
 		 * course, if there ever comes a time that the
 		 * user would want to start from the EOS (when??)
 		 * we couldnt make this assumption.
@@ -173,7 +188,7 @@ extern char	*BX_extract2(const char *start, int firstword, int lastword)
 	/* If the firstword is positive, move to that word */
 	else if (firstword >= 0)
 	{
-		move_to_abs_word(start, &mark, firstword);
+		mark = move_to_word(start, firstword);
 		if (!*mark)
 			return m_strdup(empty_string);
 	}
@@ -215,7 +230,7 @@ extern char	*BX_extract2(const char *start, int firstword, int lastword)
 	else 
 	{
 		if (lastword >= 0)
-			move_to_abs_word(start, &mark2, lastword+1);
+			mark2 = move_to_word(start, lastword + 1);
 		else
 		{
 			mark2 = (char *)start + strlen(start);
@@ -244,16 +259,16 @@ extern char	*BX_extract2(const char *start, int firstword, int lastword)
 		*mark2 = tmp;
 #endif
 		booya = new_malloc(mark2 - mark + 1);
-		strmcpy(booya, mark, (mark2 - mark));
+		strlcpy(booya, mark, mark2 - mark + 1);
 	}
 
 	return booya;
 }
 
 /*
- * extract is a simpler version of extract2, it is used when we dont
+ * extract is a simpler version of extract2, it is used when we don't
  * want special treatment of "firstword" if it is negative.  This is
- * typically used by the word/list functions, which also dont care if
+ * typically used by the word/list functions, which also don't care if
  * we strip out or leave in any whitespace, we just do what is the
  * fastest.
  */
@@ -275,7 +290,7 @@ extern char	*BX_extract(char *start, int firstword, int lastword)
 	 *
 	 * ITS OK TO TAKE OUT SPACES HERE, AS THE USER SHOULDNT EXPECT
 	 * THAT THE WORD FUNCTIONS WOULD RETAIN ANY SPACES. (That is
-	 * to say that since the word/list functions dont pay attention
+	 * to say that since the word/list functions don't pay attention
 	 * to the whitespace anyhow, noone should have any problem with
 	 * those ops removing bothersome whitespace when needed.)
 	 */
@@ -291,7 +306,7 @@ extern char	*BX_extract(char *start, int firstword, int lastword)
 
 	/* If the firstword is positive, move to that word */
 	else if (firstword >= 0)
-		move_to_abs_word(start, &mark, firstword);
+		mark = move_to_word(start, firstword);
 
 	/* Its negative.  Hold off right now. */
 	else
@@ -308,16 +323,16 @@ extern char	*BX_extract(char *start, int firstword, int lastword)
 	else 
 	{
 		if (lastword >= 0)
-			move_to_abs_word(start, &mark2, lastword+1);
+			mark2 = move_to_word(start, lastword + 1);
 		else
-			/* its negative -- thats not valid */
+			/* it's negative -- that's not valid */
 			return m_strdup(empty_string);
 
 		while (mark2 > start && my_isspace(mark2[-1]))
 			mark2--;
 	}
 
-	/* Ok.. now if we get to here, then lastword is positive, so
+	/* OK.. now if we get to here, then lastword is positive, so
 	 * we sanity check firstword.
 	 */
 	if (firstword < 0)
@@ -335,7 +350,7 @@ extern char	*BX_extract(char *start, int firstword, int lastword)
 		return m_strdup(empty_string);
 	
 	booya = new_malloc(mark2 - mark + 1);
-	strmcpy(booya, mark, (mark2 - mark));
+	strlcpy(booya, mark, mark2 - mark + 1);
 #if 0
 		malloc_strcpy(&booya, empty_string);
 	else

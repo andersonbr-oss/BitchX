@@ -5,11 +5,10 @@
  * Copyright 1997 EPIC Software Labs
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: history.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
-
-#ifndef __history_h__
-#define __history_h__
+#ifndef HISTORY_H_
+#define HISTORY_H_
 
 	BUILT_IN_COMMAND(history);
 	void	set_history_size	(Window *, char *, int);
@@ -23,4 +22,4 @@
 #define NEXT 0
 #define PREV 1
 
-#endif /* _HISTORY_H_ */
+#endif /* HISTORY_H_ */

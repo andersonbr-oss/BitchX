@@ -1,5 +1,5 @@
 #include "irc.h"
-static char cvsrevision[] = "$Id: fset.c 144 2011-10-13 12:45:27Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(fset_c)
 #include "struct.h"
 
@@ -11,8 +11,10 @@ CVS_REVISION(fset_c)
 #include "misc.h"
 #include "list.h"
 #include "vars.h"
+#include "tcl_bx.h"
 #define MAIN_SOURCE
 #include "modval.h"
+#include "color.h"
 
 extern void reinit_status (Window *, char *, int);
 
@@ -79,6 +81,8 @@ IrcVariable fset_array[] =
 	{ "EBANS_HEADER",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "ENCRYPTED_NOTICE",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "ENCRYPTED_PRIVMSG",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
+	{ "ENCRYPTED_PUBLIC",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
+	{ "ENCRYPTED_PUBLIC_NOTICE",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "FLOOD",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "FRIEND_JOIN",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "HELP",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
@@ -140,6 +144,7 @@ IrcVariable fset_array[] =
 	{ "NONICK",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "NOTE",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "NOTICE",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
+	{ "NOTICE_GROUP",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "NOTIFY_OFF",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "NOTIFY_ON",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "NOTIFY_SIGNOFF",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
@@ -167,7 +172,8 @@ IrcVariable fset_array[] =
 	{ "SEND_CTCP",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "SEND_DCC_CHAT",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "SEND_ENCRYPTED_MSG",	0,STR_TYPE_VAR, 0, NULL, NULL, 0, 0},
-	{ "SEND_ENCRYPTED_NOTICE",0,STR_TYPE_VAR,0, NULL, NULL, 0, 0},
+	{ "SEND_ENCRYPTED_NOTICE", 0,STR_TYPE_VAR,0, NULL, NULL, 0, 0},
+	{ "SEND_ENCRYPTED_PUBLIC", 0,STR_TYPE_VAR,0, NULL, NULL, 0, 0},
 	{ "SEND_MSG",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "SEND_NOTICE",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "SEND_PUBLIC",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
@@ -249,6 +255,7 @@ IrcVariable fset_array[] =
 	{ "WHOIS_HEADER",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "WHOIS_HELP",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "WHOIS_IDLE",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
+	{ "WHOIS_LOGGEDIN",	0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "WHOIS_NAME",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "WHOIS_NICK",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
 	{ "WHOIS_OPER",		0,STR_TYPE_VAR,	0, NULL, NULL, 0, 0},
@@ -552,13 +559,6 @@ void create_fsets(Window *win, int ansi)
 	fset_string_var(FORMAT_ACTION_OTHER_AR_FSET, DEFAULT_FORMAT_ACTION_OTHER_AR_FSET);
 	fset_string_var(FORMAT_ACTION_USER_FSET, DEFAULT_FORMAT_ACTION_USER_FSET);
 	fset_string_var(FORMAT_ACTION_USER_AR_FSET, DEFAULT_FORMAT_ACTION_USER_AR_FSET);
-	fset_string_var(FORMAT_ACTION_FSET, DEFAULT_FORMAT_ACTION_FSET);
-	fset_string_var(FORMAT_ACTION_AR_FSET, DEFAULT_FORMAT_ACTION_AR_FSET);
-	fset_string_var(FORMAT_ACTION_CHANNEL_FSET, DEFAULT_FORMAT_ACTION_CHANNEL_FSET);
-	fset_string_var(FORMAT_ACTION_OTHER_FSET, DEFAULT_FORMAT_ACTION_OTHER_FSET);
-	fset_string_var(FORMAT_ACTION_OTHER_AR_FSET, DEFAULT_FORMAT_ACTION_OTHER_AR_FSET);
-	fset_string_var(FORMAT_ACTION_USER_FSET, DEFAULT_FORMAT_ACTION_USER_FSET);
-	fset_string_var(FORMAT_ACTION_USER_AR_FSET, DEFAULT_FORMAT_ACTION_USER_AR_FSET);
 	fset_string_var(FORMAT_ALIAS_FSET, DEFAULT_FORMAT_ALIAS_FSET);
 	fset_string_var(FORMAT_ASSIGN_FSET, DEFAULT_FORMAT_ASSIGN_FSET);
 	fset_string_var(FORMAT_AWAY_FSET, DEFAULT_FORMAT_AWAY_FSET);
@@ -601,6 +601,8 @@ void create_fsets(Window *win, int ansi)
 	fset_string_var(FORMAT_DISCONNECT_FSET, DEFAULT_FORMAT_DISCONNECT_FSET);
 	fset_string_var(FORMAT_ENCRYPTED_NOTICE_FSET, DEFAULT_FORMAT_ENCRYPTED_NOTICE_FSET);
 	fset_string_var(FORMAT_ENCRYPTED_PRIVMSG_FSET, DEFAULT_FORMAT_ENCRYPTED_PRIVMSG_FSET);
+	fset_string_var(FORMAT_ENCRYPTED_PUBLIC_FSET, DEFAULT_FORMAT_ENCRYPTED_PUBLIC_FSET);
+	fset_string_var(FORMAT_ENCRYPTED_PUBLIC_NOTICE_FSET, DEFAULT_FORMAT_ENCRYPTED_PUBLIC_NOTICE_FSET);
 	fset_string_var(FORMAT_FLOOD_FSET, DEFAULT_FORMAT_FLOOD_FSET);
 	fset_string_var(FORMAT_FRIEND_JOIN_FSET, DEFAULT_FORMAT_FRIEND_JOIN_FSET);
 	fset_string_var(FORMAT_HELP_FSET, DEFAULT_FORMAT_HELP_FSET);
@@ -655,6 +657,7 @@ void create_fsets(Window *win, int ansi)
 	fset_string_var(FORMAT_NONICK_FSET, DEFAULT_FORMAT_NONICK_FSET);
 	fset_string_var(FORMAT_NOTE_FSET, DEFAULT_FORMAT_NOTE_FSET);
 	fset_string_var(FORMAT_NOTICE_FSET, DEFAULT_FORMAT_NOTICE_FSET);
+	fset_string_var(FORMAT_NOTICE_GROUP_FSET, DEFAULT_FORMAT_NOTICE_GROUP_FSET);
 	fset_string_var(FORMAT_REL_FSET, DEFAULT_FORMAT_REL_FSET);
 	fset_string_var(FORMAT_RELN_FSET, DEFAULT_FORMAT_RELN_FSET);
 	fset_string_var(FORMAT_RELM_FSET, DEFAULT_FORMAT_RELM_FSET);
@@ -674,13 +677,12 @@ void create_fsets(Window *win, int ansi)
 	fset_string_var(FORMAT_PUBLIC_OTHER_AR_FSET, DEFAULT_FORMAT_PUBLIC_OTHER_AR_FSET);
 	fset_string_var(FORMAT_SEND_ACTION_FSET, DEFAULT_FORMAT_SEND_ACTION_FSET);
 	fset_string_var(FORMAT_SEND_ACTION_OTHER_FSET, DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET);
-	fset_string_var(FORMAT_SEND_ACTION_FSET, DEFAULT_FORMAT_SEND_ACTION_FSET);
-	fset_string_var(FORMAT_SEND_ACTION_OTHER_FSET, DEFAULT_FORMAT_SEND_ACTION_OTHER_FSET);
 	fset_string_var(FORMAT_SEND_AWAY_FSET, DEFAULT_FORMAT_SEND_AWAY_FSET);
 	fset_string_var(FORMAT_SEND_CTCP_FSET, DEFAULT_FORMAT_SEND_CTCP_FSET);
 	fset_string_var(FORMAT_SEND_DCC_CHAT_FSET, DEFAULT_FORMAT_SEND_DCC_CHAT_FSET);
-	fset_string_var(FORMAT_SEND_ENCRYPTED_NOTICE_FSET, DEFAULT_FORMAT_SEND_ENCRYPTED_NOTICE_FSET);
 	fset_string_var(FORMAT_SEND_ENCRYPTED_MSG_FSET, DEFAULT_FORMAT_SEND_ENCRYPTED_MSG_FSET);
+	fset_string_var(FORMAT_SEND_ENCRYPTED_NOTICE_FSET, DEFAULT_FORMAT_SEND_ENCRYPTED_NOTICE_FSET);
+	fset_string_var(FORMAT_SEND_ENCRYPTED_PUBLIC_FSET, DEFAULT_FORMAT_SEND_ENCRYPTED_PUBLIC_FSET);
 
 	fset_string_var(FORMAT_SEND_MSG_FSET, DEFAULT_FORMAT_SEND_MSG_FSET);
 	fset_string_var(FORMAT_SEND_NOTICE_FSET, DEFAULT_FORMAT_SEND_NOTICE_FSET);
@@ -751,6 +753,7 @@ void create_fsets(Window *win, int ansi)
 	fset_string_var(FORMAT_WHOIS_FRIEND_FSET, DEFAULT_FORMAT_WHOIS_FRIEND_FSET);
 	fset_string_var(FORMAT_WHOIS_HEADER_FSET, DEFAULT_FORMAT_WHOIS_HEADER_FSET);
 	fset_string_var(FORMAT_WHOIS_IDLE_FSET, DEFAULT_FORMAT_WHOIS_IDLE_FSET);
+	fset_string_var(FORMAT_WHOIS_LOGGEDIN_FSET, DEFAULT_FORMAT_WHOIS_LOGGEDIN_FSET);
 	fset_string_var(FORMAT_WHOIS_SHIT_FSET, DEFAULT_FORMAT_WHOIS_SHIT_FSET);
 	fset_string_var(FORMAT_WHOIS_SIGNON_FSET, DEFAULT_FORMAT_WHOIS_SIGNON_FSET);
 	fset_string_var(FORMAT_WHOIS_NAME_FSET, DEFAULT_FORMAT_WHOIS_NAME_FSET);
@@ -808,9 +811,9 @@ int save_formats(void)
 	FsetNumber *tmp;
 
 #if defined(__EMX__) || defined(WINNT)
-	sprintf(thefile, "%s/%s.fmt", get_string_var(CTOOLZ_DIR_VAR), version);
+	snprintf(thefile, sizeof thefile, "%s/%s.fmt", get_string_var(CTOOLZ_DIR_VAR), version);
 #else
-	sprintf(thefile, "%s/%s.formats", get_string_var(CTOOLZ_DIR_VAR), version);
+	snprintf(thefile, sizeof thefile, "%s/%s.formats", get_string_var(CTOOLZ_DIR_VAR), version);
 #endif
 	p = expand_twiddle(thefile);
 	outfile = fopen(p, "w");
@@ -895,8 +898,7 @@ IrcVariable *fget_var_address(char *var_name)
 	IrcVariable *var = NULL;
 	int	cnt,
 		msv_index;
-	char	*tmp_var = alloca(strlen(var_name)+1);
-	strcpy(tmp_var, var_name);
+	char	*tmp_var = LOCAL_COPY(var_name);
 	upper(tmp_var);
 	if ((var = find_ext_fset_var(tmp_var)))
 		return var;
@@ -920,7 +922,7 @@ char	*make_fstring_var(const char *var_name)
 	if ((var = find_ext_fset_var(tmp_var)))
 		return m_strdup(var->string);
 
-	if (!strncmp(tmp_var, "FORMAT_", 7))
+	if (strbegins(tmp_var, "FORMAT_"))
 		tmp_var += 7;
 	if ((find_fixed_array_item (fset_array, sizeof(IrcVariable), NUMBER_OF_FSET, tmp_var, &cnt, &msv_index) == NULL))
 	{

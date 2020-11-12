@@ -9,7 +9,7 @@
 
 #define __hook_c
 #include "irc.h"
-static char cvsrevision[] = "$Id: hook.c 36 2008-05-07 10:26:50Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(hook_c)
 #include "struct.h"
 
@@ -26,9 +26,7 @@ CVS_REVISION(hook_c)
 #include "parse.h"
 #include "misc.h"
 #include "stack.h"
-#ifdef WANT_TCL
 #include "tcl_bx.h"
-#endif
 #define MAIN_SOURCE
 #include "modval.h"
 
@@ -153,6 +151,7 @@ HookFunc hook_functions[] =
 	{ "NICKNAME",		NULL,	2,	0,	0 },
 	{ "NOTE",		NULL,	3,	0,	0 },
 	{ "NOTICE",		NULL,	2,	0,	0 },
+	{ "NOTICE_GROUP",	NULL,	3,	0,	0 },
 	{ "NOTIFY",		NULL,	2,	0,	0 },
 	{ "NOTIFY_HEADER",	NULL,	2,	0,	0 },
 	{ "NOTIFY_SIGNOFF",	NULL,	1,	0,	0 },
@@ -258,7 +257,7 @@ extern int last_function_call_level;
  */
 static char *	fill_it_out (char *str, int params)
 {
-	char	buffer[BIG_BUFFER_SIZE + 1];
+	char	buffer[BIG_BUFFER_SIZE];
 	char	*arg,
 		*ptr;
 	int	i = 0;
@@ -269,19 +268,19 @@ static char *	fill_it_out (char *str, int params)
 	while ((arg = next_arg(ptr, &ptr)) != NULL)
 	{
 		if (*buffer)
-			strmcat(buffer, space, BIG_BUFFER_SIZE);
-		strmcat(buffer, arg, BIG_BUFFER_SIZE);
+			strlcat(buffer, space, sizeof buffer);
+		strlcat(buffer, arg, sizeof buffer);
 		if (++i == params)
 			break;
 	}
 
 	for (; i < params; i++)
-		strmcat(buffer, (i < params-1) ? " %" : " *", BIG_BUFFER_SIZE);
+		strlcat(buffer, (i < params-1) ? " %" : " *", sizeof buffer);
 
 	if (*ptr)
 	{
-		strmcat(buffer, space, BIG_BUFFER_SIZE);
-		strmcat(buffer, ptr, BIG_BUFFER_SIZE);
+		strlcat(buffer, space, sizeof buffer);
+		strlcat(buffer, ptr, sizeof buffer);
 	}
 	return m_strdup(buffer);
 }
@@ -378,7 +377,7 @@ static void add_numeric_hook (int numeric, char *nick, char *stuff, Noise noisy,
 	{
 		entry = (NumericList *) new_malloc(sizeof(NumericList));
 		entry->numeric = numeric;
-		sprintf(entry->name, "%3.3u", numeric);
+		sprintf(entry->name, "%3.3d", numeric);
 		entry->next = NULL;
 		entry->list = NULL;
 		add_numeric_list(entry);
@@ -415,7 +414,7 @@ static void add_numeric_dll_hook (int numeric, Noise noise, int serial, char *ni
 	{
 		entry = (NumericList *) new_malloc(sizeof(NumericList));
 		entry->numeric = numeric;
-		sprintf(entry->name, "%3.3u", numeric);
+		sprintf(entry->name, "%3.3d", numeric);
 		entry->next = NULL;
 		entry->list = NULL;
 		add_numeric_list(entry);
@@ -767,7 +766,7 @@ static int show_numeric_list (int numeric)
 
 	if (numeric)
 	{
-		sprintf(buf, "%3.3u", numeric);
+		sprintf(buf, "%3.3d", numeric);
 		if ((tmp = find_numeric_list(numeric)))
 		{
 			for (list = tmp->list; list; list = list->next, cnt++)
@@ -795,7 +794,7 @@ static int show_list (int which)
 	Hook	*list;
 	int	cnt = 0;
 
-	/* Less garbage when issueing /on without args. (lynx) */
+	/* Less garbage when issuing /on without args. (lynx) */
 	for (list = hook_functions[which].list; list; list = list->next, cnt++)
 		show_hook(list, hook_functions[which].name);
 	return (cnt);
@@ -822,22 +821,19 @@ static int show_list (int which)
 
 int 	BX_do_hook (int which, char *format, ...)
 {
-	Hook		*tmp = NULL,
-			*next = NULL, 
-			**list;
-	char		buffer		[BIG_BUFFER_SIZE * 10 + 1],
-			*name 		= NULL;
-	int		retval 		= DONT_SUPPRESS_DEFAULT;
-	unsigned	display		= window_display;
-	int		i;
-	Hook		*hook_array	[2048] = { 0 };
-	int		hook_num = 0;
-	char		*result = NULL;
-	int		old_debug_count = debug_count;
+	Hook *tmp = NULL;
+	Hook *next = NULL;
+	Hook **list;
+	char buffer[BIG_BUFFER_SIZE * 10 + 1];
+	char *name = NULL;
+	int retval = DONT_SUPPRESS_DEFAULT;
+	unsigned display = window_display;
+	int i;
+	Hook *hook_array[2048] = { 0 };
+	int hook_num = 0;
+	char *result = NULL;
+	int old_debug_count = debug_count;
 	
-#ifdef WANT_TCL
-	int		tcl_ret = 0;
-#endif	
 	/*
 	 * Figure out where the hooks are for the event type were asserting
 	 */
@@ -861,7 +857,7 @@ int 	BX_do_hook (int which, char *format, ...)
 		/*
 		 * If we're already executing the type, and we're
 		 * specifically not supposed to allow recursion, then
-		 * dont allow recursion. ;-)
+		 * don't allow recursion. ;-)
 		 */
 		if (hook_functions[which].mark && 
 		    (hook_functions[which].flags & HF_NORECURSE))
@@ -880,7 +876,7 @@ int 	BX_do_hook (int which, char *format, ...)
 
 	/*
 	 * Press the buffer using the specified format string and args
-	 * We do this here so that we dont waste time doing the vsnprintf
+	 * We do this here so that we don't waste time doing the vsnprintf
 	 * if we're not going to do any matching.  So for types where the
 	 * user has no hooks, its a cheapie call.
 	 */
@@ -896,7 +892,7 @@ int 	BX_do_hook (int which, char *format, ...)
 
 #ifdef WANT_TCL
 	if (tcl_interp)
-		tcl_ret = check_on_hook(which, format?buffer:NULL);
+		check_on_hook(which, format?buffer:NULL);
 #endif
 
 	/*
@@ -916,7 +912,7 @@ int 	BX_do_hook (int which, char *format, ...)
 		hook_functions[which].mark++;
 
 
-	/* not attached, so dont "fix" it */
+	/* not attached, so don't "fix" it */
 	{
 		int 	currser 	= 0, 
 			oldser 		= INT_MIN,
@@ -945,7 +941,7 @@ int 	BX_do_hook (int which, char *format, ...)
 			if (currser != oldser)
 			{
 				oldser = currser;
-				currmatch = oldmatch = 0;
+				oldmatch = 0;
 				if (bestmatch)
 					hook_array[hook_num++] = bestmatch;
 				bestmatch = NULL;
@@ -984,7 +980,7 @@ int 	BX_do_hook (int which, char *format, ...)
 		}
 
 		/*
-		 * Ok. we've walked the list.  If the last hook had a best
+		 * OK. We've walked the list.  If the last hook had a best
 		 * match, use that one too. =)
 		 */
 		if (bestmatch)
@@ -1011,7 +1007,7 @@ int 	BX_do_hook (int which, char *format, ...)
 			ircpanic("hook_array[%d] is null", i);
 			
 		/* 
-		 * Check to see if this hook is supposed to supress the
+		 * Check to see if this hook is supposed to suppress the
 		 * default action for the event.
 		 */
 
@@ -1021,8 +1017,8 @@ hook_next:
 		else if (tmp->noisy == UNKNOWN && tmp->sernum == 0)
 			retval = RESULT_PENDING;
 		/*
-		 * If this is a negated event, or there isnt anything to be
-		 * executed, then we dont bother.  Just go on to the next one
+		 * If this is a negated event, or there isn't anything to be
+		 * executed, then we don't bother.  Just go on to the next one
 		 */
 		if (tmp->not || !tmp->stuff || !*tmp->stuff)
 		{
@@ -1065,7 +1061,7 @@ hook_next:
 		else
 		{
 			/*
-			 * Ok.  Go and run the code.  It is imperitive to note
+			 * OK.  Go and run the code.  It is imperative to note
 			 * that "tmp" may be deleted by the code executed here,
 			 * so it is absolutely forbidden to reference "tmp" after
 			 * this point.
@@ -1122,7 +1118,7 @@ hook_next:
 }
 
 /* 
- * shook: the SHOOK command -- this probably doesnt belong here,
+ * shook: the SHOOK command -- this probably doesn't belong here,
  * and shook is probably a stupid name.  It simply asserts a fake
  * hook event for a given type.  Fraught with peril!
  */
@@ -1173,7 +1169,7 @@ BUILT_IN_COMMAND(shookcmd)
  * specifying a character at the beginning of the "type" argument.  If you
  * want to schedule an event at a serial number, then the first character
  * must be a hash (#).  The argument immediately FOLLOWING the "type"
- * argument, and immediately PRECEEDING the "nick" argument must be an 
+ * argument, and immediately PRECEDING the "nick" argument must be an 
  * integer number, and is used for the serial number for this event.
  *
  * The "verbosity" of the event may also be modified by specifying at most
@@ -1261,7 +1257,7 @@ BUILT_IN_COMMAND(oncmd)
 		if ((which = find_hook(func, &first)) == INVALID_HOOKNUM)
 		{
 			/*
-			 * Ok.  So either the user specified an invalid type
+			 * OK.  So either the user specified an invalid type
 			 * or they specified an ambiguous type.  Either way,
 			 * we're not going to be going anywhere.  So we have
 			 * free reign to mangle 'args' at this point.
@@ -1285,7 +1281,7 @@ BUILT_IN_COMMAND(oncmd)
 				return;
 
 			/*
-			 * Ok.  So they probably want a listing.
+			 * OK.  So they probably want a listing.
 			 */
 			say("ON listings:");
 			len = strlen(func);
@@ -1361,7 +1357,7 @@ BUILT_IN_COMMAND(oncmd)
 
 			
 			/*
-			 * If this is a negative event, then we dont want
+			 * If this is a negative event, then we don't want
 			 * to take any action for it.
 			 */
 			if (not)
@@ -1641,7 +1637,7 @@ void	do_stack_on (int type, char *args)
 					nptr->list = p->list;
 					nptr->next = NULL;
 					nptr->numeric = -which;
-					sprintf(nptr->name, "%3.3u", -which);
+					sprintf(nptr->name, "%3.3d", -which);
 					add_numeric_list(nptr);
 				}
 			}
@@ -1756,9 +1752,9 @@ static void add_numeric_list (NumericList *item)
 
 static NumericList *find_numeric_list (int numeric)
 {
-	NumericList *tmp, *last = NULL;
+	NumericList *tmp;
 
-	for (tmp = numeric_list; tmp; last = tmp, tmp = tmp->next)
+	for (tmp = numeric_list; tmp; tmp = tmp->next)
 	{
 		if (tmp->numeric == numeric)
 			return tmp;

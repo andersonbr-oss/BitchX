@@ -61,7 +61,7 @@ INSTALL_IRC = @INSTALL_IRC@
 IRCLIB = @IRCLIB@
 
 CC = @CC@
-DEFS = @INCLUDES@
+CPPFLAGS = @CPPFLAGS@ @INCLUDES@ @DEFS@
 LIBS = @LIBS@
 
 # Tcl library.
@@ -92,6 +92,7 @@ DEFAULT_MSGLOGFILE = @DEFAULT_MSGLOGFILE@
 DEFAULT_BITCHX_HELP_FILE = @DEFAULT_BITCHX_HELP_FILE@
 DEFAULT_SCRIPT_HELP_FILE = @DEFAULT_SCRIPT_HELP_FILE@
 DEFAULT_BITCHX_KICK_FILE = @DEFAULT_BITCHX_KICK_FILE@
+DEFAULT_BITCHX_KILL_FILE = @DEFAULT_BITCHX_KILL_FILE@
 DEFAULT_BITCHX_QUIT_FILE = @DEFAULT_BITCHX_QUIT_FILE@
 DEFAULT_BITCHX_IRCNAME_FILE = @DEFAULT_BITCHX_IRCNAME_FILE@
 
@@ -180,10 +181,14 @@ MFLAGS = \
 
 ## Makefile starts here.
 
-all: Makefile .config.h $(_VERSION_) @EXTRAS@ dll done
+all: source_all dll
+	@echo
+	@echo Now type \"$(MAKE_BIN) install\" to install $(_VERSION_) globally \(if you\'re root\), or
+	@echo else you can type \"$(MAKE_BIN) install_local\" to install $(_VERSION_) to your home
+	@echo directory.
 
 .config.h:
-	@if test ! -f $(topdir)/.config.h ; then touch $(topdir)/.config.h; fi
+	touch $@
 
 install: all installbin installdll installscript installman installhelp \
 	installtranslation reallydone
@@ -192,21 +197,20 @@ installeverything: install
 
 everything: all
 
+source_all: .config.h
+	@cd source && $(MAKE) all
+	
 $(_VERSION_): .config.h
-	cd source \
-	  && $(MAKE) all
+	@cd source && $(MAKE) $(_VERSION_)
 
-dll/dummy:
+dll: .config.h
+	@cd dll && $(MAKE) all
 
-dll: .config.h Makefile dll/Makefile dll/dummy
-	cd dll \
-	  && $(MAKE) all
-
-installdll: Makefile dll/Makefile installdirs dll
+installdll: $(srcdir)/Makefile dll/Makefile installdirs dll
 	cd dll \
 	  && $(MAKE) 'DESTDIR=$(DESTDIR)' install
 
-installdll_local: Makefile dll/Makefile
+installdll_local: $(srcdir)/Makefile dll/Makefile
 	cd dll \
 	  && $(MAKE) 'PLUGINDIR=$(local_dir)/.BitchX/plugins'
 
@@ -238,6 +242,7 @@ installirc: installdirs $(_VERSION_)
 	$(INSTALL_DATA) $(top_srcdir)/BitchX.ircnames $(DESTDIR)$(IRCLIB)/$(DEFAULT_BITCHX_IRCNAME_FILE)
 	$(INSTALL_DATA) $(top_srcdir)/BitchX.quit $(DESTDIR)$(IRCLIB)/$(DEFAULT_BITCHX_QUIT_FILE)
 	$(INSTALL_DATA) $(top_srcdir)/BitchX.reasons $(DESTDIR)$(IRCLIB)/$(DEFAULT_BITCHX_KICK_FILE)
+	$(INSTALL_DATA) $(top_srcdir)/BitchX.kill $(DESTDIR)$(IRCLIB)/$(DEFAULT_BITCHX_KILL_FILE)
 	$(WINNT_INSTALL)
 
 install_local: all local_installdirs installdll_local
@@ -248,20 +253,19 @@ install_local: all local_installdirs installdll_local
 	$(INSTALL_DATA) $(top_srcdir)/BitchX.ircnames $(DEFAULT_CTOOLZ_DIR)/$(DEFAULT_BITCHX_IRCNAME_FILE)
 	$(INSTALL_DATA) $(top_srcdir)/BitchX.quit $(DEFAULT_CTOOLZ_DIR)/$(DEFAULT_BITCHX_QUIT_FILE)
 	$(INSTALL_DATA) $(top_srcdir)/BitchX.reasons $(DEFAULT_CTOOLZ_DIR)/$(DEFAULT_BITCHX_KICK_FILE)
+	$(INSTALL_DATA) $(top_srcdir)/BitchX.kill $(DEFAULT_CTOOLZ_DIR)/$(DEFAULT_BITCHX_KILL_FILE)
 
-wserv: .config.h $(srcdir)/source/wserv.c $(srcdir)/source/term.c Makefile
-	cd source \
-	  && $(MAKE) wserv
+wserv:
+	@cd source && $(MAKE) wserv$(EXEEXT)
 
-scr-bx: .config.h $(srcdir)/source/scr-bx.c $(srcdir)/source/term.c Makefile
-	cd source \
-	  && $(MAKE) scr-bx
+scr-bx:
+	@cd source && $(MAKE) scr-bx$(EXEEXT)
 
 installwserv: installdirs wserv
-	$(INSTALL) source/wserv $(DESTDIR)$(INSTALL_WSERV)
+	$(INSTALL) source/wserv$(EXEEXT) $(DESTDIR)$(INSTALL_WSERV)
 
 installscr-bx: installdirs scr-bx
-	$(INSTALL) source/scr-bx $(DESTDIR)$(INSTALL_SCRBX)
+	$(INSTALL) source/scr-bx$(EXEEXT) $(DESTDIR)$(INSTALL_SCRBX)
 
 installscript: installdirs
 	-@( \
@@ -309,7 +313,7 @@ local_installdirs:
 
 config: bxconf
 
-bxconf: Makefile $(srcdir)/bx-conf/Makefile.in
+bxconf: $(srcdir)/Makefile $(srcdir)/bx-conf/Makefile.in
 	cd bx-conf \
 	  && $(MAKE) all
 	$(topdir)/bxconfigure || :
@@ -323,7 +327,7 @@ distclean: clean
 	-@(if test -f source/Makefile; then cd source; $(MAKE) distclean; fi)
 	-@(if test -f dll/Makefile; then cd dll; $(MAKE) distclean; fi)
 	-@(if test -f bx-conf/Makefile; then cd bx-conf; $(MAKE) distclean; fi)
-	-$(RM) config.status
+	-$(RM) config.status configure.lineno
 	-$(RM) config.cache config.log stamp-h stamp-h[0-9]*
 	-$(RM) include/defs.h include/sig.inc
 	-$(RM) *~ *.rej core *.orig .#*
@@ -333,8 +337,7 @@ distclean: clean
 	-$(RM) script/.#* macros/.#* translation/.#*
 	-$(RM) doc/*~ doc/BitchX.bat *.spec
 	-$(RM) Makefile
-	-$(CP) $(top_srcdir)/doc/Makefile $(top_srcdir)/Makefile
-	-$(CP) $(top_srcdir)/doc/Makefile Makefile
+	-$(RM) .config.h
 
 export: distclean
 	$(top_srcdir)/autogen.sh || :
@@ -395,18 +398,12 @@ $(srcdir)/./stamp-h.in: $(top_srcdir)/configure.in
 	cd $(top_srcdir) && autoheader
 	@mv $(srcdir)/./stamp-h.inT $(srcdir)/./stamp-h.in
 
-done:
-	@echo
-	@echo Now type \"$(MAKE_BIN) install\" to install $(_VERSION_) globally \(if you\'re root\), or
-	@echo else you can type \"$(MAKE_BIN) install_local\" to install $(_VERSION_) to your home
-	@echo directory.
-
 reallydone:
 	@echo
 	@echo $(_VERSION_) is now installed.
 	@echo Type \"$(INSTALL_IRC)\" to start.
 
-.PHONY: clean done reallydone installdirs local_installdirs
+.PHONY: clean all source_all dll $(_VERISON_) scr-bx wserv reallydone installdirs local_installdirs
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

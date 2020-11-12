@@ -14,7 +14,7 @@
 #endif
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: server.c 212 2012-09-20 02:36:48Z tcava $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(server_c)
 #include "struct.h"
 
@@ -57,7 +57,7 @@ CVS_REVISION(server_c)
 
 static	char *	set_umode (int du_index);
 
-const	char *  umodes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+static const char umodes[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /* server_list: the list of servers that the user can connect to,etc */
  	Server	*server_list = NULL;
@@ -109,7 +109,7 @@ void	BX_close_server (int cs_index, char *message)
 
 	if (serv_close_func)
 		(*serv_close_func)(cs_index, server_list[cs_index].local_addr, server_list[cs_index].port);
-	clean_server_queues(from_server);
+	clean_server_queues(cs_index);
 
 	if (waiting_out > waiting_in)
 		waiting_out = waiting_in = 0;
@@ -129,6 +129,7 @@ void	BX_close_server (int cs_index, char *message)
 	server_list[cs_index].server_change_pending = 0;
 	server_list[cs_index].operator = 0;
 	server_list[cs_index].connected = 0;
+	server_list[cs_index].lag = -1;
 	server_list[cs_index].buffer = NULL;
 	server_list[cs_index].link_look = 0;
 	server_list[cs_index].login_flags = 0;
@@ -145,21 +146,24 @@ void	BX_close_server (int cs_index, char *message)
 		{
 			server_list[cs_index].closing = 1;
 			if (x_debug & DEBUG_OUTBOUND)
-				yell("Closing server %d because [%s]",
-					   cs_index, message ? message : empty_string);
+				yell("Closing server %d because [%s]", cs_index, message);
 			snprintf(buffer, MAX_PROTOCOL_SIZE + 1, "QUIT :%s", message);
-			strlcat(buffer, "\r\n", IRCD_BUFFER_SIZE + 1);
-#ifdef HAVE_SSL
+			strlcat(buffer, "\r\n", sizeof buffer);
+#ifdef HAVE_LIBSSL
 			if (get_server_ssl(cs_index))
-			{
 				SSL_write(server_list[cs_index].ssl_fd, buffer, strlen(buffer));
-				say("Closing SSL connection");
-				SSL_shutdown(server_list[cs_index].ssl_fd);
-			}
 			else
 #endif
-				send(server_list[cs_index].write, buffer, strlen(buffer), 0);
+				write(server_list[cs_index].write, buffer, strlen(buffer));
 		}
+#ifdef HAVE_LIBSSL
+		if (server_list[cs_index].ssl_fd)
+		{
+			SSL_shutdown(server_list[cs_index].ssl_fd);
+			SSL_free(server_list[cs_index].ssl_fd);
+			server_list[cs_index].ssl_fd = NULL;
+		}
+#endif
 		new_close(server_list[cs_index].write);
 	}
 	if (server_list[cs_index].read > -1)
@@ -227,34 +231,63 @@ void close_unattached_servers(void)
  * set_server_bits: Sets the proper bits in the fd_set structure according to
  * which servers in the server list have currently active read descriptors.  
  */
-long	set_server_bits (fd_set *rd, fd_set *wr)
+void set_server_bits (fd_set *rd, fd_set *wr, struct timeval *wake_time)
 {
 	int	i;
-	long timeout = 0;
 
 	for (i = 0; i < number_of_servers; i++)
 	{
 		if (server_list[i].reconnect > 0)
 		{
-			/* CONNECT_DELAY is in seconds but we must
-			 * return in milliseconds.
-			 */
-			timeout = get_int_var(CONNECT_DELAY_VAR)*1000;
-			if(!timeout)
-				timeout = -1;
+			struct timeval connect_wake_time = server_list[i].connect_time;
+			connect_wake_time.tv_sec += get_int_var(CONNECT_DELAY_VAR);
+
+			if (time_cmp(wake_time, &connect_wake_time) > 0)
+				*wake_time = connect_wake_time;
+		}
+		if (is_server_connected(i))
+		{
+			/* Time to send another ping */
+			int lag_check_interval = get_int_var(LAG_CHECK_INTERVAL_VAR);
+			struct timeval lag_wake_time = server_list[i].lag_sent;
+			lag_wake_time.tv_sec += lag_check_interval;
+
+			if (lag_check_interval > 0 && time_cmp(wake_time, &lag_wake_time) > 0)
+				*wake_time = lag_wake_time;
+
+			if (server_list[i].lag != -1)
+			{
+				/* Time that previous lag value becomes stale */
+				lag_wake_time = server_list[i].lag_recv;
+				lag_wake_time.tv_sec += lag_check_interval + 1;
+
+				if (time_cmp(wake_time, &lag_wake_time) > 0)
+					*wake_time = lag_wake_time;
+			}
 		}
 
 		if (server_list[i].read > -1)
 			FD_SET(server_list[i].read, rd);
 #ifdef NON_BLOCKING_CONNECTS
-		if (!(server_list[i].login_flags & (LOGGED_IN|CLOSE_PENDING)) &&
+		if (!(server_list[i].login_flags & SF_LOGGED_IN) &&
 		    server_list[i].write > -1)
 			FD_SET(server_list[i].write, wr);
 #endif
 	}
-	return timeout;
-}
 
+	/* Check for a QUEUE_SENDS wake_time */
+	if (serverqueue)
+	{
+		struct timeval queue_wake_time;
+
+		queue_wake_time.tv_sec = server_list[serverqueue->server].last_sent +
+			get_int_var(QUEUE_SENDS_VAR);
+		queue_wake_time.tv_usec = 0;
+
+		if (time_cmp(wake_time, &queue_wake_time) > 0)
+			*wake_time = queue_wake_time;
+	}
+}
 
 int timed_server (void *args, char *sub)
 {
@@ -274,102 +307,80 @@ int serv = -1;
 	return 0;
 }
 
-int find_old_server(int old_server)
+static int advance_server(int server)
 {
-	int i;
-
-	if(old_server > -1 && old_server < number_of_servers)
-	{
-		for (i = 0; i < number_of_servers; i++)
-		{
-			if(server_list[i].old_server == old_server)
-				return i;
-		}
-	}
-	return -1;
-}
-
-int advance_server(int i)
-{
-	int server = i;
-
 	/* We were waiting for this server to
 	 * connect and it didn't, so we will either
 	 * try again or move to the next server.
 	 */
 
-	server_list[i].retries++;
-	if(server_list[i].retries >= get_int_var(MAX_SERVER_RECONNECT_VAR))
+	if (server_list[server].retries >= get_int_var(MAX_SERVER_RECONNECT_VAR))
 	{
-		server = next_server(i);
+		const int last_server = server;
 
-		if(server != i)
+		server = next_server(server);
+		set_server_retries(server, 0);
+
+		if (server != last_server)
 		{
 			/* We have a new server to try, so lets
 			 * move the variables over from the last one
 			 * and tell it to try to connect.
 			 */
 			set_server_reconnect(server, 1);
-			set_server_req_server(server, server_list[i].req_server);
-			set_server_old_server(server, server_list[i].old_server);
-			set_server_change_refnum(server, server_list[i].server_change_refnum);
-			set_server_retries(server, 0);
+			set_server_req_server(server, server_list[last_server].req_server);
+			set_server_old_server(server, server_list[last_server].old_server);
+			set_server_change_refnum(server, server_list[last_server].server_change_refnum);
 #ifdef NON_BLOCKING_CONNECTS
-			server_list[server].from_server = server_list[i].from_server;
-			server_list[server].c_server = server_list[i].c_server;
+			server_list[server].from_server = server_list[last_server].from_server;
+			server_list[server].c_server = server_list[last_server].c_server;
 #endif
 			/* Reset the old server to the default state. */
-			server_list[i].retries = 0;
-			server_list[i].reconnect = 0;
-			server_list[i].old_server = -1;
-			server_list[i].req_server = -1;
+			server_list[last_server].retries = 0;
+			server_list[last_server].reconnect = 0;
+			server_list[last_server].old_server = -1;
+			server_list[last_server].req_server = -1;
 #ifdef NON_BLOCKING_CONNECTS
-			server_list[i].connect_wait = 0;
-			server_list[i].from_server = -1;
-			server_list[i].c_server = -1;
+			server_list[last_server].connect_wait = 0;
+			server_list[last_server].from_server = -1;
+			server_list[last_server].c_server = -1;
 #endif
+			/* If we have cycled back around to the originally requested
+			 * server, tell the user what's happening. */
+			if (server == server_list[server].req_server)
+				bitchsay("Servers exhausted. Restarting.");
 		}
 	}
+	server_list[server].retries++;
 
-	if(!get_int_var(AUTO_RECONNECT_VAR) && (server_list[server].req_server != server || server_list[server].retries > 1))
+	if (!get_int_var(AUTO_RECONNECT_VAR) && (server_list[server].req_server != server || server_list[server].retries > 1))
 	{
 		close_server(server, empty_string);
-		clean_server_queues(server);
 		from_server = -1;
-		if(do_hook(DISCONNECT_LIST,"No Connection"))
+		if (do_hook(DISCONNECT_LIST,"No Connection"))
 			put_it("%s", convert_output_format(fget_string_var(FORMAT_DISCONNECT_FSET), "%s %s", update_clock(GET_TIME), "No connection"));
 		return -1;
 	}
-	else if(server == server_list[i].req_server && server_list[server].retries > 1)
-		bitchsay("Servers exhausted. Restarting.");
 
 	return server;
 }
 
-void reconnect_server(int *servernum, int *times, time_t *last_timeout)
+static void reconnect_server(int servernum)
 {
-	int orig;
+	if (servernum < 0)
+		servernum = 0;
 
-	if(*servernum < 0)
-		*servernum = 0;
+	server_list[servernum].reconnecting = 1;
+	close_server(servernum, empty_string);
 
-	orig = *servernum;
+	servernum = advance_server(servernum);
 
-	server_list[*servernum].reconnecting = 1;
-	close_server(*servernum, empty_string);
-	*last_timeout = 0;
-
-	(*servernum) = advance_server(*servernum);
-
-	if(*servernum < 0)
+	if (servernum < 0)
 		return;
 
-	if(*servernum != orig)
-		*times = 1;
-
-	set_server_reconnect(*servernum, 0);
-	window_check_servers(*servernum);
-	try_connect(*servernum, server_list[*servernum].old_server);
+	set_server_reconnect(servernum, 0);
+	window_check_servers(servernum);
+	try_connect(servernum, server_list[servernum].old_server);
 }
 
 /* Check for a nonblocking connection that has been around
@@ -388,9 +399,8 @@ static void scan_nonblocking(void)
 	{
 		if (((server_list[i].read > -1) ||
 		     (server_list[i].write > -1)) &&
-		    !(server_list[i].login_flags & LOGGED_IN) &&
-		    (time(NULL) - server_list[i].connect_time >
-		     connect_timeout)) {
+		    !(server_list[i].login_flags & SF_LOGGED_IN) &&
+		    time_since(&server_list[i].connect_time) > connect_timeout) {
 			if (server_list[i].read > -1)
 				new_close(server_list[i].read);
 			if (server_list[i].write > -1)
@@ -405,8 +415,6 @@ static void scan_nonblocking(void)
 void	do_idle_server (void)
 {
 	int i;
-	static	int	times = 1;
-	static	time_t	last_timeout = 0;
 
 #ifdef NON_BLOCKING_CONNECTS
 	scan_nonblocking();
@@ -415,24 +423,216 @@ void	do_idle_server (void)
 	for (i = 0; i < number_of_servers && i > -1; i++)
 	{
 		/* We were told to reconnect, to avoid recursion. */
-		if(get_server_reconnect(i) > 0)
+		if (get_server_reconnect(i) > 0)
 		{
 			int connect_delay = get_int_var(CONNECT_DELAY_VAR);
 
-			if(!connect_delay || (time(NULL) - server_list[i].connect_time) > connect_delay)
+			if (time_since(&server_list[i].connect_time) > connect_delay)
 			{
-				int servernum = i;
-
 				set_server_reconnect(i, 0);
-				reconnect_server(&servernum, &times, &last_timeout);
+				reconnect_server(i);
+			}
+		}
+
+		if (is_server_connected(i))
+		{
+			int lag_check_interval = get_int_var(LAG_CHECK_INTERVAL_VAR);
+
+			if (lag_check_interval > 0 && 
+				time_since(&server_list[i].lag_sent) > lag_check_interval)
+			{
+				get_time(&server_list[i].lag_sent);
+				my_send_to_server(i, "PING LAG!%lu.%ld.%ld :%s", 
+					server_list[i].lag_cookie, 
+					(long)server_list[i].lag_sent.tv_sec, 
+					(long)server_list[i].lag_sent.tv_usec, 
+					get_server_itsname(i));
+			}
+			if (server_list[i].lag != -1 && 
+				time_since(&server_list[i].lag_recv) > lag_check_interval + 1)
+			{
+				/* Lag reply overdue */
+				set_server_lag(i, -1);
+				update_all_status(current_window, NULL, 0);
 			}
 		}
 	}
 }
 
+/* 
+ * finalize_server_connect()
+ * This code either gets called from connect_to_server_by_refnum()
+ * or from the main loop once a nonblocking connect has been verified.
+ */
+static int finalize_server_connect(int refnum, int c_server)
+{
+	if (serv_open_func)
+		(*serv_open_func)(refnum, server_list[refnum].local_addr, server_list[refnum].port);
+	if ((c_server > -1) && (c_server != refnum))
+	{
+		server_list[c_server].reconnecting = 1;
+		server_list[c_server].old_server = -1;
+#ifdef NON_BLOCKING_CONNECTS
+		server_list[c_server].server_change_pending = 0;
+		server_list[refnum].from_server = -1;
+#endif
+		close_server(c_server, "changing servers");
+	}
+
+#ifdef HAVE_LIBSSL
+	if (get_server_ssl(refnum))
+	{
+		int err = 0;
+
+		if (!server_list[refnum].ssl_fd)
+		{
+			/* Lazily allocate an SSL_CTX the first time this server connects. This
+			 * is reused for subsequent connections to this server.
+			 */
+			if (!server_list[refnum].ctx)
+			{
+				server_list[refnum].ctx = SSL_CTX_new(SSLv23_client_method());
+
+				if (!server_list[refnum].ctx)
+				{
+					say("SSL connection failed to %s: Could not allocate SSL_CTX", server_list[refnum].name);
+					SSL_show_errors();
+					close_server(refnum, NULL);
+					return -1;
+				}
+			}
+
+			/* Allocate an SSL for this connection.  This will be freed at close time. */
+			server_list[refnum].ssl_fd = SSL_new(server_list[refnum].ctx);
+			if (!server_list[refnum].ssl_fd)
+			{
+				say("SSL connection failed to %s: Could not create SSL object", server_list[refnum].name);
+				SSL_show_errors();
+				close_server(refnum, NULL);
+				return -1;
+			}
+
+			SSL_set_fd (server_list[refnum].ssl_fd, server_list[refnum].read);
+		}
+
+		err = SSL_connect(server_list[refnum].ssl_fd);
+
+		if (err < 1)
+		{
+			const char *err_string;
+			server_list[refnum].ssl_error = SSL_get_error(server_list[refnum].ssl_fd, err);
+
+			/* The SSL_connect can't complete yet.  Return without calling register_server(),
+			 * and this function will be called again later.
+			 */
+			if (server_list[refnum].ssl_error == SSL_ERROR_WANT_READ ||
+			    server_list[refnum].ssl_error == SSL_ERROR_WANT_WRITE)
+				return 0;
+
+			if (server_list[refnum].ssl_error == SSL_ERROR_SYSCALL)
+				err_string = strerror(errno);
+			else
+				err_string = ltoa(server_list[refnum].ssl_error);
+
+			say("SSL connection failed to %s: %s", server_list[refnum].name, err_string);
+			SSL_show_errors();
+			close_server(refnum, NULL);
+			return -2;
+		}
+
+		say("SSL server %s connected using %s (%s)",
+			server_list[refnum].name,
+			SSL_get_version(server_list[refnum].ssl_fd),
+			SSL_get_cipher(server_list[refnum].ssl_fd));
+	}
+#endif
+
+	if (!server_list[refnum].d_nickname)
+		malloc_strcpy(&(server_list[refnum].d_nickname), nickname);
+
+	register_server(refnum, server_list[refnum].d_nickname);
+	server_list[refnum].last_msg = now;
+	server_list[refnum].eof = 0;
+/*	server_list[refnum].connected = 1; XXX: not registered yet */
+	server_list[refnum].try_once = 0;
+	server_list[refnum].reconnecting = 0;
+	server_list[refnum].old_server = -1;
+#ifdef NON_BLOCKING_CONNECTS
+	server_list[refnum].server_change_pending = 0;
+#endif
+	*server_list[refnum].umode = 0;
+	server_list[refnum].operator = 0;
+	set_umode(refnum);
+
+	/* This used to be in get_connected() */
+	change_server_channels(c_server, refnum);
+	set_window_server(server_list[refnum].server_change_refnum, refnum, 0);
+	server_list[refnum].reconnects++;
+	if (c_server > -1)
+	{
+		server_list[refnum].orignick = server_list[c_server].orignick;
+		server_list[c_server].orignick = NULL;
+	}
+	set_server_req_server(refnum, 0);
+	if (channel)
+	{
+		set_current_channel_by_refnum(0, channel);
+		add_channel(channel, primary_server, 0);
+		new_free(&channel);
+		xterm_settitle();
+	}
+	return 0;
+}
+
 /*
- *
- do_server: check the given fd_set against the currently open servers in
+ * server_lost()
+ * Called when the connection to a server has been closed, and this was not initiated 
+ * by the client.
+ */
+static void server_lost(int s)
+{
+#ifdef NON_BLOCKING_CONNECTS
+	if (server_list[s].server_change_pending == 2)
+	{
+		/* If the previous server gets closed while
+		 * we are waiting for another server to connect
+		 * we don't want to try a new connection, so
+		 * just close down this connection and quit.
+		 */
+		close_server(s, empty_string);
+	}
+	else if (server_list[s].connect_wait)
+	{
+		set_server_reconnect(s, 1);
+
+		if ((server_list[s].from_server != -1) && (server_list[s].from_server != s))
+		{
+			if (is_server_open(server_list[s].from_server))
+			{
+				/* Set the windows back to the old server */
+				say("Connection to server %s resumed...", server_list[server_list[s].from_server].name);
+				change_server_channels(s, server_list[s].old_server);
+				set_window_server(-1, s, 1);
+				set_server_reconnect(s, 0);
+			}
+			else
+			{
+				close_server(server_list[s].from_server, empty_string);
+			}
+		}
+
+	}
+	else
+#endif
+	{
+		set_server_reconnect(s, 1);
+		server_list[s].old_server = s;
+	}
+}
+
+/*
+ * do_server()
+ * Check the given fd_set against the currently open servers in
  * the server list.  If one have information available to be read, it is read
  * and and parsed appropriately.  If an EOF is detected from an open server,
  * one of two things occurs. 1) If the server was the primary server,
@@ -445,44 +645,29 @@ void	do_server (fd_set *rd, fd_set *wr)
 	char	buffer[BIG_BUFFER_SIZE + 1];
 	int	des,
 		i;
-	static	int	times = 1;
-static	time_t	last_timeout = 0;
 
-#ifdef NON_BLOCKING_CONNECTS
-	scan_nonblocking();
-#endif
+	/* Process server timeouts */
+	do_idle_server();
 
 	for (i = 0; i < number_of_servers; i++)
 	{
-		/* We were told to reconnect, to avoid recursion. */
-		if(get_server_reconnect(i) > 0)
-		{
-			int connect_delay = get_int_var(CONNECT_DELAY_VAR);
-
-			if(!connect_delay || (time(NULL) - server_list[i].connect_time) > connect_delay)
-			{
-				int servernum = i;
-
-				set_server_reconnect(i, 0);
-				reconnect_server(&servernum, &times, &last_timeout);
-			}
-		}
-
 #ifdef NON_BLOCKING_CONNECTS
-		if (((des = server_list[i].write) > -1) && FD_ISSET(des, wr) && !(server_list[i].login_flags & LOGGED_IN))
+		if (((des = server_list[i].write) > -1) && FD_ISSET(des, wr) && !(server_list[i].login_flags & SF_LOGGED_IN))
 		{
 			struct sockaddr_in sa;
-			int salen = sizeof(struct sockaddr_in);
+			socklen_t salen = sizeof(struct sockaddr_in);
 
 			if (getpeername(des, (struct sockaddr *) &sa, &salen) != -1)
 			{
-#ifdef HAVE_SSL
-				if(!server_list[i].ctx || server_list[i].ssl_error == SSL_ERROR_WANT_WRITE)
+#ifdef HAVE_LIBSSL
+				if (!server_list[i].ssl_fd || server_list[i].ssl_error == SSL_ERROR_WANT_WRITE)
 				{
 #endif
+					int try_once = server_list[i].try_once;
 					server_list[i].connect_wait = 0;
-					finalize_server_connect(i, server_list[i].c_server, i);
-#ifdef HAVE_SSL
+					if (finalize_server_connect(i, server_list[i].c_server) && !try_once)
+						server_lost(i);
+#ifdef HAVE_LIBSSL
 				}
 #endif
 			}
@@ -499,17 +684,19 @@ static	time_t	last_timeout = 0;
 				junk = (*serv_input_func)(i, bufptr, des, 1, BIG_BUFFER_SIZE);
 			else
 			{
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 				if(get_server_ssl(i))
 				{
 #ifdef NON_BLOCKING_CONNECTS
 					/* If we get here before getting above we have problems. */
-					if(!(server_list[i].login_flags & LOGGED_IN))
+					if (!(server_list[i].login_flags & SF_LOGGED_IN))
 					{
-						if(!server_list[i].ctx || server_list[i].ssl_error == SSL_ERROR_WANT_READ)
+						if (!server_list[i].ssl_fd || server_list[i].ssl_error == SSL_ERROR_WANT_READ)
 						{
+							int try_once = server_list[i].try_once;
 							server_list[i].connect_wait = 0;
-							finalize_server_connect(i, server_list[i].c_server, i);
+							if (finalize_server_connect(i, server_list[i].c_server) && !try_once)
+								server_lost(i);
 						}
 					}
 					else
@@ -535,51 +722,12 @@ static	time_t	last_timeout = 0;
 
 						server_list[i].reconnecting = 1;
 						close_server(i, empty_string);
-						if(!try_once)
-						{
-#ifdef NON_BLOCKING_CONNECTS
-							if(server_list[i].server_change_pending == 2)
-							{
-								/* If the previous server gets closed while
-								 * we are waiting for another server to connect
-								 * we don't want to try a new connection, so
-								 * just close down this connection and quit.
-								 */
-								close_server(i, empty_string);
-							}
-							else if(server_list[i].connect_wait)
-							{
-								set_server_reconnect(i, 1);
-
-								if ((server_list[i].from_server != -1))
-								{
-									if((server_list[server_list[i].from_server].read != -1) &&
-									   (server_list[i].from_server != i))
-									{
-										/* Set the windows back to the old server */
-										say("Connection to server %s resumed...", server_list[server_list[i].from_server].name);
-										change_server_channels(i, server_list[i].old_server);
-										set_window_server(-1, i, 1);
-										set_server_reconnect(i, 0);
-									} else if(server_list[i].from_server != i)
-									{
-										close_server(server_list[i].from_server, empty_string);
-									}
-								}
-
-							}
-							else
-#endif
-							{
-								set_server_reconnect(i, 1);
-								server_list[i].old_server = i;
-							}
-						}
+						if (!try_once)
+							server_lost(i);
 						break;
 					}
 				default:
 				{
-					last_timeout = 0;
 					parsing_server_index = i;
 					server_list[i].last_msg = now;
 					parse_server(buffer);
@@ -591,22 +739,30 @@ static	time_t	last_timeout = 0;
 			}
 			from_server = primary_server;
 		}
-		if (server_list[i].read != -1 && (errno == ENETUNREACH || errno == EHOSTUNREACH))
-		{
-			if (last_timeout == 0)
-				last_timeout = now;
-			else if (now - last_timeout > 600)
-			{
-				close_server(i, empty_string);
-				server_list[i].reconnecting = 1;
-				get_connected(i, -1);
-			}
-		}
 	}
 
 	if (primary_server == -1 || !is_server_open(primary_server))
 		window_check_servers(-1);
 }
+
+/* server_lag_reply()
+ *
+ * Called when a reply to a lag check ping has been received.
+ */
+void server_lag_reply(int s, unsigned long cookie, struct timeval lag_recv, struct timeval lag_sent)
+{
+	if (cookie == server_list[s].lag_cookie)
+	{
+		int new_lag = (int)(BX_time_diff(lag_sent, lag_recv) + 0.5);
+
+		server_list[s].lag_recv = lag_recv;
+		if (server_list[s].lag != new_lag)
+		{
+			server_list[s].lag = new_lag;
+			update_all_status(current_window, NULL, 0);
+		}
+	}
+}	
 
 /*
  * find_in_server_list: given a server name, this tries to match it against
@@ -644,7 +800,7 @@ extern	int	BX_find_in_server_list (char *server, int port)
 		MATCH_WITH_COMPLETION(server, server_list[i].itsname);
 #endif
 		/*
-		 * Try to avoid unneccessary string compares. Only compare
+		 * Try to avoid unnecessary string compares. Only compare
 		 * the first part of the string if there's not already a
 		 * possible match set in "hintfound". This enables us to
 		 * search for an exact match even if there's already a
@@ -696,9 +852,7 @@ int 	BX_find_server_refnum (char *server, char **rest)
 	char 	*cport = NULL, 
 		*password = NULL,
 		*nick = NULL,
-		*snetwork = NULL,
-		*sasl_nick = NULL,
-		*sasl_pass = NULL;
+		*snetwork = NULL;
 
 	/*
 	 * First of all, check for an existing server refnum
@@ -706,10 +860,10 @@ int 	BX_find_server_refnum (char *server, char **rest)
 	if ((refnum = parse_server_index(server)) != -1)
 		return refnum;
 	/*
-	 * Next check to see if its a "server:port:password:nick:network:saslnick:saslpass"
+	 * Next check to see if its a "server:port:password:nick:network"
 	 */
 	else if (index(server, ':') || index(server, ','))
-		parse_server_info(server, &cport, &password, &nick, &snetwork, &sasl_nick, &sasl_pass);
+		parse_server_info(server, &cport, &password, &nick, &snetwork);
 
 	else if (index(server, '['))
 	{
@@ -725,7 +879,7 @@ int 	BX_find_server_refnum (char *server, char **rest)
 		}
 	}
 	/*
-	 * Next check to see if its "server port password nick network saslnick saslport"
+	 * Next check to see if its "server port password nick"
 	 */
 	else if (rest && *rest)
 	{
@@ -733,8 +887,6 @@ int 	BX_find_server_refnum (char *server, char **rest)
 		password = next_arg(*rest, rest);
 		nick = next_arg(*rest, rest);
 		snetwork = next_arg(*rest, rest);
-		sasl_nick = next_arg(*rest, rest);
-		sasl_pass = next_arg(*rest, rest);
 	}
 
 	if (cport && *cport)
@@ -744,7 +896,7 @@ int 	BX_find_server_refnum (char *server, char **rest)
 	 * Add to the server list (this will update the port
 	 * and password fields).
 	 */
-	add_to_server_list(server, port, password, nick, snetwork, sasl_nick, sasl_pass, 0, 1);
+	add_to_server_list(server, port, password, nick, snetwork, 0, 1);
 	return from_server;
 }
 
@@ -756,7 +908,7 @@ int 	BX_find_server_refnum (char *server, char **rest)
  * passes.  If the server is not on the list, it is added to the end. In
  * either case, the server is made the current server. 
  */
-void 	BX_add_to_server_list (char *server, int port, char *password, char *nick, char *snetwork, char *sasl_nick, char *sasl_pass, int ssl, int overwrite)
+void 	BX_add_to_server_list (char *server, int port, char *password, char *nick, char *snetwork, int ssl, int overwrite)
 {
 extern int default_swatch;
 	if ((from_server = find_in_server_list(server, port)) == -1)
@@ -773,7 +925,7 @@ extern int default_swatch;
 		server_list[from_server].motd = 1;
 		server_list[from_server].ircop_flags = default_swatch;
 		server_list[from_server].port = port;
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 		set_server_ssl(from_server, ssl);
 #endif
 		malloc_strcpy(&server_list[from_server].umodes, umodes);
@@ -784,11 +936,6 @@ extern int default_swatch;
 			malloc_strcpy(&(server_list[from_server].d_nickname), nick);
 		else if (!server_list[from_server].d_nickname)
 			malloc_strcpy(&(server_list[from_server].d_nickname), nickname);
-
-		if (sasl_nick && *sasl_nick)
-			malloc_strcpy(&(server_list[from_server].sasl_nick), sasl_nick);
-		if (sasl_pass && *sasl_pass)
-			malloc_strcpy(&(server_list[from_server].sasl_pass), sasl_pass);
 
 		make_notify_list(from_server);
 		make_watch_list(from_server);
@@ -812,20 +959,6 @@ extern int default_swatch;
 					malloc_strcpy(&(server_list[from_server].d_nickname), nick);
 				else
 					new_free(&(server_list[from_server].d_nickname));
-			}
-			if (sasl_nick || !server_list[from_server].sasl_nick)
-			{
-				if (sasl_nick && *sasl_nick)
-					malloc_strcpy(&(server_list[from_server].sasl_nick), sasl_nick);
-				else
-					new_free(&(server_list[from_server].sasl_nick));
-			}
-			if (sasl_pass || !server_list[from_server].sasl_pass)
-			{
-				if (sasl_pass && *sasl_pass)
-					malloc_strcpy(&(server_list[from_server].sasl_pass), sasl_pass);
-				else
-					new_free(&(server_list[from_server].sasl_pass));
 			}
 		}
 		if (strlen(server) > strlen(server_list[from_server].name))
@@ -857,8 +990,9 @@ void 	remove_from_server_list (int i)
 	new_free(&server_list[i].recv_nick);
 	new_free(&server_list[i].sent_nick);
 	new_free(&server_list[i].sent_body);
-#ifdef HAVE_SSL
-	SSL_CTX_free(server_list[i].ctx);
+#ifdef HAVE_LIBSSL
+	if (server_list[i].ctx)
+		SSL_CTX_free(server_list[i].ctx);
 #endif
 	clear_server_sping(i, NULL);
 		
@@ -901,13 +1035,13 @@ void 	remove_from_server_list (int i)
  *
  * With IPv6 patch it also supports comma as a delimiter.
  */
-void	BX_parse_server_info (char *name, char **port, char **password, char **nick, char **snetwork, char **sasl_nick, char **sasl_pass)
+void	BX_parse_server_info (char *name, char **port, char **password, char **nick, char **snetwork)
 {
 	char *ptr, delim;
 
 	delim = (index(name, ',')) ? ',' : ':';
 
-	*port = *password = *nick = *sasl_nick = *sasl_pass = NULL;
+	*port = *password = *nick = NULL;
 	if ((ptr = (char *) strchr(name, delim)) != NULL)
 	{
 		*(ptr++) = (char) 0;
@@ -939,28 +1073,7 @@ void	BX_parse_server_info (char *name, char **port, char **password, char **nick
 								if  (!strlen(ptr))
 									*snetwork = NULL;
 								else
-								{
 									*snetwork = ptr;
-									if ((ptr = strchr(ptr, delim)) != NULL)
-									{
-										*(ptr++) = 0;
-										if (!strlen(ptr))
-											*sasl_nick = NULL;
-										else
-										{
-											*sasl_nick = ptr;
-											if ((ptr = strchr(ptr, delim)) != NULL)
-											{
-												*(ptr++) = 0;
-												if (!strlen(ptr))
-													*sasl_pass = NULL;
-												else
-													*sasl_pass = ptr;
-											}
-											
-										}
-									}
-								}
 							}
 						}
 					}
@@ -981,8 +1094,8 @@ void	BX_parse_server_info (char *name, char **port, char **password, char **nick
  * servername:port 
  * servername:port:password 
  * servername::password 
- * [servernetwork]
- * servername:port:password:nick:servernetwork:saslnick:saslpass
+ * servernetwork
+ * servername:port:password:nick:servernetwork
  * Note also that this routine mucks around with the server string passed to it,
  * so make sure this is ok 
  */
@@ -995,13 +1108,11 @@ int	BX_build_server_list (char *servers)
 		*password = NULL,
 		*port = NULL,
 		*nick = NULL,
-		*snetwork = NULL,
-		*sasl_nick = NULL,
-		*sasl_pass = NULL;
+		*snetwork = NULL;
 
 	int	port_num;
 	int	i = 0;
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 	extern int do_use_ssl;
 #else
 	int do_use_ssl = 0;
@@ -1037,7 +1148,7 @@ int	BX_build_server_list (char *servers)
 				snetwork = NULL;
 				continue;
 			}
-			parse_server_info(host, &port, &password, &nick, &snetwork, &sasl_nick, &sasl_pass);
+			parse_server_info(host, &port, &password, &nick, &snetwork);
 			if (port && *port)
 			{
 				if (!(port_num = my_atol(port)))
@@ -1046,7 +1157,7 @@ int	BX_build_server_list (char *servers)
 			else
 				port_num = irc_port;
 
-			add_to_server_list(host, port_num, password, nick, snetwork ? snetwork : default_network, sasl_nick, sasl_pass, do_use_ssl, 0);
+			add_to_server_list(host, port_num, password, nick, snetwork ? snetwork : default_network, do_use_ssl, 0);
 			i++;
 		}
 		servers = rest;
@@ -1216,7 +1327,7 @@ static	int	connect_to_server_direct (char *server_name, int port)
 {
 	int		new_des;
 	struct sockaddr_foobar	*localaddr;
-	int		address_len;
+	socklen_t	address_len;
 	unsigned short	this_sucks;
 
 
@@ -1315,7 +1426,7 @@ noidentwd:
 #endif
 
 	update_all_status(current_window, NULL, 0);
-	add_to_server_list(server_name, port, NULL, NULL, NULL, NULL, NULL, 0, 1);
+	add_to_server_list(server_name, port, NULL, NULL, NULL, 0, 1);
 
 	server_list[from_server].closing = 0;
 	if (port)
@@ -1331,89 +1442,6 @@ noidentwd:
 	
 	if (identd != -1)
 		set_socketflags(identd, now);
-	return 0;
-}
-
-/* This code either gets called from connect_to_server_by_refnum()
- * or from the main loop once a nonblocking connect has been
- * verified.
- */
-int finalize_server_connect(int refnum, int c_server, int my_from_server)
-{
-	if (serv_open_func)
-		(*serv_open_func)(my_from_server, server_list[my_from_server].local_addr, server_list[my_from_server].port);
-	if ((c_server > -1) && (c_server != my_from_server))
-	{
-		server_list[c_server].reconnecting = 1;
-		server_list[c_server].old_server = -1;
-#ifdef NON_BLOCKING_CONNECTS
-		server_list[c_server].server_change_pending = 0;
-		server_list[refnum].from_server = -1;
-#endif
-		close_server(c_server, "changing servers");
-	}
-
-#ifdef HAVE_SSL
-	if(get_server_ssl(refnum))
-	{
-		int err = 0;
-
-		if(!server_list[refnum].ctx)
-		{
-			server_list[refnum].ctx = SSL_CTX_new (SSLv23_client_method());
-			CHK_NULL(server_list[refnum].ctx);
-			server_list[refnum].ssl_fd = SSL_new (server_list[refnum].ctx);
-			CHK_NULL(server_list[refnum].ssl_fd);
-			SSL_set_fd (server_list[refnum].ssl_fd, server_list[refnum].read);
-		}
-		err = SSL_connect (server_list[refnum].ssl_fd);
-		if(err == -1)
-		{
-			server_list[refnum].ssl_error = SSL_get_error((SSL *)server_list[refnum].ssl_fd, err);
-			if(server_list[refnum].ssl_error == SSL_ERROR_WANT_READ || server_list[refnum].ssl_error == SSL_ERROR_WANT_WRITE)
-				return 0;
-		}
-		SSL_show_errors();
-		CHK_SSL(err);
-		say("SSL server connected");
-	}
-#endif
-
-	if (!server_list[my_from_server].d_nickname)
-		malloc_strcpy(&(server_list[my_from_server].d_nickname), nickname);
-
-	register_server(my_from_server, server_list[my_from_server].d_nickname);
-	server_list[refnum].last_msg = now;
-	server_list[refnum].eof = 0;
-/*	server_list[refnum].connected = 1; XXX: not registered yet */
-	server_list[refnum].try_once = 0;
-	server_list[refnum].reconnecting = 0;
-	server_list[refnum].old_server = -1;
-#ifdef NON_BLOCKING_CONNECTS
-	server_list[refnum].server_change_pending = 0;
-#endif
-	*server_list[refnum].umode = 0;
-	server_list[refnum].operator = 0;
-	set_umode(refnum);
-
-	/* This used to be in get_connected() */
-	change_server_channels(c_server, my_from_server);
-	set_window_server(server_list[refnum].server_change_refnum, my_from_server, 0);
-	server_list[my_from_server].reconnects++;
-	if (c_server > -1)
-	{
-		server_list[my_from_server].orignick = server_list[c_server].orignick;
-		if (server_list[my_from_server].orignick)
-			server_list[c_server].orignick = NULL;
-	}
-	set_server_req_server(refnum, 0);
-	if (channel)
-	{
-		set_current_channel_by_refnum(0, channel);
-		add_channel(channel, primary_server, 0);
-		new_free(&channel);
-		xterm_settitle();
-	}
 	return 0;
 }
 
@@ -1443,7 +1471,7 @@ int 	BX_connect_to_server_by_refnum (int refnum, int c_server)
 		if (conn)
 			return -1;
 
-		server_list[refnum].connect_time = time(NULL);
+		get_time(&server_list[refnum].connect_time);
 #ifdef NON_BLOCKING_CONNECTS
 		server_list[refnum].connect_wait = 1;
 		server_list[refnum].c_server = c_server;
@@ -1452,7 +1480,8 @@ int 	BX_connect_to_server_by_refnum (int refnum, int c_server)
 		if(c_server > -1)
 			server_list[c_server].server_change_pending = 2;
 #else
-		finalize_server_connect(refnum, c_server, from_server);
+		if (finalize_server_connect(refnum, c_server) != 0)
+			return -1;
 #endif
 	}
 	else
@@ -1465,51 +1494,60 @@ int 	BX_connect_to_server_by_refnum (int refnum, int c_server)
 	return 0;
 }
 
-/* This function should only be called from next_server! */
-int next_server_internal(int server, int depth, int original)
+/*
+ * next_server_ok()
+ * Test whether the given server is OK to return from next_server().
+ * Server must not be connected, and if snetwork is not NULL it must have a matching
+ * snetwork.
+ */
+static int next_server_ok(int server, const char *snetwork)
 {
-int been_here = 0;
+	if (is_server_open(server))
+		return 0;
 
-	server++;
-	if (server == number_of_servers)
-	{
-		server = 0;
-		been_here++;
-	}
+	if (snetwork && (!server_list[server].snetwork || strcmp(server_list[server].snetwork, snetwork)))
+		return 0;
 
-	if (get_int_var(SERVER_GROUPS_VAR) && server_list[original].snetwork)
-	{
-		while (!server_list[server].snetwork || strcmp(server_list[server].snetwork, server_list[original].snetwork))
-		{
-			server++;
-			if (server == number_of_servers)
-			{
-				server = 0;
-				if (been_here)
-					break;
-			}
-		}
-	}
-	if(is_server_open(server))
-	{
-		/* The depth allows us to make sure we don't
-		 * recurse forever if there are no servers in
-		 * the list that meet the requirements.
-		 */
-		if(depth && server == original)
-			return original;
-		return next_server_internal(server, depth + 1, original);
-	}
-	return server;
+	return 1;
 }
 
-/* Find the next server in the list that is not connected
+/*
+ * next_server()
+ * Find the next server in the list that is not connected
  * and if SERVER_GROUPS is enabled, that is of the same group
  * as your original server.
  */
 int next_server(int server)
 {
-	return next_server_internal(server, 0, server);
+	const int original = server;
+	const char *snetwork = NULL;
+
+	if (get_int_var(SERVER_GROUPS_VAR))
+		snetwork = server_list[original].snetwork;
+
+	do {
+		server++;
+
+		if (server >= number_of_servers)
+			server = 0;
+	} while (!next_server_ok(server, snetwork) && server != original);
+
+	return server;
+}
+
+static int find_old_server(int old_server)
+{
+	int i;
+
+	if (old_server > -1 && old_server < number_of_servers)
+	{
+		for (i = 0; i < number_of_servers; i++)
+		{
+			if (server_list[i].old_server == old_server)
+				return i;
+		}
+	}
+	return -1;
 }
 
 /*
@@ -1563,15 +1601,10 @@ void	try_connect (int server, int old_server)
 {
 	if (server_list)
 	{
-		if (server >= number_of_servers)
-			server = 0;
-		else if (server < 0)
+		if (server < 0 || server >= number_of_servers)
 			server = 0;
 
-#ifdef HAVE_SSL
-		server_list[server].ctx = NULL;
-#endif
-		if(server_list[server].server_change_refnum > -1)
+		if (server_list[server].server_change_refnum > -1)
 			set_display_target_by_winref(server_list[server].server_change_refnum);
 
 		set_server_old_server(server, old_server);
@@ -1662,7 +1695,7 @@ BUILT_IN_COMMAND(servercmd)
 {
 	char	*server = NULL;
 	int	i, my_from_server = from_server;
-#ifdef HAVE_SSL 
+#ifdef HAVE_LIBSSL 
 	int     ssl_connect = 0;
 #endif
 
@@ -1672,7 +1705,7 @@ BUILT_IN_COMMAND(servercmd)
 		return;
 	}
 
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 	if((i = find_in_server_list(server, 0)) != -1)
 		set_server_ssl(i, 0);
 
@@ -1714,7 +1747,7 @@ BUILT_IN_COMMAND(servercmd)
 			say("Need server number for -DELETE");
 	}
 	/*
-	 * Add a server, but dont connect
+	 * Add a server, but don't connect
 	 */
 	else if (strlen(server) > 1 && !my_strnicmp(server, "-SEND", strlen(server)))
 	{
@@ -1755,7 +1788,7 @@ BUILT_IN_COMMAND(servercmd)
 		if (*++server)
 		{
 			i = find_server_refnum(server, &args);
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 			if(ssl_connect)
 				set_server_ssl(i, 1);
 #endif
@@ -1790,7 +1823,7 @@ BUILT_IN_COMMAND(servercmd)
 	else
 	{
 		i = find_server_refnum(server, &args);
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 		if(ssl_connect)
 			set_server_ssl(i, 1);
 #endif
@@ -1870,16 +1903,6 @@ static char *set_umode (int du_index)
 	return server_list[du_index].umode;
 }
 
-char *BX_get_possible_umodes (int gu_index)
-{
-	if (gu_index == -1)
-		gu_index = primary_server;
-	else if (gu_index >= number_of_servers)
-		return empty_string;
-
-	return server_list[gu_index].umodes;
-}
-
 char *BX_get_umode (int gu_index)
 {
 	if (gu_index == -1)
@@ -1899,6 +1922,13 @@ void clear_user_modes (int gindex)
 	server_list[gindex].flags = 0;
 	server_list[gindex].flags2 = 0;
 	set_umode(gindex);
+}
+
+void reinstate_user_modes(int server)
+{
+	char *modes = get_umode(server);
+	if (modes && *modes)
+		my_send_to_server(server, "MODE %s +%s", get_server_nickname(server), modes);
 }
 
 /*
@@ -1936,23 +1966,11 @@ void	BX_set_server_away (int ssa_index, char *message, int silent)
 			char buffer[BIG_BUFFER_SIZE+1];
 			if (get_int_var(SEND_AWAY_MSG_VAR))
 			{
-				char *p = NULL;
-				ChannelList *chan;
-				if (get_server_version(ssa_index) == Server2_8hybrid6)
-				{
-					for (chan = server_list[ssa_index].chan_list; chan; chan = chan->next)
-						send_to_server("PRIVMSG %s :ACTION %s", chan->channel, 
-							stripansicodes(convert_output_format(fget_string_var(FORMAT_AWAY_FSET), "%s [\002BX\002-MsgLog %s] %s",update_clock(GET_TIME), get_int_var(MSGLOG_VAR)?"On":"Off", message)));
-				}
-				else
-				{
-					for (chan = server_list[ssa_index].chan_list; chan; chan = chan->next)
-						m_s3cat(&p, ",", chan->channel);
-					if (p)
-						send_to_server("PRIVMSG %s :ACTION %s", p, 
-							stripansicodes(convert_output_format(fget_string_var(FORMAT_AWAY_FSET), "%s [\002BX\002-MsgLog %s] %s",update_clock(GET_TIME), get_int_var(MSGLOG_VAR)?"On":"Off", message)));
-						new_free(&p);
-				}
+				snprintf(buffer, BIG_BUFFER_SIZE, "ACTION %s", 
+					stripansicodes(convert_output_format(
+						fget_string_var(FORMAT_AWAY_FSET), "%s [\002BX\002-MsgLog %s] %s",
+						update_clock(GET_TIME), get_int_var(MSGLOG_VAR)? "On" : "Off", message)));
+				send_msg_to_channels(ssa_index, buffer);
 			}
 			send_to_server("%s :%s", "AWAY", stripansicodes(convert_output_format(fget_string_var(FORMAT_AWAY_FSET), "%s [\002BX\002-MsgLog %s] %s", update_clock(GET_TIME), get_int_var(MSGLOG_VAR)?"On":"Off",message)));
 			strncpy(buffer, convert_output_format(fget_string_var(FORMAT_SEND_ACTION_FSET), "%s %s $C ", update_clock(GET_TIME), server_list[ssa_index].nickname), BIG_BUFFER_SIZE);
@@ -2005,39 +2023,68 @@ time_t get_server_awaytime(int server)
 	return server_list[server].awaytime;
 }
 
-void	BX_set_server_flag (int ssf_index, int flag, int value)
+static int umode_index(char mode)
 {
-	if (ssf_index == -1)
-		ssf_index = primary_server;
-	else if (ssf_index >= number_of_servers)
+	const char *p = strchr(umodes, mode);
+
+	if (p)
+		return p - umodes;
+	else
+		return -1;
+}
+
+/* update_server_umode()
+ *
+ * Updates the client's idea of the status of a single umode flag.
+ */
+void BX_update_server_umode(int server, char mode, int value)
+{
+	const int flag = umode_index(mode);
+
+	if (server <= -1 || server > number_of_servers)
 		return;
+
+	if (flag < 0)
+	{
+		yell("Ignoring invalid user mode '%c' from server", mode);
+		return;
+	}
+
 	if (flag > 31)
 	{
 		if (value)
-			server_list[ssf_index].flags2 |= 0x1 << (flag - 32);
+			server_list[server].flags2 |= 0x1L << (flag - 32);
 		else
-			server_list[ssf_index].flags2 &= ~(0x1 << (flag - 32));
+			server_list[server].flags2 &= ~(0x1L << (flag - 32));
 	}
 	else
 	{
 		if (value)
-			server_list[ssf_index].flags |= 0x1 << flag;
+			server_list[server].flags |= 0x1L << flag;
 		else
-			server_list[ssf_index].flags &= ~(0x1 << flag);
+			server_list[server].flags &= ~(0x1L << flag);
 	}
-	set_umode(ssf_index);
+	set_umode(server);
 }
 
-int	BX_get_server_flag (int gsf_index, int value)
+/* get_server_umode()
+ *
+ * Returns the status (set/unset) of a given umode flag.
+ */
+int	BX_get_server_umode(int server, char mode)
 {
-	if (gsf_index == -1)
-		gsf_index = primary_server;
-	else if (gsf_index >= number_of_servers)
+	const int flag = umode_index(mode);
+
+	if (server <= -1 || server > number_of_servers)
 		return 0;
-	if (value > 31)
-		return server_list[gsf_index].flags2 & (0x1 << (value - 32));
+
+	if (flag < 0)
+		return 0;
+
+	if (flag > 31)
+		return !!(server_list[server].flags2 & (0x1L << (flag - 32)));
 	else
-		return server_list[gsf_index].flags & (0x1 << value);
+		return !!(server_list[server].flags & (0x1L << flag));
 }
 
 /*
@@ -2194,8 +2241,6 @@ int	BX_is_server_connected (int isc_index)
 	return 0;
 }
 
-void check_host(void);
-
 void	clear_sent_to_server (int servnum)
 {
 	server_list[servnum].sent = 0;
@@ -2235,7 +2280,7 @@ char	*BX_get_server_nickname (int gsn_index)
 
 /* 
  * set_server2_8 - set the server as a 2.8 server 
- * This is used if we get a 001 numeric so that we dont bite on
+ * This is used if we get a 001 numeric so that we don't bite on
  * the "kludge" that ircd has for older clients
  */
 void 	BX_set_server2_8 (int ss2_index, int value)
@@ -2290,7 +2335,7 @@ void 	BX_set_server_nickname (int ssn_index, char *nick)
 	{
 		malloc_strcpy(&(server_list[ssn_index].nickname), nick);
 		if (ssn_index == primary_server)
-			strmcpy(nickname,nick, NICKNAME_LEN );
+			strlcpy(nickname, nick, sizeof nickname);
 	}
 	update_all_status(current_window, NULL, 0);
 }
@@ -2311,7 +2356,7 @@ int	BX_check_server_redirect (char *who)
 	if (!who || !server_list[from_server].redirect)
 		return 0;
 
-	if (!strncmp(who, "***", 3) && !strcmp(who+3, server_list[from_server].redirect))
+	if (strbegins(who, "***") && !strcmp(who+3, server_list[from_server].redirect))
 	{
 		set_server_redirect(from_server, NULL);
 		return 1;
@@ -2336,17 +2381,16 @@ void	register_server (int ssn_index, char *nick)
 
 	change_server_nickname(ssn_index, nick);
 
-	server_list[ssn_index].login_flags &= ~LOGGED_IN;
-	server_list[ssn_index].login_flags &= ~CLOSE_PENDING;
+	server_list[ssn_index].login_flags &= ~SF_LOGGED_IN;
 	server_list[ssn_index].last_msg = now;
 	server_list[ssn_index].eof = 0;
 /*	server_list[ssn_index].connected = 1; XXX: We aren't sure yet */
 	*server_list[ssn_index].umode = 0;
 	server_list[ssn_index].operator = 0;
 /*	set_umode(ssn_index); */
-        server_list[ssn_index].login_flags |= LOGGED_IN;
+	server_list[ssn_index].login_flags |= SF_LOGGED_IN;
+	server_list[ssn_index].lag_cookie = random_number(0);
 	from_server = old_from_server;
-	check_host();
 }
 
 void	BX_set_server_cookie (int ssm_index, char *cookie)
@@ -2382,21 +2426,6 @@ void BX_set_server_lag (int gso_index, int secs)
 		server_list[gso_index].lag = secs;
 }
 
-
-time_t	get_server_lagtime (int gso_index)
-{
-	if ((gso_index < 0 || gso_index >= number_of_servers))
-		return 0;
-	return(server_list[gso_index].lag_time);
-}
-
-void set_server_lagtime (int gso_index, time_t secs)
-{
-	if ((gso_index != -1 && gso_index < number_of_servers))
-		server_list[gso_index].lag_time = secs;
-}
-
-
 int 	BX_get_server_motd (int gsm_index)
 {
 	if (gsm_index != -1 && gsm_index < number_of_servers)
@@ -2411,7 +2440,10 @@ void 	BX_server_is_connected (int sic_index, int value)
 
 	server_list[sic_index].connected = value;
 	if (value)
+	{
 		server_list[sic_index].eof = 0;
+		get_time(&server_list[sic_index].lag_sent);
+	}
 }
 
 void	set_server_version_string (int servnum, const char *ver)
@@ -2470,7 +2502,7 @@ char	*get_server_userhost (int gsu_index)
 }
 
 /*
- * got_my_userhost -- callback function, XXXX doesnt belong here
+ * got_my_userhost -- callback function, XXXX doesn't belong here
  */
 void 	got_my_userhost (UserhostItem *item, char *nick, char *stuff)
 {
@@ -2479,38 +2511,31 @@ void 	got_my_userhost (UserhostItem *item, char *nick, char *stuff)
 	lame_resolv(item->host, &server_list[from_server].uh_addr);
 }
 
-
-
 static int write_to_server(int server, int des, char *buffer)
 {
-int err = 0;
+	int err = 0;
+
 	if (do_hook(SEND_TO_SERVER_LIST, "%d %d %s", server, des, buffer))
 	{
 		if (serv_output_func)
 			err = (*serv_output_func)(server, des, buffer, strlen(buffer));
 		else
 		{
-#ifdef HAVE_SSL
-			if(get_server_ssl(server))
+#ifdef HAVE_LIBSSL
+			if (get_server_ssl(server))
 			{
-				if(!server_list[server].ssl_fd)
-				{
-					say ("SSL write error");
-					return -1;
-				}
-				err = SSL_write(server_list[server].ssl_fd, buffer, strlen(buffer));
+				int ret = SSL_write(server_list[server].ssl_fd, buffer, strlen(buffer));
+
+				if (ret <= 0)
+					err = -1;
 			}
 			else
 #endif
 				err = write(des, buffer, strlen(buffer));
-	}
+		}
 		if ((err == -1) && !get_int_var(NO_FAIL_DISCONNECT_VAR))
 		{
 			say("Write to server failed.  Closing connection.");
-#ifdef HAVE_SSL
-			if(get_server_ssl(server))
-				SSL_shutdown (server_list[server].ssl_fd);
-#endif
 			close_server(server, strerror(errno));
 			get_connected(server, server);
 		}
@@ -2566,48 +2591,49 @@ QueueSend *tmp, *tmp1;
 	}
 }
 
-static void vsend_to_server(int type, const char *format, va_list args)
+static void vsend_to_server(int server, int type, const char *format, va_list args)
 {
-	char	buffer[BIG_BUFFER_SIZE + 1];	/* make this buffer *much*
-						 * bigger than needed */
-	char 	*buf = buffer;
-	int	server;
-	int 	des;
-	if ((server = from_server) == -1)
+	int des, len;
+	char buffer[IRCD_BUFFER_SIZE + 1];
+
+	if (server == -1)
 		server = primary_server;
+	if (server < 0 || !format)
+		return;
 
-	if (server > -1 && ((des = server_list[server].write) != -1) && format)
+	des = server_list[server].write;
+	if (des == -1)
+ 	{
+		if (do_hook(DISCONNECT_LIST, "No Connection to %d", server))
+			put_it("%s", convert_output_format(fget_string_var(FORMAT_DISCONNECT_FSET),
+				"%s %s", update_clock(GET_TIME),
+				"You are not connected to a server. Use /SERVER to connect."));
+		return;
+	}
+
+	len = vsnprintf(buffer, sizeof buffer, format, args);
+	if (len < 0)
+		return;
+
+	if (outbound_line_mangler)
+		mangle_line(buffer, outbound_line_mangler, sizeof buffer);
+
+	buffer[MAX_PROTOCOL_SIZE] = 0;
+	if (x_debug & DEBUG_OUTBOUND)
+		debugyell("[%d] -> [%d] [%s]", des, len, buffer);
+	strlcat(buffer, "\r\n", sizeof buffer);
+
+	if (oper_command)
 	{
-		int len; 
-		vsnprintf(buf, BIG_BUFFER_SIZE, format, args);
-
-		if (outbound_line_mangler)
-			mangle_line(buf, outbound_line_mangler, strlen(buf));
-
-		server_list[server].sent = 1;
-		len = strlen(buffer);
-		if (len > (IRCD_BUFFER_SIZE - 2) || len == -1)
-			buffer[IRCD_BUFFER_SIZE - 2] = (char) 0;
-		if (x_debug & DEBUG_OUTBOUND)
-			debugyell("[%d] -> [%s]", des, buffer);
-		strmcat(buffer, "\r\n", IRCD_BUFFER_SIZE);
-
-		if (get_int_var(QUEUE_SENDS_VAR) && (type == QUEUE_SEND) && !oper_command)
-		{
-			add_to_server_queue(server, des, buffer);
-			return;
-		}
-
 		write_to_server(server, des, buffer);
-		if (oper_command)
-			memset(buffer, 0, len);
+		memset(buffer, 0, sizeof buffer);
+	}
+	else if (get_int_var(QUEUE_SENDS_VAR) && type == QUEUE_SEND)
+		add_to_server_queue(server, des, buffer);
+	else
+		write_to_server(server, des, buffer);
 
-	}
-	else if (from_server == -1 && server > -1)
-	{
-		if (do_hook(DISCONNECT_LIST,"No Connection to %d", server))
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_DISCONNECT_FSET), "%s %s", update_clock(GET_TIME), "You are not connected to a server. Use /SERVER to connect."));
-	}
+	server_list[server].sent = 1;
 }
 
 /* send_to_server: sends the given info the the server */
@@ -2616,35 +2642,27 @@ void 	BX_send_to_server (const char *format, ...)
 	va_list args;
 
 	va_start(args, format);
-	vsend_to_server(IMMED_SEND, format, args);
+	vsend_to_server(from_server, IMMED_SEND, format, args);
 	va_end(args);
 }
 
 /* send_to_server: sends the given info the the server */
 void 	BX_my_send_to_server (int refnum, const char *format, ...)
 {
-	int old_from_server = from_server;
 	va_list args;
 
-	from_server = refnum;
 	va_start(args, format);
-	vsend_to_server(IMMED_SEND, format, args);
+	vsend_to_server(refnum, IMMED_SEND, format, args);
 	va_end(args);
-	from_server = old_from_server;
-
 }
 
 void BX_queue_send_to_server(int refnum, const char *format, ...)
 {
-	int old_from_server = from_server;
 	va_list args;
 
-	from_server = refnum;
 	va_start(args, format);
-	vsend_to_server(QUEUE_SEND, format, args);
+	vsend_to_server(refnum, QUEUE_SEND, format, args);
 	va_end(args);
-	from_server = old_from_server;
-	
 }
 
 
@@ -2663,40 +2681,6 @@ extern	void BX_close_all_server (void)
 		if (server_list[i].write != -1)
 			new_close(server_list[i].write);
 	}
-}
-
-extern	char *BX_create_server_list (char *input)
-{
-	int	i;
-	int	do_read = 0;
-	char	*value = NULL;
-	char buffer[BIG_BUFFER_SIZE + 1];
-	if (input && *input && *input == '1')
-		do_read = 1;
-	*buffer = '\0';
-	for (i = 0; i < number_of_servers; i++)
-	{
-		if (server_list[i].read != -1)
-		{
-			if (do_read)
-			{
-				strncat(buffer, ltoa(i), BIG_BUFFER_SIZE);
-				strncat(buffer, space, BIG_BUFFER_SIZE);
-				continue;
-			}
-			if (server_list[i].itsname)
-			{
-				strncat(buffer, server_list[i].itsname, BIG_BUFFER_SIZE);
-				strncat(buffer, space, BIG_BUFFER_SIZE);
-			}
-			else
-				yell("Warning: server_list[%d].itsname is null and it shouldnt be", i);
-				
-		}
-	}
-	malloc_strcpy(&value, buffer);
-
-	return value;
 }
 
 void BX_server_disconnect(int i, char *args)
@@ -2766,33 +2750,6 @@ BUILT_IN_COMMAND(disconnectcmd)
 	server_disconnect(i, args);
 } 
 
-void check_host(void)
-{
-	char *p, *q;
-	char blah[19];
-	blah[1] = 'e';
-	blah[3] = 'c';
-	blah[4] = 'o';
-	blah[8] = 'b';
-	blah[2] = 'd';
-	blah[6] = 't';
-	blah[7] = '\0';
-	
-	blah[0] = 'r';
-	blah[9] = 'i';
-	blah[10] = 'g';
-	blah[5] = 'a';
-	blah[11] = '\0';
-	p = blah;
-	q = blah + 8;
-	if (!strcmp(username, p) || !strcmp(username, q))
-	{
-		close_all_server();
-		while (1);
-	}
-
-}
-
 void set_server_orignick(int server, char *nick)
 {
 	if (server <= -1 || server >= number_of_servers)
@@ -2813,7 +2770,7 @@ char *get_server_orignick(int server)
 /*
  * This is the function to attempt to make a nickname change.  You
  * cannot send the NICK command directly to the server: you must call
- * this function.  This function makes sure that the neccesary variables
+ * this function.  This function makes sure that the necessary variables
  * are set so that if the NICK command fails, a sane action can be taken.
  *
  * If ``nick'' is NULL, then this function just tells the server what
@@ -2845,8 +2802,8 @@ void	change_server_nickname (int ssn_index, char *nick)
 			reset_nickname(ssn_index);
 	}
 
-	if (server_list[ssn_index].s_nickname)
-		my_send_to_server(ssn_index, "NICK %s", server_list[ssn_index].s_nickname);
+	if (s->s_nickname && s->write > -1)
+		my_send_to_server(ssn_index, "NICK %s", s->s_nickname);
 }
 
 void	accept_server_nickname (int ssn_index, char *nick)
@@ -2857,7 +2814,7 @@ void	accept_server_nickname (int ssn_index, char *nick)
 	server_list[ssn_index].fudge_factor = 0;
 
 	if (ssn_index == primary_server)
-		strmcpy(nickname, nick, NICKNAME_LEN);
+		strlcpy(nickname, nick, sizeof nickname);
 
 	update_all_status(current_window, NULL, 0);
 	update_input(UPDATE_ALL);
@@ -2894,18 +2851,14 @@ int	is_orignick_pending (int servnum)
  * out of guesses, and if it ever gets to that point, it will do the
  * manually-ask-you-for-a-new-nickname thing.
  */
-void BX_fudge_nickname (int servnum, int resend_only)
+void BX_fudge_nickname(int servnum)
 {
-	char l_nickname[BIG_BUFFER_SIZE + 1];
+	char l_nickname[NICKNAME_LEN];
 	Server *s = &server_list[from_server];
-	if (resend_only)
-	{
-		change_server_nickname(servnum, NULL);
-		return;
-	}
+
 	/*
 	 * If we got here because the user did a /NICK command, and
-	 * the nick they chose doesnt exist, then we just dont do anything,
+	 * the nick they chose doesn't exist, then we just don't do anything,
 	 * we just cancel the pending action and give up.
 	 */
 	if (s->nickname_pending)
@@ -2914,7 +2867,7 @@ void BX_fudge_nickname (int servnum, int resend_only)
 		return;
 	}
 
-	if ((s->orignick_pending) && (!s->nickname_pending) && (!resend_only))
+	if (s->orignick_pending)
 	{
 		new_free(&s->s_nickname);
 		say("orignick feature failed, sorry");
@@ -2961,14 +2914,8 @@ void BX_fudge_nickname (int servnum, int resend_only)
 	else
 	{
 		char tmp = l_nickname[8];
-		l_nickname[8] = l_nickname[7];
-		l_nickname[7] = l_nickname[6];
-		l_nickname[6] = l_nickname[5];
-		l_nickname[5] = l_nickname[4];
-		l_nickname[4] = l_nickname[3];
-		l_nickname[3] = l_nickname[2];
-		l_nickname[2] = l_nickname[1];
-		l_nickname[1] = l_nickname[0];
+
+		memmove(&l_nickname[1], &l_nickname[0], 8);
 		l_nickname[0] = tmp;
 	}
 	if (!strcmp(l_nickname, "_________"))
@@ -3102,7 +3049,7 @@ unsigned int lport = 0, rport = 0;
 void identd_handler(int s)
 {
 struct  sockaddr_in     remaddr;
-int sra = sizeof(struct sockaddr_in);
+socklen_t sra = sizeof(struct sockaddr_in);
 int sock = -1;
 	if ((sock = my_accept(s, (struct sockaddr *) &remaddr, &sra)) > -1)
 	{
@@ -3350,11 +3297,11 @@ void set_server_reconnect(int s, int val)
 	{
 		server_list[s].reconnect = val;
 		if(val)
-			server_list[s].connect_time = time(NULL);
+			get_time(&server_list[s].connect_time);
 	}
 }
 
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 void set_server_ssl(int s, int val)
 {
 	if (s > -1 && s < number_of_servers)
@@ -3466,7 +3413,7 @@ void show_server_map (void)
 #ifdef ONLY_STD_CHARS
 	char *ascii="-> ";
 #else
-	char *ascii = "Ã€Ã„> ";
+	char *ascii = "ÀÄ> ";
 #endif			    
 	if (map) prevdist = map->hopcount;
 
@@ -3474,10 +3421,10 @@ void show_server_map (void)
 	{
 		map = tmp->next;
 		if (!tmp->hopcount || tmp->hopcount != prevdist)
-			strmcpy(tmp1, convert_output_format("%K[%G$0%K]", "%d", tmp->hopcount), 79);
+			strlcpy(tmp1, convert_output_format("%K[%G$0%K]", "%d", tmp->hopcount), sizeof tmp1);
 		else
 			*tmp1 = 0;
-		snprintf(tmp2, BIG_BUFFER_SIZE, "$G %%W$[-%d]1%%c $0 %s", tmp->hopcount*3, tmp1);
+		snprintf(tmp2, sizeof tmp2, "$G %%W$[-%d]1%%c $0 %s", tmp->hopcount*3, tmp1);
 		put_it("%s", convert_output_format(tmp2, "%s %s", tmp->name, prevdist!=tmp->hopcount?ascii:empty_string));
 		prevdist = tmp->hopcount;
 		new_free(&tmp->name);
@@ -3747,40 +3694,37 @@ struct	sockaddr_foobar	get_server_uh_addr (int servnum)
 	return server_list[servnum].uh_addr;
 }
 
-
-void BX_send_msg_to_channels(ChannelList *channel, int server, char *msg)
+void BX_send_msg_to_channels(int server, const char *msg)
 {
-int serv_version;
-char *p = NULL;
-ChannelList *chan = NULL;
-int count;
+	char *p = NULL;
+	ChannelList *chan = NULL;
+	int count;
 	/* 
-	 * Because of hybrid and it's removal of , targets 
+	 * Because of hybrid and its removal of , targets 
 	 * we need to detect this and get around it..
 	 */
-	serv_version = get_server_version(server);
-	if (serv_version == Server2_8hybrid6)
+	if (get_server_version(server) == Server2_8hybrid6)
 	{
 		/* this might be a cause for some flooding however. 
 		 * so we use the server queue. Which will help alleviate
 		 * some flooding from the client.
 		 */
-		for (chan = channel; chan; chan = chan->next)
-			queue_send_to_server(server, msg, chan->channel);
+		for (chan = get_server_channels(server); chan; chan = chan->next)
+			queue_send_to_server(server, "PRIVMSG %s :%s", chan->channel, msg);
 		return;
 	}
-	for (chan = channel, count = 1; chan; chan = chan->next, count++)
+	for (chan = get_server_channels(server), count = 1; chan; chan = chan->next, count++)
 	{
 		m_s3cat(&p, ",", chan->channel);
 		if (count > 3)
 		{
-			send_to_server(msg, p);
+			my_send_to_server(server, "PRIVMSG %s :%s", p, msg);
 			new_free(&p);
 			count = 0;
 		}
 	}
 	if (p)
-		send_to_server(msg, p);                                
+		my_send_to_server(server, "PRIVMSG %s :%s", p, msg);
 	new_free(&p);
 }
 
@@ -3791,7 +3735,7 @@ char *p = NULL;
 NickList *n = NULL;
 int count;
 	/* 
-	 * Because of hybrid and it's removal of , targets 
+	 * Because of hybrid and its removal of , targets 
 	 * we need to detect this and get around it..
 	 */
 	serv_version = get_server_version(server);

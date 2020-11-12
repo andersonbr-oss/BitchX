@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: lastlog.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(lastlog_c)
 #include "struct.h"
 
@@ -87,9 +87,9 @@ unsigned long BX_set_lastlog_msg_level(unsigned long level)
  */
 char	* bits_to_lastlog_level(unsigned long level)
 {
-	static	char	buffer[481]; /* this *should* be enough for this */
-	int	i;
-unsigned long	p;
+	int i;
+	unsigned long p;
+	static char buffer[512];
 
 	if (level == LOG_ALL)
 		strcpy(buffer, "ALL");
@@ -97,14 +97,13 @@ unsigned long	p;
 		strcpy(buffer, "NONE");
 	else
 	{
-		*buffer = '\0';
-		for (i = 0, p = 1; i < NUMBER_OF_LEVELS; i++, p <<= 1)
+		for (*buffer = i = 0, p = 1; i < NUMBER_OF_LEVELS; i++, p <<= 1)
 		{
 			if (level & p)
 			{
 				if (*buffer)
-					strmcat(buffer, space, 480);
-				strmcat(buffer, levels[i],480);
+					strlcat(buffer, space, sizeof buffer);
+				strlcat(buffer, levels[i], sizeof buffer);
 			}
 		}
 	}
@@ -282,8 +281,8 @@ BUILT_IN_COMMAND(lastlog)
 	Lastlog *start_pos;
 	char	*match = NULL,
 		*arg;
-	char	*file_open[] = { "wt", "at" };
-	int	file_open_type = 0;
+	const char *file_open_type = "w";
+	const char *filename = NULL;
 	char	*blah = NULL;
 	FILE	*fp = NULL;
 	
@@ -334,7 +333,7 @@ BUILT_IN_COMMAND(lastlog)
 					continue;
 				}
 				else
-					match = "\007";
+					match = BELL_CHAR_STR;
 			}
 			else if (!my_strnicmp(arg, "CLEAR", len))
 			{
@@ -343,7 +342,7 @@ BUILT_IN_COMMAND(lastlog)
 				return;
 			}
 			else if (!my_strnicmp(arg, "APPEND", len))
-				file_open_type = 1;
+				file_open_type = "a";
 			else if (!my_strnicmp(arg, "FILE", len))
 			{
 #ifdef PUBLIC_ACCESS
@@ -352,13 +351,11 @@ BUILT_IN_COMMAND(lastlog)
 #else
 				if (args && *args)
 				{
-					char *filename;
-					filename = next_arg(args, &args);
-					if (!(fp = fopen(filename, file_open[file_open_type])))
-					{
-						bitchsay("cannot open file %s", filename);
-						return;
-					}
+					char *filename_arg = next_arg(args, &args);
+					if (filename)
+						say("Additional -FILE argument ignored");
+					else
+						filename = filename_arg;
 				} 
 				else
 				{
@@ -383,7 +380,7 @@ BUILT_IN_COMMAND(lastlog)
 				/*
 				 * Which can be combined with -ALL, which 
 				 * turns on all levels.  Use --MSGS or
-				 * whatever to turn off ones you dont want.
+				 * whatever to turn off ones you don't want.
 				 */
 				if (!my_strnicmp(arg, "ALL", len))
 				{
@@ -436,6 +433,13 @@ BUILT_IN_COMMAND(lastlog)
 			}
 		}
 	}
+
+	if (filename && !(fp = fopen(filename, file_open_type)))
+	{
+		bitchsay("cannot open file %s", filename);
+		return;
+	}
+
 	start_pos = current_window->lastlog_head;
 	level = current_window->lastlog_level;
 	msg_level = set_lastlog_msg_level(0);
@@ -454,7 +458,7 @@ BUILT_IN_COMMAND(lastlog)
 	} else
 		start_pos = current_window->lastlog_head;
 		
-	/* Let's not get confused here, display a seperator.. -lynx */
+	/* Let's not get confused here, display a separator.. -lynx */
 	strip_ansi_in_echo = 0;
 	if (header && !fp)
 		say("Lastlog:");
@@ -565,7 +569,7 @@ void set_notify_level(Window *win, char *str, int unused)
 	current_window->notify_level = notify_level;
 }
 
-int logmsg(unsigned long log_type, char *from, int flag, char *format, ...)
+int logmsg(unsigned long log_type, const char *from, int flag, const char *format, ...)
 {
 #ifdef PUBLIC_ACCESS
 	return 0;
@@ -575,16 +579,14 @@ int logmsg(unsigned long log_type, char *from, int flag, char *format, ...)
 	char *filename = NULL;
 	char *expand = NULL;
 	char *type = NULL;
-	unsigned char **lines = NULL;
+	char **lines = NULL;
 	char msglog_buffer[BIG_BUFFER_SIZE+1];			
-	
 	
 	if (!get_string_var(MSGLOGFILE_VAR) || !get_string_var(CTOOLZ_DIR_VAR))
 		return 0;
 
 	t = now;
 	timestr = update_clock(GET_TIME);
-
 
 	if (format)
 	{
@@ -593,7 +595,6 @@ int logmsg(unsigned long log_type, char *from, int flag, char *format, ...)
 		vsnprintf(msglog_buffer, BIG_BUFFER_SIZE, format, ap);
 		va_end(ap);
 	}
-
 
 	switch (flag)
 	{
@@ -613,18 +614,24 @@ int logmsg(unsigned long log_type, char *from, int flag, char *format, ...)
 			lines = split_up_line(stripansicodes(convert_output_format(format, "%s %s %s %s", type, timestr, from, msglog_buffer)), 80);
 			for ( ; *lines; lines++)
 			{
-				char *local_copy;
-				int len = strlen(*lines) * 2 + 1;
-				if (!*lines || !**lines) break;
-				local_copy = alloca(len);
-				strcpy(local_copy, *lines);
+				const size_t line_len = strlen(*lines);
+				const size_t local_len = line_len * 2 + 1;
 
-				if (local_copy[strlen(local_copy)-1] == ALL_OFF)
-					local_copy[strlen(local_copy)-1] = 0;
-				if (logfile_line_mangler)
-					mangle_line(local_copy, logfile_line_mangler, len);
-				if (*local_copy)
-					fprintf(logptr, "%s\n", local_copy);
+				if (line_len > 0)
+				{
+					char *local_copy = new_malloc(local_len);
+
+					strcpy(local_copy, *lines);
+
+					if (local_copy[line_len - 1] == ALL_OFF)
+						local_copy[line_len - 1] = 0;
+					if (logfile_line_mangler)
+						mangle_line(local_copy, logfile_line_mangler, local_len);
+					if (*local_copy)
+						fprintf(logptr, "%s\n", local_copy);
+
+					new_free(&local_copy);
+				}
 			}
 			fflush(logptr);
 		}

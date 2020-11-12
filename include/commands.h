@@ -1,9 +1,9 @@
 /*
- * edit.h: header for edit.c 
+ * commands.h: header for commands.c 
  *
  */
-#ifndef __edit_h_
-#define __edit_h_
+#ifndef COMMANDS_H_
+#define COMMANDS_H_
 
 #include "irc_std.h"
 
@@ -11,24 +11,22 @@ extern	char	*sent_nick;
 extern	char	*sent_body;
 extern	char	*recv_nick;
 
-	void	BX_send_text (const char *, const char *, char *, int, int);
+	void	BX_send_text (const char *, const char *, unsigned);
 	void	eval_inputlist (char *, char *);
 	int	BX_parse_command (char *, int, char *);
 	void	BX_parse_line (const char *, char *, const char *, int, int, int);
-	void	edit_char (unsigned char);
 	void	execute_timer (void);
 	void	ison_now (char *, char *);
 	void	quote_char (char, char *);
 	void	type_text (char, char *);
 	void	parse_text (char, char *);
-	void	irc_clear_screen (char, char *);
 	int	check_wait_command (char *);
 	void	ExecuteTimers (void);
 	int	check_mode_lock (char *, char *, int);
 	void	destroy_call_stack (void);
 	void	unwind_stack (void);
 	void	wind_stack (char *);
-	void	redirect_text (int, const char *, const char *, char *, int, int);
+	void	redirect_text (int, const char *, const char *, unsigned);
 	int	command_exist (char *);
 			
 
@@ -107,7 +105,6 @@ extern	void	dcc_crash		(char *, char *, char *, char *);
 extern	void	do_msay			(char *, char *, char *, char *);
 extern	void	send_mode		(char *, char *, char *, char *);
 extern	void	do_offers		(char *, char *, char *, char *);
-extern	void	ctcp_version		(char *, char *, char *, char *);
 extern	void	about			(char *, char *, char *, char *);
 extern	void	dcc_stat_comm		(char *, char *, char *, char *);
 extern	void	sping			(char *, char *, char *, char *);
@@ -129,7 +126,6 @@ extern  void    MegaDeop		(char *, char *, char *, char *);
 extern  void    do_flood		(char *, char *, char *, char *);
 extern  void    cycle			(char *, char *, char *, char *);
 extern  void    bomb			(char *, char *, char *, char *);
-extern  void    finger			(char *, char *, char *, char *);
 extern  void    multkick		(char *, char *, char *, char *);
 extern  void    massdeop		(char *, char *, char *, char *);
 extern  void    doop			(char *, char *, char *, char *);
@@ -259,8 +255,7 @@ extern	void	ame			(char *, char *, char *, char *);
 extern	void	unload_dll		(char *, char *, char *, char *);
 #endif
 
-	IrcCommand *BX_find_command (char *, int *);
-	char	*glob_commands(char *, int *, int);
+const IrcCommand *BX_find_command (const char *, int *);
 		
 #define AWAY_ONE 0
 #define AWAY_ALL 1
@@ -302,4 +297,4 @@ extern        int     continue_exception;
 extern        int     return_exception;
 
 
-#endif /* __edit_h_ */
+#endif /* COMMANDS_H_ */

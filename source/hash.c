@@ -22,7 +22,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: hash.c 52 2008-06-14 06:45:05Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(hash_c)
 #include "struct.h"
 #include "ircaux.h"
@@ -44,9 +44,9 @@ CVS_REVISION(hash_c)
  * nick by counting up the ascii values of the lower case, and 
  * then %'ing it by NICKLIST_HASHSIZE (always a prime!)
  */
-unsigned long hash_nickname(char *nick, unsigned int size)
+unsigned long hash_nickname(const char *nick, unsigned int size)
 {
-        register u_char  *p = (u_char *) nick;
+	const unsigned char *p = (const unsigned char *)nick;
 	unsigned long hash = 0, g;
 	if (!nick) return -1;
 	while (*p)
@@ -147,11 +147,11 @@ static inline void remove_gen_link_from_list(List *tmp, List *prev, HashEntry *l
 	tmp->next = NULL;
 }
 
-List *BX_find_name_in_genericlist(char *name, HashEntry *list, unsigned int size, int remove)
+List *BX_find_name_in_genericlist(const char *name, HashEntry *list, unsigned int size, int remove)
 {
 	HashEntry *location;
-	register List *tmp, *prev = NULL;
-	unsigned long hvalue = hash_nickname(name, size);
+	List *tmp, *prev = NULL;
+	const unsigned long hvalue = hash_nickname(name, size);
 
 	location = &(list[hvalue]);
 
@@ -203,10 +203,10 @@ void BX_add_nicklist_to_channellist(NickList *nptr, ChannelList *cptr)
 	cptr->NickListTable[hvalue].hits++;
 }
 
-NickList *BX_find_nicklist_in_channellist(char *nick, ChannelList *cptr, int remove)
+NickList *BX_find_nicklist_in_channellist(const char *nick, ChannelList *cptr, int remove)
 {
 	HashEntry *location;
-	register NickList *tmp, *prev = NULL;
+	NickList *tmp, *prev = NULL;
 	unsigned long hvalue = hash_nickname(nick, NICKLIST_HASHSIZE);
 
 	if (!cptr)
@@ -217,7 +217,7 @@ NickList *BX_find_nicklist_in_channellist(char *nick, ChannelList *cptr, int rem
 	 * as regular linked list, or as ircd likes to say...
 	 * "We found the bucket, now search the chain"
 	 */
-	for (tmp = (NickList *) location->list; tmp; prev = tmp, tmp = tmp->next) 
+	for (tmp = location->list; tmp; prev = tmp, tmp = tmp->next) 
 	{
 		if (!my_stricmp(nick, tmp->nick)) 
 		{

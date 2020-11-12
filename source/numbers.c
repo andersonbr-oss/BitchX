@@ -12,7 +12,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: numbers.c 144 2011-10-13 12:45:27Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(numbers_c)
 #include "struct.h"
 
@@ -45,6 +45,8 @@ CVS_REVISION(numbers_c)
 #define MAIN_SOURCE
 #include "modval.h"
 
+#include <math.h>
+
 static	void	channel_topic		(char *, char **, int);
 static	void	not_valid_channel	(char *, char **);
 static	void	cannot_join_channel	(char *, char **);
@@ -64,7 +66,6 @@ void	show_server_map		(void);
 int	stats_k_grep		(char **);
 void	who_handlekill		(char *, char *, char *);
 void	handle_tracekill	(int, char *, char *, char *);
-int	no_hook_notify;
 extern  AJoinList *ajoin_list;
 void	remove_from_server_list (int);
 
@@ -79,11 +80,11 @@ char	*numeric_banner(void)
 	static	char	thing[4];
 	if (!get_int_var(SHOW_NUMERICS_VAR))
 		return (thing_ansi?thing_ansi:empty_string);
-	sprintf(thing, "%3.3u", -current_numeric);
+	snprintf(thing, sizeof thing, "%3.3d", -current_numeric);
 	return (thing);
 }
 
-int check_sync(int comm, char *channel, char *nick, char *whom, char *bantime, ChannelList *chan)
+static int check_sync(int comm, char *channel, char *nick, char *whom, char *bantime, ChannelList *chan)
 {
 ChannelList *tmp = NULL;
 BanList *new;
@@ -243,7 +244,7 @@ static int check_server_sync(char *from, char **ArgList)
  * possible formats that the irc server spits out.  you'd think someone would
  * simplify this 
  */
-void display_msg(char *from, char **ArgList)
+static void display_msg(char *from, char **ArgList)
 {
 	char	*ptr,
 		*s,
@@ -314,7 +315,7 @@ static	void not_valid_channel(char *from, char **ArgList)
 	if (!my_stricmp(from, get_server_itsname(from_server)))
 	{
 		if (strcmp(channel, "*"))
-			remove_channel(channel, from_server);
+			remove_channel(channel);
 		put_it("%s", convert_output_format(fget_string_var(FORMAT_SERVER_MSG2_FSET), "%s %s %s", update_clock(GET_TIME), channel, ArgList[1]));
 	}
 }
@@ -341,7 +342,7 @@ static	void cannot_join_channel(char *from, char **ArgList)
 
 	remove_from_join_list(chan, from_server);
 	if (!is_on_channel(chan, from_server, get_server_nickname(from_server)))
-		remove_channel(chan, from_server);
+		remove_channel(chan);
 	else
 		return;
 
@@ -386,18 +387,12 @@ static	void cannot_join_channel(char *from, char **ArgList)
  * Implements an integer division of a / b, where 1.5 rounds up to 2 and 
  * 1.49 rounds down to 1. Returns zero if divisor is zero.
  */
-static int divide_rounded(int a, int b)
+static long divide_rounded(double a, double b)
 {
-	if (a < 0)
-	{
-		a = -a;
-		b = -b;
-	}
-
-	return b ? (a + abs(b / 2)) / b : 0;
+	return b != 0.0 ? (long)round(a / b) : 0;
 }
 
-int handle_server_stats(char *from, char **ArgList, int comm)
+static int handle_server_stats(char *from, char **ArgList, int comm)
 {
 static	int 	norm = 0, 
 		invisible = 0, 
@@ -411,6 +406,8 @@ static	int 	norm = 0,
 		services_flag = 0;
 	int	ret = 1;
 	char	*line;
+
+	/* ArgList[0] has been verified non-NULL by the caller. */
 
 	line = LOCAL_COPY(ArgList[0]);
 	switch(comm)
@@ -429,17 +426,13 @@ static	int 	norm = 0,
 			}
 			break;
 		case 252: /* number of ircops */
-			if (ArgList[0])
-				ircops = my_atol(ArgList[0]);
+			ircops = my_atol(ArgList[0]);
 			break;
 		case 253: /* number of unknown */
-			if (ArgList[0])
-				unknown = my_atol(ArgList[0]);
+			unknown = my_atol(ArgList[0]);
 			break;
-			
 		case 254: /* number of channels */
-			if (ArgList[0])
-				chans = my_atol(ArgList[0]);
+			chans = my_atol(ArgList[0]);
 			break;
 		case 255: /* number of local print it out */
 			BreakArgs(line, NULL, ArgList, 1);
@@ -449,19 +442,19 @@ static	int 	norm = 0,
 			if (total_users)
 			{
 				put_it("%s", convert_output_format("$G %K[%nlocal users on irc%K(%n\002$0\002%K)]%n $1%%", 
-					"%d %d", local_users, divide_rounded(local_users * 100, total_users)));
+					"%d %d", local_users, divide_rounded(local_users * 100.0, total_users)));
 				put_it("%s", convert_output_format("$G %K[%nglobal users on irc%K(%n\002$0\002%K)]%n $1%%",
-					"%d %d", norm, divide_rounded(norm * 100, total_users)));
+					"%d %d", norm, divide_rounded(norm * 100.0, total_users)));
 				if (services_flag)
 				{
 					put_it("%s", convert_output_format("$G %K[%ninvisible users on irc%K(%n\002$0\002%K)]%n $1%%",
-						 "%d %d", invisible, divide_rounded(invisible * 100, total_users)));
+						 "%d %d", invisible, divide_rounded(invisible * 100.0, total_users)));
 				}
 				else
 					put_it("%s", convert_output_format("$G %K[%nservices on irc%K(%n\002$0\002%K)]%n", 
 						"%d", services));
 				put_it("%s", convert_output_format("$G %K[%nircops on irc%K(%n\002$0\002%K)]%n $1%%", 
-					"%d %d", ircops, divide_rounded(ircops * 100, total_users)));
+					"%d %d", ircops, divide_rounded(ircops * 100.0, total_users)));
 			}
 			put_it("%s", convert_output_format("$G %K[%ntotal users on irc%K(%n\002$0\002%K)]%n", 
 				"%d", total_users));
@@ -494,9 +487,9 @@ static	int 	norm = 0,
 	return ret;
 }
 
-void whohas_nick (UserhostItem *stuff, char *nick, char *args)
+void whohas_nick(UserhostItem *stuff, char *nick, char *args)
 {
-	if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>"))
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>"))
 		return;
 	put_it("%s", convert_output_format("$G Your nick %R[%n$0%R]%n is owned by %W$1@$2", "%s %s %s", nick, stuff->user, stuff->host));
 	return;
@@ -509,7 +502,7 @@ char *t = NULL;
 	if (nick && (t = get_string_var(ALTNICK_VAR)))
 	{ 
 		if (!my_stricmp(t, nick))		
-			fudge_nickname(server, 0);
+			fudge_nickname(server);
 		else
 			change_server_nickname(server, t);
 	} else
@@ -519,7 +512,79 @@ char *t = NULL;
   		else
 			reset_nickname(from_server);
 #endif
-		fudge_nickname(server, 0);
+		fudge_nickname(server);
+}
+
+/*
+ * got_initial_version_28: this is called when ircii gets the serial
+ * number 004 reply.  We do this because the 004 numeric gives us the
+ * server name and version in a very easy to use fashion, and doesn't
+ * rely on the syntax or construction of the 002 numeric.
+ *
+ * Hacked as necessary by jfn, May 1995
+ */
+static void get_nat_address(UserhostItem *stuff, char *nick, char *args)
+{
+	extern struct in_addr nat_address;
+
+	char *h;
+
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN"))
+		return;
+	if (isdigit((unsigned char)*stuff->host))
+		h = stuff->host;
+	else
+		h = host_to_ip(stuff->host);
+	nat_address.s_addr = inet_addr(h); 
+	bitchsay("using NAT address for DCC");
+}
+
+static void got_initial_version_28(char *server, char *sversion, char *channel_modes)
+{
+	extern int use_nat_address;
+		
+	if (sversion)
+	{
+		if (strbegins(sversion, "2.8"))
+		{
+			if (strstr(sversion, "mu") || strstr(sversion, "me"))
+				set_server_version(from_server, Server_u2_8);
+			else if (strstr(sversion, "hybrid-6"))
+				set_server_version(from_server, Server2_8hybrid6);
+			else if (strstr(sversion, "hybrid"))
+				set_server_version(from_server, Server2_8hybrid);
+			else if (strstr(sversion, "comstud"))
+				set_server_version(from_server, Server2_8comstud);
+			else if (strstr(channel_modes, "che"))
+				set_server_version(from_server, Server2_8ts4); 
+			else
+				set_server_version(from_server, Server2_8);
+		}
+		else if (strbegins(sversion, "2.9"))
+		        set_server_version(from_server, Server2_9);
+		else if (strbegins(sversion, "2.10"))
+	        	set_server_version(from_server, Server2_10);
+		else if (strbegins(sversion, "u2.9"))
+			set_server_version(from_server, Server_u2_9);
+		else if (strbegins(sversion, "u2.10"))
+			set_server_version(from_server, Server_u2_10);
+		else if (strbegins(sversion, "u3.0"))
+			set_server_version(from_server, Server_u3_0);
+		else
+			set_server_version(from_server, Server2_8);
+	} else
+		set_server_version(from_server, Server2_8);
+
+	set_server_version_string(from_server, sversion ? sversion : "2.8");
+	set_server_itsname(from_server, server);
+	reconnect_all_channels(from_server);
+
+	reset_display_target();
+	reinstate_user_modes(from_server);
+	if (use_nat_address == 1)
+		userhostbase(get_server_nickname(from_server), get_nat_address, 1, "%s", get_server_nickname(from_server));
+	update_all_status(current_window, NULL, 0);
+	do_hook(CONNECT_LIST, "%s %d %s", get_server_name(from_server), get_server_port(from_server), get_server_itsname(from_server));
 }
 
 /*
@@ -568,7 +633,7 @@ void numbered_command(char *from, int comm, char **ArgList)
 	}		
 	case 4:	/* #define RPL_MYINFO           004 */
 	{
-		got_initial_version_28(ArgList);
+		got_initial_version_28(ArgList[0], ArgList[1], ArgList[3]);
 		load_scripts();
 		PasteArgs(ArgList, 0);
 		if (do_hook(current_numeric, "%s %s", from, *ArgList))
@@ -658,18 +723,22 @@ void numbered_command(char *from, int comm, char **ArgList)
 	}
 	case 301:		/* #define RPL_AWAY             301 */
 	{
-		PasteArgs(ArgList, 1);
-		if (get_int_var(SHOW_AWAY_ONCE_VAR))
+		const char *away_msg = "";
+
+		if (ArgList[1])
 		{
-			if (!last_away_msg || strcmp(last_away_nick, from) || strcmp(last_away_msg, ArgList[1]))
-			{
-				malloc_strcpy(&last_away_nick, from);
-				malloc_strcpy(&last_away_msg, ArgList[1]);
-			}
-			else break;
+			PasteArgs(ArgList, 1);
+			away_msg = ArgList[1];
 		}
-		if (do_hook(current_numeric, "%s %s", ArgList[0], ArgList[1]))
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_AWAY_FSET),"%s %s", ArgList[0], ArgList[1]));
+
+		if (!get_int_var(SHOW_AWAY_ONCE_VAR) || !last_away_msg || strcmp(last_away_nick, ArgList[0]) || strcmp(last_away_msg, away_msg))
+		{
+			malloc_strcpy(&last_away_nick, ArgList[0]);
+			malloc_strcpy(&last_away_msg, away_msg);
+
+			if (do_hook(current_numeric, "%s %s", ArgList[0], away_msg))
+				put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_AWAY_FSET),"%s %s", ArgList[0], away_msg));
+		}
 		break;
 	}
 	case 302:		/* #define RPL_USERHOST         302 */
@@ -702,56 +771,6 @@ void numbered_command(char *from, int comm, char **ArgList)
 			put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_SERVICE_FSET),"%s %s", ArgList[0], " is a Services Administrator"));
 		break;
 	}
-#ifdef WANT_CHATNET
-	case 310: /* RPL_WHOISUSER_OPER [or something] 310 on chatnet .. fixed. =] */
-	{
-		PasteArgs(ArgList, 7);
-		reset_display_target();
-		if(do_hook(current_numeric, "%s %s %s %s %s %s %s", ArgList[0],
-				ArgList[1], ArgList[2], ArgList[3], ArgList[4], ArgList[5], ArgList[6])) {
-			char *host = NULL;
-			char *p;
-			char *ident = NULL;
-			char *userhost = NULL;
-#ifdef WANT_USERLIST
-			UserList *tmp = NULL;
-			ShitList *tmp1 = NULL;
-#endif
-			/* routine for getting ident and host 
-			 * by-tor really wrote this little routine, 
-			 * something else he did for me, thanks =] 
-			 */               
-                        if ((p = (char *)strchr(ArgList[2], '@'))) {
-                                        *p++ = '\0';
-                                        ident = (char *)alloca(strlen(ArgList[2])+1);
-                                        strcpy(ident, ArgList[2]);
-                                        for(;*p == ' ';)
-                                                p++;
-                                        host = p;
-                                        if ((p = (char *)strchr(p, '\n')))
-                                                *p = '\0';
-                                        p = host;
-                                        host = (char *)alloca(strlen(p)+1);
-                                        strcpy(host, p);
-			}
-
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_HEADER_FSET), NULL));
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_NICK_FSET),"%s %s %s %s", ArgList[0], ident, host, country(host)));
-			put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_NAME_FSET),"%s %s", ArgList[4], ArgList[5]));			
-			malloc_sprintf(&userhost, "%s@%s", ident, host);
-#ifdef WANT_USERLIST
-			if((tmp=lookup_userlevelc("*", userhost, "*", NULL)))
- 				put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_FRIEND_FSET), "%s %s", convert_flags_to_str(tmp->flags), tmp->host));
-			if((tmp1=nickinshit(ArgList[0], userhost)))
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_SHIT_FSET),"%d %s %s %s", tmp1->level, tmp1->channels, tmp1->filter, tmp1->reason));
-			if(tmp||tmp1)
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_CHANNELS_FSET), "%s %s", tmp?"Allowed:":"Not-Allowed:", tmp?tmp->channels:tmp1->channels));
-#endif
-			new_free(&userhost);
-		}
-		break;													
-	}
-#else
 	case 310: /* WHOIS_HELPFUL */
 	{
 		if (do_hook(current_numeric, "%s %s %s", from, ArgList[0], ArgList[1])) 
@@ -759,7 +778,6 @@ void numbered_command(char *from, int comm, char **ArgList)
 		break;
 		/* the 4 above are dalnet numerics */
 	}
-#endif
 	case 311:		/* #define RPL_WHOISUSER        311 */
 	{
 		char *host = ArgList[2];
@@ -780,7 +798,7 @@ void numbered_command(char *from, int comm, char **ArgList)
 			malloc_sprintf(&userhost, "%s@%s", u1, host);
 #ifdef WANT_USERLIST
 			if ((tmp = lookup_userlevelc("*", userhost, "*", NULL)))
-				put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_FRIEND_FSET), "%s %s", convert_flags_to_str(tmp->flags), tmp->host));
+				put_it("%s", convert_output_format(fget_string_var(tmp->flags & ADD_BOT ? FORMAT_WHOIS_BOT_FSET : FORMAT_WHOIS_FRIEND_FSET), "%s %s", convert_flags_to_str(tmp->flags), tmp->host));
 			if ((tmp1 = nickinshit(ArgList[0], userhost)))
 				put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_SHIT_FSET),"%d %s %s %s", tmp1->level, tmp1->channels, tmp1->filter, tmp1->reason));
 			if (tmp || tmp1)
@@ -913,6 +931,12 @@ void numbered_command(char *from, int comm, char **ArgList)
 	case 324:		/* #define RPL_CHANNELMODEIS    324 */
 	{
 		funny_mode(from, ArgList);
+		break;
+	}
+	case 330:		/* #define RPL_WHOISLOGGEDIN    330 (hybrid, ratbox, ircu) */
+	{
+		if (do_hook(current_numeric, "%s %s %s %s", from, ArgList[0], ArgList[1], ArgList[2]))
+			put_it("%s", convert_output_format(fget_string_var(FORMAT_WHOIS_LOGGEDIN_FSET),"%s %s %s", ArgList[0], ArgList[1], ArgList[2]));
 		break;
 	}
 
@@ -1128,7 +1152,6 @@ void numbered_command(char *from, int comm, char **ArgList)
 	 * Sometimes the server doesn't catch the USER line, so
 	 * here we send a simplified version again  -lynx 
 	 */
-/*		fudge_nickname(from_server, 1);*/
 		register_server(from_server, NULL);
 
 		PasteArgs(ArgList, 0);
@@ -1213,11 +1236,15 @@ void numbered_command(char *from, int comm, char **ArgList)
 		break;
 	}
 
-	case 484:
+	case 903:		/* SASL authentication successful */
+	case 904:		/* SASL authentication failed */
+	case 905:		/* SASL message too long */
+	case 906:		/* SASL authentication aborted */
+	case 907:		/* You have already completed SASL authentication */
 	{
-		if (do_hook(current_numeric, "%s %s", from, ArgList[0]))
+		my_send_to_server(from_server, "CAP END");
+		if (do_hook(current_numeric, "%s %s", from, *ArgList))
 			display_msg(from, ArgList);
-		set_server_flag(from_server, USER_MODE_R, 1);
 		break;
 	}
 	case 367:
@@ -1406,17 +1433,6 @@ void numbered_command(char *from, int comm, char **ArgList)
 				break;
 			}
 		}
-	}
-	case 903:		/* SASL authentication successful */
-	case 904:		/* SASL authentication failed */
-	case 905:		/* SASL message too long */
-	case 906:		/* SASL authentication aborted */
-	case 907:		/* You have already completed SASL authentication */
-	{
-		my_send_to_server(from_server, "CAP END");
-		if (do_hook(current_numeric, "%s %s", from, *ArgList))
-			display_msg(from, ArgList);
-		break;
 	}
 	case 305:
 	{

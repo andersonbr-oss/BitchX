@@ -6,7 +6,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: who.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(who_c)
 #include "struct.h"
 
@@ -53,7 +53,7 @@ CVS_REVISION(who_c)
 
 #define WHO_INVISIBLE	0x2000
 /*
- * This is tricky -- this doesnt get the LAST one, it gets the
+ * This is tricky -- this doesn't get the LAST one, it gets the
  * next to the last one.  Why?  Because the LAST one is the one
  * asking, and they want to know who is LAST (before them)
  * So it sucks.  Sue me.
@@ -209,7 +209,7 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				return;
 			}
 
-			if (!strncmp(arg, "line", 4))		/* LINE */
+			if (strbegins(arg, "line"))		/* LINE */
 			{
 				char *line;
 
@@ -218,7 +218,7 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				else
 					say("Need {...} argument for -LINE argument.");
 			}
-			else if (!strncmp(arg, "end", 3))	/* END */
+			else if (strbegins(arg, "end"))	/* END */
 			{
 				char *line;
 
@@ -227,22 +227,22 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				else
 					say("Need {...} argument for -END argument.");
 			}
-			else if (!strncmp(arg, "raw", 3))	/* RAW */
+			else if (strbegins(arg, "raw"))	/* RAW */
 			{
 				m_s3cat(&new_w->who_args, " ", args);
 				done = 1;
 			}
-			else if (!strncmp(arg, "o", 1))		/* OPS */
+			else if (strbegins(arg, "o"))		/* OPS */
 				new_w->who_mask |= WHO_OPS;
-			else if (!strncmp(arg, "lu", 2))	/* LUSERS */
+			else if (strbegins(arg, "lu"))	/* LUSERS */
 				new_w->who_mask |= WHO_LUSERS;
-			else if (!strncmp(arg, "ch", 2))	/* CHOPS */
+			else if (strbegins(arg, "ch"))	/* CHOPS */
 				new_w->who_mask |= WHO_CHOPS;
-			else if (!strncmp(arg, "no", 2))	/* NOCHOPS */
+			else if (strbegins(arg, "no"))	/* NOCHOPS */
 				new_w->who_mask |= WHO_NOCHOPS;
-			else if (!strncmp(arg, "u-i", 3))	/* INVISIBLE */
+			else if (strbegins(arg, "u-i"))	/* INVISIBLE */
 				new_w->who_mask |= WHO_INVISIBLE;
-			else if (!strncmp(arg, "ho", 2))	/* HOSTS */
+			else if (strbegins(arg, "ho"))	/* HOSTS */
 			{
 				if ((arg = next_arg(args, &args)) == NULL)
 				{
@@ -254,15 +254,15 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				malloc_strcpy(&new_w->who_host, arg);
 				channel = new_w->who_host;
 			}
-		 	else if (!strncmp(arg, "he", 2))	/* here */
+		 	else if (strbegins(arg, "he"))	/* here */
 				new_w->who_mask |= WHO_HERE;
-			else if (!strncmp(arg, "a", 1))		/* away */
+			else if (strbegins(arg, "a"))		/* away */
 				new_w->who_mask |= WHO_AWAY;
-			else if (!strncmp(arg, "s", 1)) 	/* servers */
+			else if (strbegins(arg, "s")) 	/* servers */
 			{
 				if ((arg = next_arg(args, &args)) == NULL)
 				{
-					say("WHO -SERVER: missing arguement");
+					say("WHO -SERVER: missing argument");
 					return;
 				}
 
@@ -270,11 +270,11 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				malloc_strcpy(&new_w->who_server, arg);
 				channel = new_w->who_server;
 			}
-			else if (!strncmp(arg, "na", 2))
+			else if (strbegins(arg, "na"))
 			{
 				if ((arg = next_arg(args, &args)) == NULL)
 				{
-					say("WHO -NAME: missing arguement");
+					say("WHO -NAME: missing argument");
 					return;
 				}
 
@@ -282,11 +282,11 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				malloc_strcpy(&new_w->who_name, arg);
 				channel = new_w->who_name;
 			}
-			else if (!strncmp(arg, "re", 2))
+			else if (strbegins(arg, "re"))
 			{
 				if ((arg = next_arg(args, &args)) == NULL)
 				{
-					say("WHO -REALNAME: missing arguement");
+					say("WHO -REALNAME: missing argument");
 					return;
 				}
 
@@ -294,11 +294,11 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				malloc_strcpy(&new_w->who_real, arg);
 				channel = new_w->who_real;
 			}
-			else if (!strncmp(arg, "ni", 2))
+			else if (strbegins(arg, "ni"))
 			{
 				if ((arg = next_arg(args, &args)) == NULL)
 				{
-					say("WHO -NICK: missing arguement");
+					say("WHO -NICK: missing argument");
 					return;
 				}
 
@@ -306,13 +306,13 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 				malloc_strcpy(&new_w->who_nick, arg);
 				channel = new_w->who_nick;
 			}
-			else if (!strncmp(arg, "d", 1))
+			else if (strbegins(arg, "d"))
 			{
 				who_queue_list();
 				delete_who_item(new_w);
 				return;
 			}
-			else if (!strncmp(arg, "f", 1))
+			else if (strbegins(arg, "f"))
 			{
 				who_queue_flush();
 				delete_who_item(new_w);
@@ -357,7 +357,7 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 		char buffer[BIG_BUFFER_SIZE+1];
 		*buffer = 0;
 		va_start(arg, format);
-		vsnprintf(buffer, BIG_BUFFER_SIZE, format, arg);
+		vsnprintf(buffer, sizeof buffer, format, arg);
 		va_end(arg);
 		new_w->who_buff = m_strdup(buffer);
 	}
@@ -382,7 +382,7 @@ void BX_whobase(char *args, void (*line) (WhoEntry *, char *, char **), void (*e
 
 void quote_whine(char *type)
 {
-	yell("### Please dont do /QUOTE %s. Use /%s instead", type, type);
+	yell("### Please don't do /QUOTE %s. Use /%s instead", type, type);
 	return;
 }
 
@@ -399,7 +399,6 @@ void whoreply (char *from, char **ArgList)
 		*nick,
 		*stat,
 		*name;
-	ChannelList *chan = NULL;
 	char buf_data[BIG_BUFFER_SIZE+1];
 	WhoEntry *new_w = who_queue_top(from_server);
 
@@ -439,12 +438,12 @@ do
 	if (!new_w)
 		break;
 	/*
-	 * We have recieved a reply to this query -- its too late to
+	 * We have received a reply to this query -- its too late to
 	 * piggyback it now!
 	 */
 	new_w->dirty = 1;
 	/*
-	 * We dont always want to use this function.
+	 * We don't always want to use this function.
 	 * If another function is supposed to do the work for us,
 	 * we yield to them.
 	 */
@@ -473,7 +472,7 @@ do
 		char buffer[1024];
 
 		channel = "Channel";
-		snprintf(buffer, 1024, "%s %s %s %s %s %s %s", channel,
+		snprintf(buffer, sizeof buffer, "%s %s %s %s %s %s %s", channel,
 				nick, stat, user, host, server, name);
 		set_display_target(channel, LOG_CRAP);
 		if (new_w->who_stuff)
@@ -485,7 +484,7 @@ do
 		return;
 	}
 
-	if (new_w && new_w->who_mask)
+	if (new_w->who_mask)
 	{
 		if (new_w->who_mask & WHO_HERE)
 			ok = ok && (*stat == 'H');
@@ -518,11 +517,11 @@ do
 	{
 		char buffer[1024];
 
-		snprintf(buffer, 1023, "%s %s %s %s %s %s %s", channel,
+		snprintf(buffer, sizeof buffer, "%s %s %s %s %s %s %s", channel,
 				nick, stat, user, host, server, name);
 
 		set_display_target(channel, LOG_CRAP);
-		chan = add_to_channel(channel, nick, from_server, opped, voice, buf_data, server, stat, 0, my_atol(name));
+		add_to_channel(channel, nick, from_server, opped, voice, buf_data, server, stat, 0, my_atol(name));
 		if (new_w->who_stuff)
 			parse_line(NULL, new_w->who_stuff, buffer, 0, 0, 1);
 		else if (!in_join_list(channel, from_server) && do_hook(WHO_LIST, "%s", buffer))
@@ -548,32 +547,32 @@ while (new_w->piggyback && (new_w = new_w->next));
 void who_end (char *from, char **ArgList)
 {
 	WhoEntry 	*new_w = who_queue_top(from_server);
-	char 		buffer[1025];
+	char 		buffer[1024];
 
-	if (who_whine)
-		who_whine = 0;
+	who_whine = 0;
+
 	if (!new_w)
 		return;	
 
 	do
 	{
 		/*
-		 * Defer to another function, if neccesary.
+		 * Defer to another function, if necessary.
 		 */
 		if (new_w->end)
+		{
 			new_w->end(new_w, from, ArgList);
+		}
 		else
 		{
-			snprintf(buffer, 1024, "%s %s %s", from, ArgList[0], ArgList[1]);
+			snprintf(buffer, sizeof buffer, "%s %s %s", from, ArgList[0], ArgList[1]);
+
 			if (new_w->who_end)
 			    parse_line(NULL, new_w->who_end, buffer, 0, 0, 1);
-
-			else if (get_int_var(SHOW_END_OF_MSGS_VAR))
-			    if (do_hook(current_numeric, "%s", buffer))
+			else if (get_int_var(SHOW_END_OF_MSGS_VAR) && do_hook(current_numeric, "%s", buffer))
 				put_it("%s %s", numeric_banner(), buffer);
 		}
-	} 
-	while (new_w->piggyback && (new_w = new_w->next));
+	} while (new_w->piggyback && (new_w = new_w->next));
 
 	who_queue_pop();
 }
@@ -780,28 +779,22 @@ BUILT_IN_COMMAND(usripcmd)
 
 void BX_userhostbase(char *args, void (*line) (UserhostItem *, char *, char *), int userhost, char *format, ...)
 {
-	int	total = 0,
-		userhost_cmd = 0;
-	int	server_query_reqd = 0;
-	char	*nick;
-	char	buffer[BIG_BUFFER_SIZE + 1];
-	char	buf_data[BIG_BUFFER_SIZE + 1];
-	char 	*ptr, 
-		*next_ptr,
-		*body = NULL;
+	int total = 0, userhost_cmd = 0, server_query_reqd = 0;
+	char *nick, *ptr, *next_ptr, *body = NULL;
+	va_list ap;
+	char buffer[BIG_BUFFER_SIZE], text[BIG_BUFFER_SIZE];
 
-	if (from_server <= -1 || !is_server_connected(from_server))
+	if (from_server < 0 || !is_server_connected(from_server))
 		return;
 
 	if (format)
 	{
-		va_list args;
-		va_start(args, format);
-		vsnprintf(buf_data, BIG_BUFFER_SIZE, format, args);
-		va_end(args);
+		va_start(ap, format);
+		vsnprintf(text, sizeof text, format, ap);
+		va_end(ap);
 	}
 	else 
-		*buf_data = 0;
+		*text = 0;
 		
 	*buffer = 0;
 	while ((nick = next_arg(args, &args)) != NULL)
@@ -813,15 +806,15 @@ void BX_userhostbase(char *args, void (*line) (UserhostItem *, char *, char *), 
 				server_query_reqd++;
 
 			if (*buffer)
-				strmcat(buffer, space, BIG_BUFFER_SIZE);
-			strmcat(buffer, nick, BIG_BUFFER_SIZE);
+				strlcat(buffer, space, sizeof buffer);
+			strlcat(buffer, nick, sizeof buffer);
 		}
 
 		else if (!my_strnicmp(nick, "-cmd", 2))
 		{
 			if (!total)
 			{
-				say("%s -cmd with no nicks specified", (userhost == 1) ? "USERHOST":(userhost == 0)?"USERIP":"USRIP");
+				say("%s -cmd with no nicks specified", userhost == 1 ? "USERHOST" : userhost == 0 ? "USERIP" : "USRIP");
 				return;
 			}
 
@@ -842,37 +835,34 @@ void BX_userhostbase(char *args, void (*line) (UserhostItem *, char *, char *), 
 	if (!userhost_cmd && !total)
 	{
 		server_query_reqd++;
-		strlcpy(buffer, get_server_nickname(from_server), BIG_BUFFER_SIZE);
+		strlcpy(buffer, get_server_nickname(from_server), sizeof buffer);
 	}
 		
 	ptr = buffer;
-
 	if (server_query_reqd || (!line && !userhost_cmd))
 	{
-		ptr = buffer;
 		while (ptr && *ptr)
 		{
-			UserhostEntry *new_u = get_new_userhost_entry();
+			UserhostEntry *new_uh = get_new_userhost_entry();
 
-			move_to_abs_word(ptr, &next_ptr, 5);
-
+			next_ptr = move_to_word(ptr, 5);
 			if (next_ptr && *next_ptr && next_ptr > ptr)
 				next_ptr[-1] = 0;
 
-			new_u->userhost_asked = m_strdup(ptr);
-			send_to_server("%s %s", (userhost == 1) ? "USERHOST" : (!userhost)?"USERIP":"USRIP", new_u->userhost_asked);
+			new_uh->userhost_asked = m_strdup(ptr);
+			send_to_server("%s %s", userhost == 1 ? "USERHOST" : !userhost ? "USERIP" : "USRIP", new_uh->userhost_asked);
 
 			if (userhost_cmd)
-				new_u->text = m_strdup(body);
-			else if (*buf_data)
-				new_u->text = m_strdup(buf_data);
+				new_uh->text = m_strdup(body);
+			else if (*text)
+				new_uh->text = m_strdup(text);
 				
 			if (line)
-				new_u->func = line;
+				new_uh->func = line;
 			else if (userhost_cmd)
-				new_u->func = userhost_cmd_returned;
+				new_uh->func = userhost_cmd_returned;
 			else
-				new_u->func = NULL;
+				new_uh->func = NULL;
 
 			ptr = next_ptr;
 		}
@@ -881,12 +871,11 @@ void BX_userhostbase(char *args, void (*line) (UserhostItem *, char *, char *), 
 	{
 		while (ptr && *ptr)
 		{
-			char *nick = next_arg(ptr, &ptr);
-			const char *ouh = fetch_userhost(from_server, nick);
-			char *uh;
-			UserhostItem item = {0};
+			char *uh, *nick = next_arg(ptr, &ptr);
+			const char *old_uh = fetch_userhost(from_server, nick);
+			UserhostItem item = { 0 };
 
-			uh = LOCAL_COPY(ouh);
+			uh = LOCAL_COPY(old_uh);
 			item.nick = nick;
 			item.oper = 0;
 			item.connected = 1;
@@ -899,11 +888,11 @@ void BX_userhostbase(char *args, void (*line) (UserhostItem *, char *, char *), 
 				item.host = "<UNKNOWN>";
 
 			if (line)
-				line(&item, nick, body ?  body : *buf_data ? buf_data : NULL);
+				line(&item, nick, body ? body : *text ? text : NULL);
 			else if (userhost_cmd)
 				userhost_cmd_returned(&item, nick, body);
 			else
-				yell("Yowza!  I dont know what to do here!");
+				yell("Yowza! I don't know what to do here!");
 		}
 	}
 }
@@ -990,7 +979,7 @@ void	userhost_returned (char *from, char **ArgList)
 			/*
 			 * Otherwise, the user just did /userhost,
 			 * so we offer the numeric, and if the user
-			 * doesnt bite, we output to the screen.
+			 * doesn't bite, we output to the screen.
 			 */
 			else if (do_hook(current_numeric, "%s %s %s %s %s", 
 						item.nick,
@@ -1004,10 +993,10 @@ void	userhost_returned (char *from, char **ArgList)
 		}
 
 		/*
-		 * If ArgList isnt the current nick, then the current nick
+		 * If ArgList isn't the current nick, then the current nick
 		 * must not be on irc.  So we whip up a dummy UserhostItem
 		 * and send it on its way.  We DO NOT HOOK the 302 numeric
-		 * with this bogus entry, because thats the historical
+		 * with this bogus entry, because that's the historical
 		 * behavior.  This can cause a problem if you do a USERHOST
 		 * and wait on the 302 numeric.  I think waiting on the 302
 		 * numeric is stupid, anyhow.
@@ -1018,7 +1007,7 @@ void	userhost_returned (char *from, char **ArgList)
 			 * Of course, only if the user asked for a callback
 			 * via /userhost -cmd or a direct call to userhostbase.
 			 * If the user just did /userhost, and the nicks arent
-			 * on, then we just dont display anything.
+			 * on, then we just don't display anything.
 			 */
 			if (top->func)
 			{

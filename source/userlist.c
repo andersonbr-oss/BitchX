@@ -5,13 +5,12 @@
  */
  
 #include "irc.h"
-static char cvsrevision[] = "$Id: userlist.c 137 2011-09-06 06:48:57Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(userlist_c)
 #include "struct.h"
 
 #include "server.h"
 #include "commands.h"
-#include "encrypt.h"
 #include "vars.h"
 #include "ircaux.h"
 #include "lastlog.h"
@@ -26,12 +25,10 @@ CVS_REVISION(userlist_c)
 #include "alias.h"
 #include "history.h"
 #include "funny.h"
-#include "ctcp.h"
 #include "dcc.h"
 #include "output.h"
 #include "exec.h"
 #include "notify.h"
-#include "numbers.h"
 #include "status.h"
 #include "list.h"
 #include "struct.h"
@@ -155,24 +152,24 @@ int done;
 
 char * convert_flags_to_str(unsigned long flags)
 {
-unsigned int i;
-unsigned long p;
-static char buffer[290];
-	*buffer = 0;
-	for (i = 0, p = 1; strflags[i]; i++, p <<= 1)
+	unsigned int i;
+	unsigned long p;
+	static char buffer[256];
+
+	for (*buffer = i = 0, p = 1; strflags[i]; i++, p <<= 1)
 	{
 		if (flags & p)
 		{
-			strmcat(buffer, strflags[i], 280);
-			strmcat(buffer, ",", 280);
+			strlcat(buffer, strflags[i], sizeof buffer);
+			strlcat(buffer, ",", sizeof buffer);
 		}
 	}
 	for (i = 0, p = PROT_REOP; protflags[i]; i++, p <<= 1)
 	{
 		if (flags & p)
 		{
-			strmcat(buffer, protflags[i], 280);
-			strmcat(buffer, ",", 280);
+			strlcat(buffer, protflags[i], sizeof buffer);
+			strlcat(buffer, ",", sizeof buffer);
 		}
 	}
 	if (*buffer)
@@ -182,13 +179,12 @@ static char buffer[290];
 
 char * convert_flags(unsigned long flags)
 {
-unsigned int i;
-unsigned long p;
-static char buffer[40];
-char *q;
-	*buffer = 0;
-	q = buffer;
-	for (i = 0, p = 1; strflags[i]; i++, p <<= 1)
+	unsigned int i;
+	unsigned long p;
+	char *q;
+	static char buffer[64];
+
+	for (*buffer = i = 0, q = buffer, p = 1; strflags[i]; i++, p <<= 1)
 	{
 		if (flags & p)
 			*q = '1';
@@ -215,12 +211,11 @@ void prepare_addshit(UserhostItem *stuff, char *nick, char *args)
 	char listbuf[BIG_BUFFER_SIZE+1];
 	int thetype = 0, shit = 0;
 	
-
-        if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
-        {
-        	bitchsay("No such nick [%s] found", nick);
-                return;
-        }
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
+	{
+		bitchsay("No such nick [%s] found", nick);
+		return;
+	}
 
 	thetype = my_atol(args);
 	next_arg(args, &args);
@@ -231,7 +226,7 @@ void prepare_addshit(UserhostItem *stuff, char *nick, char *args)
 	
 	uh = clear_server_flags(stuff->user);
 	while (strlen(uh) > 7) uh++;
-	sprintf(listbuf, "*%s@%s", uh, stuff->host);
+	snprintf(listbuf, sizeof listbuf, "*%s@%s", uh, stuff->host);
 	add_to_a_list(listbuf, thetype, "*", channels, reason, shit);
 }
 
@@ -272,24 +267,23 @@ int count = 0;
 
 void prepare_adduser(UserhostItem *stuff, char *nick, char *args)
 {
-	int 	thetype = 0;
-unsigned long	flags = 0;
+	int thetype = 0;
+	unsigned long flags = 0;
 	int	ppp = 0;
 	UserList *uptr = NULL;
 			
-	char	*channels = NULL, 
+	char *channels = NULL, 
 		*passwd = NULL,
 		*p = NULL,
 		*uh,
 		*e_host,
 		*host;
 	
-	
-        if (!stuff || !stuff->nick || !nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
-        {
+	if (!stuff || !stuff->nick || !strcmp(stuff->user, "<UNKNOWN>") || my_stricmp(stuff->nick, nick))
+	{
 		bitchsay("No such nick [%s] found", nick);
 		return;
-        }
+	}
 
 	thetype = my_atol(args);
 	next_arg(args, &args);
@@ -654,7 +648,7 @@ char *check;
 			for (nick = next_nicklist(chan, NULL); nick; nick = next_nicklist(chan, nick))
 			{
 				check = clear_server_flags(nick->host);
-				sprintf(tmp, "%s!%s", nick->nick, check);
+				snprintf(tmp, sizeof tmp, "%s!%s", nick->nick, check);
 				if (wild_match(added->filter, tmp))
 				{
 					if (type) 
@@ -845,7 +839,7 @@ int size = -1;
  * Function courtesy of Sheik. From his CtoolZ client.
  * but modified a little by panasync
  */
-UserList *lookup_userlevelc(char *nick, char *userhost, char *channel, char *passwd)
+UserList *lookup_userlevelc(const char *nick, const char *userhost, const char *channel, const char *passwd)
 {
 	
 	if (!nick || !userhost || !*userhost || !channel)
@@ -864,7 +858,7 @@ register ShitList *thisptr = shitlist_list;
 	if (!uh || !niq)
 		return NULL;
 	u = clear_server_flags(uh);
-	sprintf(theuh, "%s!%s", niq, u);
+	snprintf(theuh, sizeof theuh, "%s!%s", niq, u);
 	while (thisptr)
 	{
 		if (!strcmp(thisptr->filter, theuh) || (/*wild_match(theuh, thisptr->filter) || */wild_match(thisptr->filter, theuh))) 
@@ -1043,7 +1037,6 @@ void run_user_flag(char *name, char *what, NickList *user, NickList *kicker)
 	}
 	if ((tmp = expand_alias(what, empty_string, &sa, NULL)))
 	{
-		stuff_copy = alloca(strlen(tmp) + 1);
 		name_copy = LOCAL_COPY(name);
 		stuff_copy = LOCAL_COPY(tmp);
 		will_catch_return_exceptions++;
@@ -1056,12 +1049,10 @@ void run_user_flag(char *name, char *what, NickList *user, NickList *kicker)
 
 NickList *check_auto(char *channel, NickList *nicklist, ChannelList *chan)
 {
-
-ShitList *shitptr = NULL;
-UserList *userptr = NULL;
-ChannelList *chan_ptr =  NULL;
-char *ban;
-
+	ShitList *shitptr = NULL;
+	UserList *userptr = NULL;
+	ChannelList *chan_ptr =  NULL;
+	char *ban;
 	
 	if (!channel || !*channel || !nicklist)
 		return NULL;
@@ -1082,7 +1073,6 @@ char *ban;
 	userptr = nicklist->userlist;
 	shitptr = nicklist->shitlist;
 
-
 	if (userptr && !check_channel_match(userptr->channels, channel))
 		userptr = NULL;
 	if (shitptr && (!check_channel_match(shitptr->channels, channel) || isme(nicklist->nick)))
@@ -1090,10 +1080,9 @@ char *ban;
 		
 	if (get_cset_int_var(chan_ptr->csets, SHITLIST_CSET) && shitptr != NULL && userptr == NULL)
 	{
-		char *theshit;
-		time_t current = now;
-		theshit = get_string_var(SHITLIST_REASON_VAR);
-		switch(shitptr->level)
+		char *reason = shitptr->reason ? shitptr->reason : get_string_var(SHITLIST_REASON_VAR);
+
+		switch (shitptr->level)
 		{
 		
 			case 0:
@@ -1104,25 +1093,23 @@ char *ban;
 				{
 					add_mode(chan_ptr, "o", 0, nicklist->nick, NULL, get_int_var(NUM_OPMODES_VAR));
 					nicklist->sent_deop++;
-					nicklist->sent_deop_time = current;
+					nicklist->sent_deop_time = now;
 				}
 				break;				
 			case 2: /* Auto Kick  offender */
-				add_mode(chan_ptr, NULL, 0, nicklist->nick, shitptr->reason?shitptr->reason:theshit, 0);
+				add_mode(chan_ptr, NULL, 0, nicklist->nick, reason, 0);
 				break;
 			case 3: /* kick ban the offender */
 			case 4:	/* perm ban on offender */
-				if (nicklist->sent_deop  < 4 || (nicklist->sent_deop < 4 && shitptr->level == 4))
+				if (nicklist->sent_deop < 4)
 				{
 					send_to_server("MODE %s -o+b %s %s", channel, nicklist->nick, shitptr->filter);
 					nicklist->sent_deop++;
-					nicklist->sent_deop_time = current;
+					nicklist->sent_deop_time = now;
 					if (get_int_var(AUTO_UNBAN_VAR) && shitptr->level != 4)
 						add_timer(0, empty_string, get_int_var(AUTO_UNBAN_VAR) * 1000, 1, timer_unban, m_sprintf("%d %s %s", from_server, channel, shitptr->filter), NULL, -1, "auto-unban");
 				}
-				if (get_cset_int_var(chan_ptr->csets, KICK_IF_BANNED_CSET))
-					send_to_server("KICK %s %s :%s", channel,
-						nicklist->nick, (shitptr->reason && *shitptr->reason) ? shitptr->reason : theshit);
+				add_mode(chan_ptr, NULL, 0, nicklist->nick, reason, 0);
 			default:
 				break;
 		}
@@ -1187,8 +1174,7 @@ char *ban;
 		ban = m_3dup(nicklist->nick, "!", nicklist->host);
 		if (nicklist->ip && nicklist->host)
 		{
-			char *user = alloca(strlen(nicklist->host)+1);
-			strcpy(user, nicklist->host);
+			char *user = LOCAL_COPY(nicklist->host);
 			if ((u = strchr(user, '@')))
 				*u = 0;
 			ipban = m_opendup(nicklist->nick, "!", user, "@", nicklist->ip, NULL);
@@ -1207,9 +1193,6 @@ char *ban;
 	return nicklist;
 }
 
-
-
-
 /*
  *  Protection levels
  *  1 Reop if de-oped
@@ -1219,11 +1202,12 @@ char *ban;
  */
 int check_prot(char *from, char *person, ChannelList *chan, BanList *thisban, NickList *n)
 {
-NickList *tmp = NULL;
-NickList *kicker;
-char *tmp_ban = NULL;
-char *nick = NULL, *userhost = NULL, *p;
-
+	NickList *tmp = NULL;
+	NickList *kicker;
+	char *tmp_ban = NULL;
+	char *nick = NULL;
+	char *userhost = NULL;
+	char *p;
 	
 	if (!from || !*from || !person || !*person || !chan)
 		return 0;
@@ -1263,7 +1247,7 @@ char *nick = NULL, *userhost = NULL, *p;
 			user = n->userlist;
 		else
 			user = tmp->userlist;
-		if (!user || (user && !check_channel_match(user->channels, chan->channel)))
+		if (!user || !check_channel_match(user->channels, chan->channel))
 			return 0;
 		if (!(kicker = find_nicklist_in_channellist(from, chan, 0)))
 			return 0;
@@ -1274,8 +1258,7 @@ char *nick = NULL, *userhost = NULL, *p;
 			{
 				if (!kicker->sent_deop)
 				{
-					if (!kicker->userlist || 
-						(kicker->userlist && !(kicker->userlist->flags & PROT_DEOP)))
+					if (!kicker->userlist || !(kicker->userlist->flags & PROT_DEOP))
 						send_to_server("MODE %s -o %s", chan->channel, from);
 					kicker->sent_deop++;
 				}
@@ -1311,26 +1294,20 @@ char *nick = NULL, *userhost = NULL, *p;
 			}
 			if (user->flags & PROT_KICK)
 			{
-				if (kicker && (!kicker->userlist || (kicker->userlist && !(kicker->userlist->flags & PROT_KICK))))
+				if (!kicker->userlist || !(kicker->userlist->flags & PROT_KICK))
 					send_to_server("KICK %s %s :\002BitchX\002 Protected User", chan->channel, kicker->nick);
 			}
 			if ((user->flags & PROT_REOP) || do_reop)
 			{
 				/* added by Sergs serg@gamma.niimm.spb.su */
-			        if (thisban)
+				if (thisban)
 				{
-					if (thisban->sent_unban_time - current > 30)
+					if ((thisban->sent_unban_time - current > 30) || (thisban->sent_unban < 3))
 					{
 						thisban->sent_unban++;
 						thisban->sent_unban_time = current;
 						send_to_server("MODE %s -b %s", chan->channel, thisban->ban);
 					} 
-					else if (thisban->sent_unban < 3)
-					{
-						thisban->sent_unban++;
-						thisban->sent_unban_time = current;
-						send_to_server("MODE %s -b %s", chan->channel, thisban->ban);
-					}
 				}
 				if (n && (!n->sent_reop || (n->sent_reop_time && (current - n->sent_reop_time > 60))))
 				{
@@ -1441,16 +1418,15 @@ char err_msg[7][50] = { empty_string, "No Level Specified", "No Protection level
 }
 #endif
 
-int check_channel_match(char *tmp, char *channel)
+int check_channel_match(const char *tmp, const char *channel)
 {
-	char *p, *q, *chan = NULL;
+	char *p, *chan = NULL;
 	int wmatch = 0;
 	if (!tmp || !channel)
 		return 0;
 	if (*channel == '*' && (strlen(channel)==1))
 		return 1;
-	q = chan = alloca(strlen(tmp)+1);
-	strcpy(chan, tmp);
+	chan = LOCAL_COPY(tmp);
 
 	while ((p = next_in_comma_list(chan, &chan)))
 	{
@@ -1501,7 +1477,7 @@ int	flag;
 		return;
 		
 #ifdef WANT_USERLIST
-	if ( !userptr || (userptr && !check_channel_match(userptr->channels, channel->channel)) ||
+	if (!userptr || !check_channel_match(userptr->channels, channel->channel) ||
 		(shitptr && check_channel_match(shitptr->channels, channel->channel)))
 #endif
 	{
@@ -1572,7 +1548,7 @@ BUILT_IN_COMMAND(savelists)
 	int size = -1;
 	
 	
-	sprintf(thefile, "%s/%s.sav", get_string_var(CTOOLZ_DIR_VAR), version);
+	snprintf(thefile, sizeof thefile, "%s/%s.sav", get_string_var(CTOOLZ_DIR_VAR), version);
 	if ((p = expand_twiddle(thefile)))
 		outfile = fopen(p, "w");
 

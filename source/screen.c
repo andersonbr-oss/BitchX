@@ -13,7 +13,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: screen.c 121 2011-04-08 13:10:05Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(screen_c)
 #include "struct.h"
 
@@ -31,7 +31,6 @@ CVS_REVISION(screen_c)
 #include "input.h"
 #include "log.h"
 #include "hook.h"
-#include "dcc.h"
 #include "exec.h"
 #include "newio.h"
 #include "misc.h"
@@ -75,10 +74,9 @@ Screen	*screen_list = NULL;
  *					------- Which calls term_putchar().
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-	u_char	**BX_prepare_display	(const u_char *, int, int *, int);
-static	int	add_to_display_list	(Window *, const unsigned char *);
+static int add_to_display_list(Window *, const char *);
 	Display	*new_display_line	(Display *);
-	void	BX_add_to_window		(Window *, const unsigned char *);
+static int rite (Window *, const char *);
 
 static	char	display_standout	(int flag);
 static	char	display_bold		(int flag);
@@ -90,22 +88,35 @@ static	char	display_altcharset	(int flag);
 
 static	void	put_color		(int, int);
 
-const	u_char	*BX_skip_ctl_c_seq		(const u_char *start, int *lhs, int *rhs, int proper);
+static void delchar(char **text, int cnum)
+{
+	int i;
 
+	for (i = 0; i < strlen(*text) - 1; i++)
+		if (i >= cnum) text[0][i] = text[0][i+1];
 
-unsigned char *BX_skip_incoming_mirc(unsigned char *text)
+	text[0][i] = 0;
+}
+
+char *BX_skip_incoming_mirc(char *text)
 {
 	int i, x;
-	for (i=0;i<strlen(text);i++) {
-		if ((int)text[i] != 3) continue;
-		else {
+
+	for (i = 0; i < strlen(text); i++) {
+		if (text[i] == 3)
+		{
 			x = 0;
-			while (((isdigit(text[i])) || ((int)text[i] == 3))) {
-				while((int)text[i] == 3) delchar(&text, i);
-				while((isdigit(text[i])) && (x<2)) {
+			while (isdigit((unsigned char)text[i]) || text[i] == 3)
+			{
+				while (text[i] == 3)
 					delchar(&text, i);
-					if (isdigit(text[i])) {
-						delchar(&text, i); x += 2;
+				while (isdigit((unsigned char)text[i]) && x < 2)
+				{
+					delchar(&text, i);
+					if (isdigit((unsigned char)text[i]))
+					{
+						delchar(&text, i);
+						x += 2;
 					} else x += 1;
 				}
 				if (text[i] != ',') break;
@@ -117,30 +128,20 @@ unsigned char *BX_skip_incoming_mirc(unsigned char *text)
 	return text;
 }
 
-void delchar(unsigned char **text, int cnum)
-{
-	int i;
-	for (i=0;i<strlen(*text)-1;i++)
-		if (i >= cnum) text[0][i] = text[0][i+1];
-
-	text[0][i] = 0;
-}
-
-
 /*
  * add_to_screen: This adds the given null terminated buffer to the screen.
  * That is, it determines which window the information should go to, which
  * lastlog the information should be added to, which log the information
  * should be sent to, etc 
  */
-void BX_add_to_screen(unsigned char *buffer)
+void BX_add_to_screen(char *buffer)
 {
-char *out = NULL;
-	if (!get_int_var(MIRCS_VAR))
-		buffer = skip_incoming_mirc(buffer);
+	char *out;
 
-	
-	out = buffer;		
+	if (!get_int_var(MIRCS_VAR))
+		out = skip_incoming_mirc(buffer);
+	else
+		out = buffer;
 
 	if (in_window_command)
 	{
@@ -200,16 +201,16 @@ char *out = NULL;
  * function just dumps it onto the screen. This is because the scrollback
  * functions need to be able to figure out how to split things up too.
  */
-void BX_add_to_window(Window *window, const unsigned char *str)
+void BX_add_to_window(Window *window, const char *str)
 {
 
 	if (window->server >= 0 && get_server_redirect(window->server))
 		redirect_text(window->server, 
-			        get_server_redirect(window->server),
-				str, NULL, 0, 0);
+			        get_server_redirect(window->server), str, STXT_QUIET);
+
 	if (do_hook(WINDOW_LIST, "%u %s", window->refnum, str))
 	{
-		unsigned char   **lines;
+		char **lines;
 		int	cols;
 		                                                
 		add_to_log(window->log_fp, 0, str, window->mangler);
@@ -217,10 +218,7 @@ void BX_add_to_window(Window *window, const unsigned char *str)
 		display_standout(OFF);
 		display_bold(OFF);
 
-		if (window->screen)
-			cols = window->screen->co;
-		else
-			cols = window->columns;
+		cols = window_columns(window);
 
 		for (lines = split_up_line(str, cols/* + 1*/); *lines; lines++)
 		{
@@ -242,7 +240,7 @@ void BX_add_to_window(Window *window, const unsigned char *str)
 			 * This is for archon -- he wanted a way to have 
 			 * a hidden window always beep, even if BEEP is off.
 			 */
-			if (window->beep_always && strchr(str, '\007'))
+			if (window->beep_always && strchr(str, BELL_CHAR))
 			{
 				Window *old_target_window = target_window;
 				target_window = current_window;
@@ -280,12 +278,22 @@ void BX_add_to_window(Window *window, const unsigned char *str)
 }
 
 
-u_char **BX_split_up_line (const unsigned char *str, int max_cols)
+char **BX_split_up_line(const char *str, int max_cols)
 {
 	int nl = 0;
 	return prepare_display(str, max_cols, &nl, 0);
 }
 
+struct prepare_display_state
+{
+	char *dest;			/* Position in destination buffer */
+	const char *src;	/* Position in source buffer */
+	int col;			/* Current column in display */
+	int beep_max;		/* Maximum number of beeps */
+	int tab_max;		/* Maximum number of tabs */
+	int nds_max;		/* Maximum number of non-destructive spaces */
+	int in_rev;			/* Are we in reverse mode? */
+};
 
 /*
  * Given an input string, prepare it for display. This involves several
@@ -350,41 +358,31 @@ u_char **BX_split_up_line (const unsigned char *str, int max_cols)
  *
  * It may be a good idea to allow users to control this behaviour, possibly
  * by introducing a new variable, DISPLAY_MODE. 0 is the traditional way
- * and 1 is the quick way. Anyway, we dont care at this level, as we are
+ * and 1 is the quick way. Anyway, we don't care at this level, as we are
  * simply preparing the strings here.
  *
  * Errm ... oh yes, and since this caught me by surprise and caused many a
- * minutes worth of hair pulling, dont forget we need to keep count of
+ * minutes worth of hair pulling, don't forget we need to keep count of
  * PRINTED Characters not buffer positions :-)
  */
 #define SPLIT_EXTENT 40
-unsigned char **BX_prepare_display(const unsigned char *orig_str,
+char **BX_prepare_display(const char *orig_str,
                                 int max_cols,
                                 int *lused,
                                 int flags)
 {
-	int	gchar_mode;
-static 	int 	recursion = 0, 
+	static int recursion = 0, 
 		output_size = 0;
-	int 	pos = 0,            /* Current position in "buffer" */
-		col = 0,            /* Current column in display    */
-		word_break = 0,     /* Last end of word             */
-		indent = 0,         /* Start of second word         */
-		firstwb = 0,
-		beep_cnt = 0,       /* Number of beeps              */
-		beep_max,           /* Maximum number of beeps      */
-		tab_cnt = 0,        /* TAB counter                  */
-		tab_max,            /* Maximum number of tabs       */
-		nds_count = 0,
-		nds_max,
+	struct prepare_display_state pds = { 0 };
+	char *word_break;       /* Last end of word             */
+	char *firstwb = 0;
+	int	indent = 0,         /* Start of second word         */
 		line = 0,           /* Current pos in "output"      */
 		len, i,             /* Used for counting tabs       */
 		do_indent,          /* Use indent or continued line? */
-		in_rev = 0,         /* Are we in reverse mode?      */
 		newline = 0;        /* Number of newlines           */
-static	u_char 	**output = NULL;
-const 	u_char	*ptr = NULL;
-	u_char 	buffer[BIG_BUFFER_SIZE + 1],
+	static char **output = NULL;
+	char buffer[BIG_BUFFER_SIZE + 1],
 		*cont_ptr = NULL,
 		*cont = empty_string,
 		c,
@@ -395,21 +393,33 @@ const 	u_char	*ptr = NULL;
 		ircpanic("prepare_display() called recursively");
 	recursion++;
 
-	gchar_mode = get_int_var(DISPLAY_PC_CHARACTERS_VAR);
-	beep_max = get_int_var(BEEP_VAR)? get_int_var(BEEP_MAX_VAR) : -1;
-	tab_max = get_int_var(TAB_VAR) ? get_int_var(TAB_MAX_VAR) : -1;
-	nds_max = get_int_var(ND_SPACE_MAX_VAR);
+	if (get_int_var(BEEP_VAR))
+		pds.beep_max = get_int_var(BEEP_MAX_VAR);
+
+	if (get_int_var(TAB_VAR))
+	{
+		pds.tab_max = get_int_var(TAB_MAX_VAR);
+		/* TAB_MAX = 0 means "unlimited" */
+		if (pds.tab_max == 0)
+			pds.tab_max = -1;
+	}
+
+	pds.nds_max = get_int_var(ND_SPACE_MAX_VAR);
+	/* NS_SPACE_MAX = 0 means "unlimited" */
+	if (pds.nds_max == 0)
+		pds.nds_max = -1;
+
 	do_indent = get_int_var(INDENT_VAR);
-	words = (char *)get_string_var(WORD_BREAK_VAR);
+	words = get_string_var(WORD_BREAK_VAR);
 
 	if (!words)
 		words = ", ";
-	if (!(cont_ptr = (char *)get_string_var(CONTINUED_LINE_VAR)))
-		cont_ptr = (char *)empty_string;
+	if (!(cont_ptr = get_string_var(CONTINUED_LINE_VAR)))
+		cont_ptr = empty_string;
 
 	buffer[0] = 0;
 
-	/* Handle blank or non-existant lines */
+	/* Handle blank or non-existent lines */
 	if (!orig_str || !orig_str[0])
 		orig_str = space;
 
@@ -448,66 +458,75 @@ const 	u_char	*ptr = NULL;
 	/*
 	 * Start walking through the entire string.
 	 */
-	for (ptr = str; *ptr && (pos < BIG_BUFFER_SIZE - 8); ptr++)
+	for (pds.src = str, word_break = pds.dest = buffer; *pds.src && (pds.dest < &buffer[BIG_BUFFER_SIZE - 8]); pds.src++)
 	{
-		switch (*ptr)
+		switch (*pds.src)
 		{
-			case '\007':      /* bell */
+			case BELL_CHAR:      /* bell */
 			{
-				beep_cnt++;
-				if ((beep_max == -1) || (beep_cnt > beep_max))
+				if (pds.beep_max)
 				{
-					if (!in_rev)
-						buffer[pos++] = REV_TOG;
-					buffer[pos++] = (*ptr & 127) | 64;
-					if (!in_rev)
-						buffer[pos++] = REV_TOG;
-					col++;
+					if (pds.beep_max > 0)
+						pds.beep_max--;
+
+					*pds.dest++ = *pds.src;
 				}
 				else
-					buffer[pos++] = *ptr;
-
+				{
+					if (!pds.in_rev)
+						*pds.dest++ = REV_TOG;
+					*pds.dest++ = (*pds.src & 127) | 64;
+					if (!pds.in_rev)
+						*pds.dest++ = REV_TOG;
+					pds.col++;
+				}
 				break; /* case '\a' */
 			}
-			case '\011':    /* TAB */
+			case '\t':    /* TAB */
 			{
-				tab_cnt++;
-				if ((tab_max > 0) && (tab_cnt > tab_max))
+				if (pds.tab_max)
 				{
-					if (!in_rev)
-						buffer[pos++] = REV_TOG;
-					buffer[pos++] = (*ptr & 0x7f) | 64;
-					if (!in_rev)
-						buffer[pos++] = REV_TOG;
-					col++;
-				}
-				else
-				{
-					if (indent == 0)
-						indent = -1;
-					word_break = pos;
+					if (pds.tab_max > 0)
+						pds.tab_max--;
 
-				/* Only go as far as the edge of the screen */
-					len = 8 - (col % 8);
+					if (indent == 0)
+					{
+						indent = -1;
+						firstwb = pds.dest;
+					}
+					word_break = pds.dest;
+
+					/* Only go as far as the edge of the screen */
+					len = 8 - (pds.col % 8);
 					for (i = 0; i < len; i++)
 					{
-						buffer[pos++] = ' ';
-						if (col++ >= max_cols)
+						*pds.dest++ = ' ';
+						if (pds.col++ >= max_cols)
 							break;
 					}
 				}
-				break; /* case '\011' */
+				else
+				{
+					if (!pds.in_rev)
+						*pds.dest++ = REV_TOG;
+					*pds.dest++ = (*pds.src & 0x7f) | 64;
+					if (!pds.in_rev)
+						*pds.dest++ = REV_TOG;
+					pds.col++;
+				}
+				break; /* case '\t' */
 			}
 			case ND_SPACE:
 			{
-				nds_count++;
-				/*
-				 * Just swallop up any ND's over the max
-				 */
-				if ((nds_max > 0) && (nds_count > nds_max))
-					;
-				else
-					buffer[pos++] = ND_SPACE;
+				if (pds.nds_max)
+				{
+					if (pds.nds_max > 0)
+						pds.nds_max--;
+
+					*pds.dest++ = ND_SPACE;
+					pds.col++;
+				}
+				/* Just swallop up any ND's over the max */
 				break;
 			}
 			case '\n':      /* Forced newline */
@@ -515,17 +534,17 @@ const 	u_char	*ptr = NULL;
 				newline = 1;
 				if (indent == 0)
 					indent = -1;
-				word_break = pos;
+				word_break = pds.dest;
 				break; /* case '\n' */
 			}
-			case '\003':
+			case COLOR_CHAR:
 			{
 				int lhs = 0, rhs = 0;
-				const u_char *end = skip_ctl_c_seq(ptr, &lhs, &rhs, 0);
-				while (ptr < end)
-					buffer[pos++] = *ptr++;
-				ptr = end - 1;
-				break; /* case '\003' */
+				const char *end = skip_ctl_c_seq(pds.src, &lhs, &rhs, 0);
+				while (pds.src < end)
+					*pds.dest++ = *pds.src++;
+				pds.src = end - 1;
+				break; /* case COLOR_CHAR */
 			}
 			case ROM_CHAR:
 			{
@@ -536,21 +555,21 @@ const 	u_char	*ptr = NULL;
 				 * chars, we fake it with zeros.  This is the
 				 * wrong thing, but its better than crashing.
 				 */
-				buffer[pos++] = *ptr++;  /* Copy the \R ...  */
-				if (*ptr)
-					buffer[pos++] = *ptr++;
+				*pds.dest++ = *pds.src++;  /* Copy the \R ...  */
+				if (*pds.src)
+					*pds.dest++ = *pds.src++;
 				else
-					buffer[pos++] = '0';
-				if (*ptr)
-					buffer[pos++] = *ptr++;
+					*pds.dest++ = '0';
+				if (*pds.src)
+					*pds.dest++ = *pds.src++;
 				else
-					buffer[pos++] = '0';
-				if (*ptr)
-					buffer[pos++] = *ptr;
+					*pds.dest++ = '0';
+				if (*pds.src)
+					*pds.dest++ = *pds.src;
 				else
-					buffer[pos++] = '0';
+					*pds.dest++ = '0';
 
-				col++;   /* This is a printable   */
+				pds.col++;   /* This is a printable   */
 				break; /* case ROM_CHAR */
 			}
 
@@ -561,62 +580,62 @@ const 	u_char	*ptr = NULL;
 			case BLINK_TOG:
 			case ALT_TOG:
 			{
-				buffer[pos++] = *ptr;
-				if (*ptr == ALL_OFF)
-					in_rev = 0;
-				else if (*ptr == REV_TOG)
-					in_rev = !in_rev;
+				*pds.dest++ = *pds.src;
+				if (*pds.src == ALL_OFF)
+					pds.in_rev = 0;
+				else if (*pds.src == REV_TOG)
+					pds.in_rev = !pds.in_rev;
 				break;
 			}
 
 			default:
 			{
-				if (*ptr == ' ' || strchr(words, *ptr))
+				if (*pds.src == ' ' || strchr(words, *pds.src))
 				{
 					if (indent == 0)
 					{
 						indent = -1;
-						firstwb = pos;
+						firstwb = pds.dest;
 					}
-					if (*ptr == ' ')
-						word_break = pos;
-					if (*ptr != ' ' && ptr[1] &&
-					    (col + 1 < max_cols))
-						word_break = pos + 1;
-					buffer[pos++] = *ptr;
+					if (*pds.src == ' ')
+						word_break = pds.dest;
+					if (*pds.src != ' ' && pds.src[1] &&
+					    (pds.col + 1 < max_cols))
+						word_break = pds.dest + 1;
+					*pds.dest++ = *pds.src;
 				}
 				else
 				{
 					if (indent == -1)
-						indent = col;
-					buffer[pos++] = *ptr;
+						indent = pds.col;
+					*pds.dest++ = *pds.src;
 				}
-				col++;
+				pds.col++;
 				break;
 			}
-		} /* End of switch (*ptr) */
+		} /* End of switch (*pds.src) */
 
 		/*
-		 * Must check for cols >= maxcols+1 becuase we can have a 
+		 * Must check for cols >= maxcols+1 because we can have a 
 		 * character on the extreme screen edge, and we would still 
 		 * want to treat this exactly as 1 line, and cols has already 
 		 * been incremented.
 		 */
-		if ((col >= max_cols) || newline)
+		if ((pds.col >= max_cols) || newline)
 		{
-			unsigned char *pos_copy;
+			char *pos_copy;
 			
-			if (!word_break || (flags & PREPARE_NOWRAP))
-				word_break = max_cols /*pos - 1*/;
-			else if (col > max_cols)
-				word_break = pos - 1;
+			if (word_break == buffer || (flags & PREPARE_NOWRAP))
+				word_break = &buffer[max_cols] /*pds.pos - 1*/;
+			else if (pds.col > max_cols)
+				word_break = pds.dest - 1;
 								
 			/*
 			 * XXXX Massive hackwork here.
 			 *
 			 * Due to some ... interesting design considerations,
 			 * if you have /set indent on and your first line has
-			 * exactly one word seperation in it, then obviously
+			 * exactly one word separation in it, then obviously
 			 * there is a really long "word" to the right of the 
 			 * first word.  Normally, we would just break the 
 			 * line after the first word and then plop the really 
@@ -633,12 +652,12 @@ const 	u_char	*ptr = NULL;
 			 * it all comes down to it.  Good thing its cheap. ;-)
 			 */
 			if (!*cont && (firstwb == word_break) && do_indent) 
-				word_break = pos;
+				word_break = pds.dest;
 
 			/*
 			 * If we are approaching the number of lines that
 			 * we have space for, then resize the master line
-			 * buffer so we dont run out.
+			 * buffer so we don't run out.
 			 */
 
 			if (line >= output_size - 3)
@@ -649,11 +668,11 @@ const 	u_char	*ptr = NULL;
 					output[output_size++] = 0;
 			}
 
-			c = buffer[word_break];
-			buffer[word_break] = 0;
-			malloc_strcpy((char **)&(output[line++]), buffer);
+			c = *word_break;
+			*word_break = 0;
+			malloc_strcpy(&(output[line++]), buffer);
 
-			buffer[word_break] = c;
+			*word_break = c;
 
 			if (!*cont && do_indent && (indent < (max_cols / 3)) &&
 					(strlen(cont_ptr) < indent))
@@ -663,18 +682,19 @@ const 	u_char	*ptr = NULL;
 			}
 			else if (!*cont && *cont_ptr)
 				cont = cont_ptr;
-			while (word_break < pos && buffer[word_break] == ' ')
+			while (word_break < pds.dest && *word_break == ' ')
 				word_break++;
-			buffer[pos] = 0;
+			*pds.dest = 0;
 
 			pos_copy = alloca(strlen(buffer) + strlen(cont) + 20);
-			strcpy(pos_copy, buffer+word_break);
+			strcpy(pos_copy, word_break);
 			
-			strcpy (buffer, cont);
-			strcat (buffer, pos_copy);
-			col = pos = strlen(buffer);
+			strcpy(buffer, cont);
+			strcat(buffer, pos_copy);
+			pds.col = strlen(buffer);
+			pds.dest = &buffer[pds.col];
 
-			word_break = 0;
+			word_break = buffer;
 			newline = 0;
 
 			/* Only allow N lines... */
@@ -684,12 +704,12 @@ const 	u_char	*ptr = NULL;
 				break;
 			}
 		}
-	} /* End of (ptr = str; *ptr && (pos < BIG_BUFFER_SIZE - 8); ptr++) */
+	} /* End of (...; *pds.src && (pds.dest < &buffer[BIG_BUFFER_SIZE - 8]); pds.src++) */
 
-	buffer[pos++] = ALL_OFF;
-	buffer[pos] = 0;
+	*pds.dest++ = ALL_OFF;
+	*pds.dest = 0;
 	if (*buffer)
-		malloc_strcpy((char **)&(output[line++]),buffer);
+		malloc_strcpy(&(output[line++]),buffer);
 
 	recursion--;
 	new_free(&output[line]);
@@ -703,7 +723,7 @@ const 	u_char	*ptr = NULL;
  * This puts the given string into a scratch window.  It ALWAYS suppresses
  * any further action (by returning a FAIL, so rite() is not called).
  */
-static	int	add_to_scratch_window_display_list (Window *window, const unsigned char *str)
+static int add_to_scratch_window_display_list(Window *window, const char *str)
 {
 	Display *my_line, *my_line_prev;
 	int cnt;
@@ -801,7 +821,7 @@ static	int	add_to_scratch_window_display_list (Window *window, const unsigned ch
  * not to be displayed, then 0 is returned.  This function handles all
  * the hold_mode stuff.
  */
-static int 	add_to_display_list (Window *window, const unsigned char *str)
+static int add_to_display_list(Window *window, const char *str)
 {
 	if (window->scratch_line != -1)
 		return add_to_scratch_window_display_list(window, str);
@@ -814,7 +834,7 @@ static int 	add_to_display_list (Window *window, const unsigned char *str)
 	window->distance_from_display++;
 	
 	/*
-	 * Only output the line if hold mode isnt activated
+	 * Only output the line if hold mode isn't activated
 	 */
 	if (((window->distance_from_display > window->display_size) &&
 						window->scrollback_point) ||
@@ -882,7 +902,7 @@ static int 	add_to_display_list (Window *window, const unsigned char *str)
  * bold face will remain the same and the it won't interfere with anything
  * else (i.e. status line, input line). 
  */
-int rite(Window *window, const unsigned char *str)
+static int rite(Window *window, const char *str)
 {
 static  int     high = OFF;
 static  int     bold = OFF;
@@ -929,17 +949,17 @@ static	int	altc = OFF;
 /*
  * A temporary wrapper function for backwards compatibility.
  */
-int BX_output_line(const unsigned char *str)
+int BX_output_line(const char *str)
 {
-	output_with_count(str,1, 1);
+	output_with_count(str, 1, 1);
 	return 0;
 }
 
 /*
  * NOTE: When we output colors, we explicitly turn off bold and reverse,
  * as they can affect the display of the colors. We turn them back on
- * afterwards, though. We dont need to worry about blinking or underline
- * as they dont affect the colors. But reverse and bold do, so we need to
+ * afterwards, though. We don't need to worry about blinking or underline
+ * as they don't affect the colors. But reverse and bold do, so we need to
  * make sure that the color sequence has preference, rather than the previous
  * IRC-II formatting colors.
  *
@@ -956,14 +976,14 @@ int BX_output_line(const unsigned char *str)
  * correct rendering of colors than to get just one more nanosecond of
  * display speed.
  */
-int BX_output_with_count(const unsigned char *str, int clreol, int output)
+int BX_output_with_count(const char *str, int clreol, int output)
 {
-const 	u_char 	*ptr = str;
-	int 	beep = 0, 
+	const char *ptr = str;
+	int beep = 0, 
 		out = 0;
-	int 	val1, 
+	int val1, 
 		val2;
-	char 	old_bold = 0, 
+	char old_bold = 0, 
 		old_rev = 0, 
 		old_blink = 0, 
 		old_undl = 0, 
@@ -1112,12 +1132,12 @@ const 	u_char 	*ptr = str;
 			}
 			break;
 		}
-		case '\007':
+		case BELL_CHAR:
 		{
 			beep++;
 			break;
 		}
-		/* Dont ask */
+		/* Don't ask */
 		case '\f':
 		{
 			if (output)
@@ -1146,7 +1166,7 @@ const 	u_char 	*ptr = str;
 			out++;
 			break;
 		}
-		case '\003':
+		case COLOR_CHAR:
 		{
 			/*
 			 * By the time we get here, we know we need to 
@@ -1245,7 +1265,7 @@ void BX_scroll_window(Window *window)
 	{
 		int	scroll,	i;
 		if (window->holding_something || window->scrollback_point)
-			ircpanic("Cant scroll this window!");
+			ircpanic("Can't scroll this window!");
 
 		if ((scroll = get_int_var(SCROLL_LINES_VAR)) <= 0)
 			scroll = 1;
@@ -1398,18 +1418,14 @@ int BX_is_cursor_in_display(Screen *screen)
  * If end_line is -1, then that means clear the display if any of it appears
  * after the end of the scrollback buffer.
  */
-void 	BX_repaint_window (Window *w, int start_line, int end_line)
+void 	BX_repaint_window (Window *window, int start_line, int end_line)
 {
-	Window *window = (Window *)w;
 	Display *curr_line;
 	int count;
 	int clean_display = 0;
 
 	if (dumb_mode || !window->visible)
 		return;
-
-	if (!window)
-		window = current_window;
 
 	if (end_line == -1)
 	{
@@ -1505,8 +1521,8 @@ Screen	* BX_create_new_screen(void)
 	new->fdin = fileno(stdin);
 
 	new->alive = 1;
-	new->li = current_term->TI_lines;
-	new->co = current_term->TI_cols;
+	new->li = current_term->li;
+	new->co = current_term->co;
 	new->old_li = 0;
 	new->old_co = 0;
 	new->buffer_pos = new->buffer_min_pos = 0;
@@ -1532,10 +1548,15 @@ Screen	* BX_create_new_screen(void)
 	if (!main_screen)
 #ifdef GUI
 		gui_screen(new);
-	
+
+	malloc_strcpy(&new->tty_name, "<GUI>");
 	gui_resize(new);
 #else
+	{
+		extern char attach_ttyname[];
 		main_screen = new;
+		malloc_strcpy(&new->tty_name, attach_ttyname);
+	}
 #endif
 	init_input();
 	return new;
@@ -1547,12 +1568,12 @@ Screen	* BX_create_new_screen(void)
 extern	Window	*BX_create_additional_screen (void)
 {
         Window  *win;
-        Screen  *oldscreen, *new;
+        Screen  *new;
         char    *displayvar,
                 *termvar;
         int     screen_type = ST_NOTHING;
         struct  sockaddr_in NewSock;
-        int     NsZ;
+        socklen_t     NsZ;
         int     s;
 	fd_set	fd_read;
 	struct	timeval	timeout;
@@ -1595,14 +1616,13 @@ extern	Window	*BX_create_additional_screen (void)
                 screen_type == ST_SCREEN ? "screen" :
                                            "wound" );
 	port = 0;
-	s = connect_by_number(NULL, &port, SERVICE_SERVER, PROTOCOL_TCP, 0);
+	s = connect_by_number("127.0.0.1", &port, SERVICE_SERVER, PROTOCOL_TCP, 0);
 	if (s < 0)
 	{
-		yell("Couldnt establish server side -- error [%d]", s);
+		yell("Couldn't establish server side -- error [%d]", s);
 		return NULL;
 	}
 
-	oldscreen = current_window->screen;
 	new = create_new_screen();
 
 	switch ((child = fork()))
@@ -1610,7 +1630,7 @@ extern	Window	*BX_create_additional_screen (void)
 		case -1:
 		{
 			kill_screen(new);
-			say("I couldnt fire up a new wserv process");
+			say("I couldn't fire up a new wserv process");
 			break;
 		}
 
@@ -1622,21 +1642,21 @@ extern	Window	*BX_create_additional_screen (void)
 			static char geom[32];
 			int i;
 
-			setuid(getuid());
 			setgid(getgid());
+			setuid(getuid());
 			setsid();
 
 			/*
 			 * Make sure that no inhereted file descriptors
 			 * are left over past the exec.  xterm will reopen
-			 * any fd's that it is interested in.
+			 * any fds that it is interested in.
 			 */
 			for (i = 3; i < 256; i++)
 				close(i);
 
 			/*
 			 * Try to restore some sanity to the signal
-			 * handlers, since theyre not really appropriate here
+			 * handlers, since they're not really appropriate here
 			 */
 			my_signal(SIGINT,  SIG_IGN, 0);
 			my_signal(SIGSEGV, SIG_DFL, 0);
@@ -1652,7 +1672,7 @@ extern	Window	*BX_create_additional_screen (void)
 			}
 			else if (screen_type == ST_XTERM)
 			{
-				snprintf(geom, 31, "%dx%d", current_term->TI_cols, current_term->TI_lines);
+				snprintf(geom, sizeof geom, "%dx%d", current_term->co, current_term->li);
 				opts = LOCAL_COPY(get_string_var(XTERM_OPTIONS_VAR));
 				if (!(xterm = getenv("XTERM")))
 					if (!(xterm = get_string_var(XTERM_VAR)))
@@ -1673,7 +1693,7 @@ extern	Window	*BX_create_additional_screen (void)
 			}
 
 			*args_ptr++ = WSERV_PATH;
-			*args_ptr++ = "localhost";
+			*args_ptr++ = "127.0.0.1";
 			*args_ptr++ = ltoa((long)port);
 			*args_ptr++ = NULL;
 
@@ -1735,8 +1755,9 @@ extern	Window	*BX_create_additional_screen (void)
 				kill(child, SIGKILL);
 				return NULL;
 			}
-			else
-				malloc_strcpy(&new->tty_name, buffer);
+
+			chop(buffer, 1);
+			malloc_strcpy(&new->tty_name, buffer);
 
 			win = new_window(new);
 			refresh_screen(0, NULL);
@@ -1749,10 +1770,8 @@ extern	Window	*BX_create_additional_screen (void)
 extern  Window  *BX_create_additional_screen (void)
 {
 	Window  *win;
-	Screen  *oldscreen,
-		*new;
+	Screen  *new;
 
-	oldscreen = current_window->screen;
 	new = create_new_screen();
 	win = new_window(new);
 	gui_new_window(new, win);
@@ -1839,7 +1858,6 @@ Screen *screen;
 void do_screens (fd_set *rd)
 {
 	Screen *screen;
-	unsigned char buffer[IO_BUFFER_SIZE + 1];
 
 	if (!use_input)
 		return;
@@ -1868,6 +1886,7 @@ void do_screens (fd_set *rd)
 
 			if (dumb_mode)
 			{
+				char buffer[IO_BUFFER_SIZE + 1];
 				if (dgets(buffer, screen->fdin, 0, IO_BUFFER_SIZE, NULL))
 				{
 					*(buffer + strlen(buffer) - 1) = '\0';
@@ -1885,7 +1904,7 @@ void do_screens (fd_set *rd)
 			else
 			{
 				int server;
-				unsigned char loc_buffer[BIG_BUFFER_SIZE + 1];
+				char loc_buffer[BIG_BUFFER_SIZE + 1];
 				int	n, i;
 
 				server = from_server;
@@ -1905,7 +1924,7 @@ void do_screens (fd_set *rd)
 					{
 #ifdef __EMXPM__
 						if (loc_buffer[i] == '\0')
-							loc_buffer[i] = '\e';
+							loc_buffer[i] = '\x1b';	/* ESC */
 #endif
 						if (!extended_handled)
 							edit_char(loc_buffer[i]);
@@ -1961,10 +1980,10 @@ void BX_xterm_settitle(void)
 					if ((o = convert_output_format(s, "%d %s %s %s %s %s", wincount, is_server_connected(tmp->current_window->server) ?get_server_nickname(tmp->current_window->server):nickname,
 												   tmpwindowchan ? tmpwindowchan : "<none>", irc_version, is_server_connected(from_server) ?get_server_itsname(from_server):"<unconnected>", tmptopic ? tmptopic : empty_string)))
 						chop(o, 4);
-					snprintf(titlestring, BIG_BUFFER_SIZE, "%s", o);
+					snprintf(titlestring, sizeof titlestring, "%s", o);
 				}
 				else
-					snprintf(titlestring, BIG_BUFFER_SIZE, "[%d] %s: %s - %s on %s", wincount, irc_version, tmp->current_window->current_channel ? tmp->current_window->current_channel : "<none>", is_server_connected(tmp->current_window->server) ?get_server_nickname(tmp->current_window->server):nickname,
+					snprintf(titlestring, sizeof titlestring, "[%d] %s: %s - %s on %s", wincount, irc_version, tmp->current_window->current_channel ? tmp->current_window->current_channel : "<none>", is_server_connected(tmp->current_window->server) ?get_server_nickname(tmp->current_window->server):nickname,
 							 is_server_connected(tmp->current_window->server) ?get_server_itsname(tmp->current_window->server):"<unconnected>");
 #ifdef GUI
 				gui_settitle(stripansicodes(titlestring), tmp);
@@ -1989,9 +2008,9 @@ void BX_xterm_settitle(void)
 				t = attach_ttyname;
 			if ((o = convert_output_format(s, "%s %s %s", t, nickname, c ? c : empty_string)))
 				chop(o, 4);
-			snprintf(titlestring, BIG_BUFFER_SIZE, "\033]2;%s:  %s", irc_version, o);
+			snprintf(titlestring, sizeof titlestring, "\033]2;%s:  %s", irc_version, o);
 		} else
-			snprintf(titlestring, BIG_BUFFER_SIZE, "\033]2;%s:  %s on %s:%s", irc_version, is_server_connected(current_window->server) ?get_server_nickname(current_window->server):nickname,
+			snprintf(titlestring, sizeof titlestring, "\033]2;%s:  %s on %s:%s", irc_version, is_server_connected(current_window->server) ?get_server_nickname(current_window->server):nickname,
 					 is_server_connected(current_window->server) ?get_server_itsname(current_window->server):"<not connected>", c);
         	tputs_x(titlestring);
 		term_flush();
@@ -2034,15 +2053,15 @@ void BX_add_wait_prompt(char *prompt, void (*func)(char *, char *), char *data, 
  * Se we have to actually slurp up only those digits that comprise a legal
  * ^C code.
  */
-const u_char *BX_skip_ctl_c_seq (const u_char *start, int *lhs, int *rhs, int proper)
+char *BX_skip_ctl_c_seq(const char *start, int *lhs, int *rhs, int proper)
 {
-const 	u_char 	*after = start;
-	u_char	c1, c2;
-	int *	val;
+	const char *after = start;
+	char c1, c2;
+	int *val;
 	int	lv1, rv1;
 
 	/*
-	 * For our sanity, just use a placeholder if the caller doesnt
+	 * For our sanity, just use a placeholder if the caller doesn't
 	 * care where the end of the ^C code is.
 	 */
 	if (!lhs)
@@ -2053,10 +2072,10 @@ const 	u_char 	*after = start;
 	*lhs = *rhs = -1;
 
 	/*
-	 * If we're passed a non ^C code, dont do anything.
+	 * If we're passed a non ^C code, don't do anything.
 	 */
-	if (*after != '\003')
-		return after;
+	if (*after != COLOR_CHAR)
+		return (char *)after;
                                                   
 	/*
 	 * This is a one-or-two-time-through loop.  We find the  maximum 
@@ -2072,7 +2091,7 @@ const 	u_char 	*after = start;
 		 */
 		after++;
 		if (*after == 0)
-			return after;
+			return (char *)after;
 
 		/*
 		 * Check for the very special case of a definite terminator.
@@ -2080,17 +2099,17 @@ const 	u_char 	*after = start;
 		 * this ends the code without starting a new one
 		 */
 		if (after[0] == '-' && after[1] == '1')
-			return after + 2;
+			return (char *)after + 2;
 
 		/*
 		 * Further checks against a lonely old naked ^C.
 		 */
-		if (!isdigit(after[0]) && after[0] != ',')
-			return after;
+		if (!isdigit((unsigned char)after[0]) && after[0] != ',')
+			return (char *)after;
 
 
 		/*
-		 * Code certainly cant have moRe than two chars in it
+		 * Code certainly can't have more than two chars in it
 		 */
 		c1 = after[0];
 		c2 = after[1];
@@ -2187,97 +2206,8 @@ const 	u_char 	*after = start;
 		break;
 	}
 
-	return after;
+	return (char *)after;
 }
-
-/*
- * Used as a translation table when we cant display graphics characters
- * or we have been told to do translation.  A no-brainer, with little attempt
- * at being smart.
- * (JKJ: perhaps we should allow a user to /set this?)
- */
-static	u_char	gcxlate[256] = {
-  '*', '*', '*', '*', '*', '*', '*', '*',
-  '#', '*', '#', '*', '*', '*', '*', '*',
-  '>', '<', '|', '!', '|', '$', '_', '|',
-  '^', 'v', '>', '<', '*', '=', '^', 'v',
-  ' ', '!', '"', '#', '$', '%', '&', '\'',
-  '(', ')', '*', '+', ',', '_', '.', '/',
-  '0', '1', '2', '3', '4', '5', '6', '7',
-  '8', '9', ':', ';', '<', '=', '>', '?',
-  '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-  'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-  'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-  'Z', 'Y', 'X', '[', '\\', ']', '^', '_',
-  '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-  'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-  'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-  'x', 'y', 'z', '{', '|', '}', '~', '?',
-  'C', 'u', 'e', 'a', 'a', 'a', 'a', 'c',
-  'e', 'e', 'e', 'i', 'i', 'i', 'A', 'A',
-  'e', 'e', 'e', 'o', 'o', 'o', 'u', 'u',
-  'y', 'O', 'U', 'C', '#', 'Y', 'P', 'f',
-  'a', 'i', 'o', 'u', 'n', 'N', '^', '^',
-  '?', '<', '>', '2', '4', '!', '<', '>',
-  '#', '#', '#', '|', '|', '|', '|', '+',
-  '+', '+', '+', '|', '+', '+', '+', '+',
-  '+', '+', '+', '+', '-', '+', '+', '+',
-  '+', '+', '+', '+', '+', '=', '+', '+',
-  '+', '+', '+', '+', '+', '+', '+', '+',
-  '+', '+', '+', '#', '-', '|', '|', '-',
-  'a', 'b', 'P', 'p', 'Z', 'o', 'u', 't',
-  '#', 'O', '0', 'O', '-', 'o', 'e', 'U',
-  '*', '+', '>', '<', '|', '|', '/', '=',
-  '*', '*', '*', '*', 'n', '2', '*', '*'
-};
-
-/*
- * State 0 is "normal, printable character"
- * State 1 is "nonprintable character"
- * State 2 is "Escape character" (033)
- * State 3 is "Color code" (003)
- * State 4 is "Special highlight character"
- * State 5 is "ROM character" (022)
- * State 6 is a character that should never be printed
- */
-static	u_char	ansi_state[256] = {
-/*	^@	^A	^B	^C	^D	^E	^F	^G */
-	6,	6,	4,	3,	6,	4,	4,	4,  /* 000 */
-/*	^H	^I	^J	^K	^D	^M	^N	^O */
-	6,	4,	4,	6,	0,	6,	6,	4,  /* 010 */
-/*	^P	^Q	^R	^S	^T	^U	^V	^W */
-	6,	6,	5,	4,	4,	6,	4,	6,  /* 020 */
-/*	^X	^Y	^Z	^[	^\	^]	^^	^_ */
-	6,	6,	6,	2,	6,	6,	6,	4,  /* 030 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 040 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 050 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 060 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 070 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 100 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 110 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 120 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 130 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 140 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 150 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 160 */
-	0,	0,	0,	0,	0,	0,	0,	0,  /* 170 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 200 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 210 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 220 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 230 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 240 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 250 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 260 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 270 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 300 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 310 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 320 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 330 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 340 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 350 */
-	1,	1,	1,	1,	1,	1,	1,	1,  /* 360 */
-	1,	1,	1,	1,	1,	1,	1,	1   /* 370 */
-};
 
 /*
  * This started off as a general ansi parser, and it worked for stuff that
@@ -2294,56 +2224,140 @@ static	u_char	ansi_state[256] = {
  * These macros help keep 8 bit chars from sneaking into the output stream
  * where they might be stripped out.
  */
-#if 1
 #define this_char() (eightbit ? *str : (*str) & 0x7f)
 #define next_char() (eightbit ? *str++ : (*str++) & 0x7f)
 #define put_back() (str--)
-#else
-#define this_char() (*str)
-#define next_char() (*str++)
-#define put_back() (str--)
-#endif
 
-
-unsigned char *BX_strip_ansi (const unsigned char *str)
+char *BX_strip_ansi(const char *str)
 {
-	u_char	*output;
-	u_char	chr, chr1;
-	int 	pos, maxpos;
-	int 	args[10], nargs, i;
+	/*
+	 * Used as a translation table when we can't display graphics characters
+	 * or we have been told to do translation.  A no-brainer, with little attempt
+	 * at being smart.
+	 * (JKJ: perhaps we should allow a user to /set this?)
+	 */
+	const static char gcxlate[256] = {
+	  '*', '*', '*', '*', '*', '*', '*', '*',
+	  '#', '*', '#', '*', '*', '*', '*', '*',
+	  '>', '<', '|', '!', '|', '$', '_', '|',
+	  '^', 'v', '>', '<', '*', '=', '^', 'v',
+	  ' ', '!', '"', '#', '$', '%', '&', '\'',
+	  '(', ')', '*', '+', ',', '_', '.', '/',
+	  '0', '1', '2', '3', '4', '5', '6', '7',
+	  '8', '9', ':', ';', '<', '=', '>', '?',
+	  '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	  'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	  'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	  'Z', 'Y', 'X', '[', '\\', ']', '^', '_',
+	  '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	  'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	  'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+	  'x', 'y', 'z', '{', '|', '}', '~', '?',
+	  'C', 'u', 'e', 'a', 'a', 'a', 'a', 'c',
+	  'e', 'e', 'e', 'i', 'i', 'i', 'A', 'A',
+	  'e', 'e', 'e', 'o', 'o', 'o', 'u', 'u',
+	  'y', 'O', 'U', 'C', '#', 'Y', 'P', 'f',
+	  'a', 'i', 'o', 'u', 'n', 'N', '^', '^',
+	  '?', '<', '>', '2', '4', '!', '<', '>',
+	  '#', '#', '#', '|', '|', '|', '|', '+',
+	  '+', '+', '+', '|', '+', '+', '+', '+',
+	  '+', '+', '+', '+', '-', '+', '+', '+',
+	  '+', '+', '+', '+', '+', '=', '+', '+',
+	  '+', '+', '+', '+', '+', '+', '+', '+',
+	  '+', '+', '+', '#', '-', '|', '|', '-',
+	  'a', 'b', 'P', 'p', 'Z', 'o', 'u', 't',
+	  '#', 'O', '0', 'O', '-', 'o', 'e', 'U',
+	  '*', '+', '>', '<', '|', '|', '/', '=',
+	  '*', '*', '*', '*', 'n', '2', '*', '*'
+	};
+	
+	/*
+	 * State 0 is "normal, printable character"
+	 * State 1 is "nonprintable character"
+	 * State 2 is "Escape character" (033)
+	 * State 3 is "Color code" (003)
+	 * State 4 is "Special highlight character"
+	 * State 5 is "ROM character" (022)
+	 * State 6 is a character that should never be printed
+	 */
+	const static char ansi_state[256] = {
+	/*	^@	^A	^B	^C	^D	^E	^F	^G */
+		6,	6,	4,	3,	6,	4,	4,	4,  /* 000 */
+	/*	^H	^I	^J	^K	^D	^M	^N	^O */
+		6,	4,	4,	6,	0,	6,	6,	4,  /* 010 */
+	/*	^P	^Q	^R	^S	^T	^U	^V	^W */
+		6,	6,	5,	4,	4,	6,	4,	6,  /* 020 */
+	/*	^X	^Y	^Z	^[	^\	^]	^^	^_ */
+		6,	6,	6,	2,	6,	6,	6,	4,  /* 030 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 040 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 050 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 060 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 070 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 100 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 110 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 120 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 130 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 140 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 150 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 160 */
+		0,	0,	0,	0,	0,	0,	0,	0,  /* 170 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 200 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 210 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 220 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 230 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 240 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 250 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 260 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 270 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 300 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 310 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 320 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 330 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 340 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 350 */
+		1,	1,	1,	1,	1,	1,	1,	1,  /* 360 */
+		1,	1,	1,	1,	1,	1,	1,	1   /* 370 */
+	};
+
+	char *output;
+	char chr;
+	int pos, maxpos;
+	int args[10], nargs, i;
 
 	int	bold = 0;
 	int	underline = 0;
 	int	reverse = 0;
 	int	blink = 0;
 	int	alt_mode = 0;
-	int     fg_color = 0;
-	int     bg_color = 1;
+	int fg_color = 0;
+	int bg_color = 1;
                 
-	int	ansi = get_int_var(DISPLAY_ANSI_VAR);
-	int	gcmode = get_int_var(DISPLAY_PC_CHARACTERS_VAR);
-	int 	n;
-	int	eightbit = term_eight_bit();
+	const int ansi = get_int_var(DISPLAY_ANSI_VAR);
+	const int gcmode = get_int_var(DISPLAY_PC_CHARACTERS_VAR);
+	const int eightbit = term_eight_bit();
+	int n;
 
 	/* 
 	 * The output string has a few extra chars on the end just 
 	 * in case you need to tack something else onto it.
 	 */
 	maxpos = strlen(str);
-	output = (u_char *)new_malloc(maxpos + 64);
+	output = new_malloc(maxpos + 64);
 	pos = 0;
 
 	while ((chr = next_char()))
 	{
-	    chr1 = *(str - 1);
-	    if (pos > maxpos)
-	    {
-		maxpos += 64; /* Extend 64 chars at a time */
-		RESIZE(output, unsigned char, maxpos + 64);
-	    }
+		/* chr1 is the same as chr, but without the top bit masked. */
+		const char chr1 = *(str - 1);
 
-	    switch (ansi_state[chr1])
-	    {
+		if (pos > maxpos)
+		{
+			maxpos += 64; /* Extend 64 chars at a time */
+			RESIZE(output, char, maxpos + 64);
+		}
+
+		switch (ansi_state[(unsigned char)chr1])
+		{
 		/*
 		 * State 0 is a normal, printable ascii character
 		 */
@@ -2361,16 +2375,16 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 			int my_gcmode = gcmode;
 			/*
 			 * This is a very paranoid check to make sure that
-			 * the 8-bit escape code doesnt elude us.
+			 * the 8-bit escape code doesn't elude us.
 			 */
-			if (chr == 27 + 128)
+			if (chr == '\x9b')
 			{
 				output[pos++] = REV_TOG;
 				output[pos++] = '[';
 				output[pos++] = REV_TOG;
 				continue;
 			}
-			if (ansi_state[chr] == 6)
+			if (ansi_state[(unsigned char)chr] == 6)
 				my_gcmode = 1;
 			if (strip_ansi_never_xlate)
 				my_gcmode = 4;
@@ -2382,7 +2396,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 				 */
 				case 5:
 				{
-					output[pos++] = gcxlate[chr];
+					output[pos++] = gcxlate[(unsigned char)chr];
 					break;
 				}
 
@@ -2403,7 +2417,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 					if (termfeatures & TERM_CAN_GCHAR)
 						output[pos++] = chr;
 					else
-						output[pos++] = gcxlate[chr];
+						output[pos++] = gcxlate[(unsigned char)chr];
 					break;
 				}
 
@@ -2417,7 +2431,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 					else
 					{
 						output[pos++] = REV_TOG;
-						output[pos++] = gcxlate[chr];
+						output[pos++] = gcxlate[(unsigned char)chr];
 						output[pos++] = REV_TOG;
 					}
 					break;
@@ -2425,22 +2439,19 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 
 				/*
 				 * gcmode 1 is "accept or reverse mangle"
-				 * If youre doing 8-bit, it accepts eight
-				 * bit characters.  If youre not doing 8 bit
+				 * If you're doing 8-bit, it accepts eight
+				 * bit characters.  If you're not doing 8 bit
 				 * then it converts the char into something
 				 * printable and then reverses it.
 				 */
 				case 1:
 				{
-					if (termfeatures & TERM_CAN_GCHAR)
-						output[pos++] = chr;
-					else if ((chr & 0x80) && eightbit)
+					if ((termfeatures & TERM_CAN_GCHAR) || (chr & 0x80))
 						output[pos++] = chr;
 					else
 					{
 						output[pos++] = REV_TOG;
-						output[pos++] = 
-						(chr | 0x40) & 0x7f;
+						output[pos++] = chr | 0x40;
 						output[pos++] = REV_TOG;
 					}
 					break;
@@ -2507,7 +2518,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 /* { */			case ('o') : case ('|') : case ('}') :
 			case ('~') : case ('c') :
 			{
-				break;		/* Dont do anything */
+				break;		/* Don't do anything */
 			}
 
 			/*
@@ -2528,7 +2539,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 			 */
 			case ('P') :
 			{
-				while (((chr = next_char()) != 0) && chr != 033)
+				while (((chr = next_char()) != 0) && chr != '\033')
 					;
 				if (chr == 0)
 					put_back();
@@ -2598,7 +2609,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 				{
 					n = 0;
 					for (n = 0;
-					     isdigit(this_char());
+					     isdigit((unsigned char)this_char());
 					     next_char())
 					{
 					    n = n * 10 + (this_char() - '0');
@@ -2608,7 +2619,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 
 					/*
 					 * If we run out of code here, 
-					 * then we're totaly confused.
+					 * then we're totally confused.
 					 * just back out with whatever
 					 * we have...
 					 */
@@ -2625,7 +2636,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 				 * If we find a new ansi char, start all
 				 * over from the top and strip it out too
 				 */
-				if (this_char() == 033)
+				if (this_char() == '\033')
 					continue;
 
 				/*
@@ -2646,7 +2657,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 					    if (pos + args[0] > maxpos)
 					    {
 						maxpos += args[0]; 
-						RESIZE(output, u_char, maxpos + 64);
+						RESIZE(output, char, maxpos + 64);
 					    }
 					    while (args[0]-- > 0)
 						output[pos++] = ND_SPACE;
@@ -2759,7 +2770,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 					}
 					else if (args[i] >= 30 && args[i] <= 37)
 					{
-						output[pos++] = 003;
+						output[pos++] = COLOR_CHAR;
 						if (bold)
 							output[pos++] = '5';
 						else
@@ -2775,7 +2786,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 					}
 					else if (args[i] >= 40 && args[i] <= 47)
 					{
-						output[pos++] = 003;
+						output[pos++] = COLOR_CHAR;
 						output[pos++] = ',';
 						if (blink)
 							output[pos++] = '5';
@@ -2793,14 +2804,14 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 
 
 	        /*
-	         * Skip over ^C codes, theyre already normalized
-	         * well, thats not totaly true.  We do some mangling
+	         * Skip over ^C codes, they're already normalized
+	         * well, that's not totally true.  We do some mangling
 	         * in order to make it work better
 	         */
 		case 3:
 		{
-			const u_char 	*end;
-			int		lhs, rhs;
+			const char *end;
+			int lhs, rhs;
 
 			put_back();
 			end = skip_ctl_c_seq (str, &lhs, &rhs, 0);
@@ -2814,7 +2825,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 			 * 131 is encountered when eight bit chars is OFF.
 			 * We see a character 3 (131 with the 8th bit off)
 			 * and so we ask skip_ctl_c_seq where the end of 
-			 * that sequence is.  But since it isnt a ^c sequence
+			 * that sequence is.  But since it isn't a ^c sequence
 			 * it just shrugs its shoulders and returns the
 			 * pointer as-is.  So we sit asking it where the end
 			 * is and it says "its right here".  So there is a 
@@ -2826,7 +2837,7 @@ unsigned char *BX_strip_ansi (const unsigned char *str)
 			 */
 			if (end == str)
 			{
-				/* Turn on reverse if neccesary */
+				/* Turn on reverse if necessary */
 				if (reverse == 0)
 					output[pos++] = REV_TOG;
 				output[pos++] = ' ';

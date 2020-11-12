@@ -11,7 +11,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: timer.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(timer_c)
 #include "struct.h"
 
@@ -39,8 +39,8 @@ static	TimerList *get_timer (char *ref);
 
 /*
  * timercmd: the bit that handles the TIMER command.  If there are no
- * arguements, then just list the currently pending timers, if we are
- * give a -DELETE flag, attempt to delete the timer from the list.  Else
+ * arguments, then just list the currently pending timers; if we are
+ * given a -DELETE flag, attempt to delete the timer from the list.  Else
  * consider it to be a timer to add, and add it.
  */
 BUILT_IN_COMMAND(timercmd)
@@ -106,7 +106,7 @@ BUILT_IN_COMMAND(timercmd)
 
 			if (winref == -1 && my_stricmp(na, "-1"))
 			{
-				say("%s: That window doesnt exist!", command);
+				say("%s: That window doesn't exist!", command);
 				return;
 			}
 		}
@@ -145,7 +145,7 @@ BUILT_IN_COMMAND(timercmd)
 }
 
 /*
- * This is put here on purpose -- we dont want any of the above functions
+ * This is put here on purpose -- we don't want any of the above functions
  * to have any knowledge of this struct.
  */
 static TimerList *PendingTimers;
@@ -164,19 +164,19 @@ static char *current_exec_timer = empty_string;
 extern	void ExecuteTimers (void)
 {
 	TimerList	*current;
-        static int parsingtimer = 0;
+	static int parsingtimer = 0;
 	int		old_from_server = from_server;
 	struct timeval	now1;
-		
-        /* We do NOT want to parse timers while waiting
-         * cause it gets icky recursive
-         */
-        if (!PendingTimers || parsingtimer)
-                return;
+
+	/* We do NOT want to parse timers while waiting
+	 * cause it gets icky recursive
+	 */
+	if (!PendingTimers || parsingtimer)
+		return;
 	get_time(&now1);
-	
-        parsingtimer = 1;
-	while (PendingTimers && BX_time_diff(now1, PendingTimers->time) < 0)
+
+	parsingtimer = 1;
+	while (PendingTimers && time_cmp(&now1, &PendingTimers->time) >= 0)
 	{
 		int old_refnum = current_window->refnum;
 
@@ -195,7 +195,7 @@ extern	void ExecuteTimers (void)
 			from_server = get_window_server(0);
 		else
 			from_server = -1;
-						
+
 		/* 
 		 * If a callback function was registered, then
 		 * we use it.  If no callback function was registered,
@@ -218,45 +218,26 @@ extern	void ExecuteTimers (void)
 		{
 			case 0:
 			case 1:
-			{
-				/* callback cleans up command */
-				if (!current->callback)
-					new_free(&current->command);
-				new_free(&current->subargs);
-				new_free(&current->whom);
-				new_free(&current);
-				break;
-			}
+				{
+					/* callback cleans up command */
+					if (!current->callback)
+						new_free(&current->command);
+					new_free(&current->subargs);
+					new_free(&current->whom);
+					new_free(&current);
+					break;
+				}
 			default:
 				current->events--;
 			case -1:
-			{
-#if 1
-				double milli, seconds;
-				milli = current->interval * 1000 * 1000 + current->time.tv_usec;
-				seconds = current->time.tv_sec + (milli / 1000000);
-				milli = ((unsigned long)current) % 1000000;
-				current->time.tv_sec = seconds;
-				current->time.tv_usec = milli;
-#else
-				current->time.tv_usec += (current->interval * 1000);
-				current->time.tv_sec += (current->time.tv_usec / 1000000);
-				current->time.tv_usec %= 1000000;
-#endif
-				schedule_timer(current);
-				break;	
-			}
-		}
-		if (current && current->delete)
-		{
-			if (!current->callback)
-				new_free(&current->command);
-			new_free(&current->subargs);
-			new_free(&current->whom);
-			new_free(&current);
+				{
+					time_offset(&current->time, current->interval);
+					schedule_timer(current);
+					break;	
+				}
 		}
 	}
-        parsingtimer = 0;
+	parsingtimer = 0;
 }
 
 /*
@@ -287,7 +268,7 @@ static	void	show_timer (char *command)
 		time_left = BX_time_diff(current, tmp->time);
 		if (time_left < 0)
 			time_left = 0;
-		sprintf(buf, "%0.3f", time_left);
+		snprintf(buf, sizeof buf, "%0.3f", time_left);
 		put_it("%s", convert_output_format(fget_string_var(FORMAT_TIMER_FSET), "%s %s %d %s %s", tmp->ref, buf, tmp->events, tmp->callback? "(internal callback)" : (tmp->command? tmp->command : ""), tmp->whom ? tmp->whom : empty_string ));
 	}
 }
@@ -310,7 +291,7 @@ static	int	create_timer_ref (char *refnum_want, char *refnum_gets)
 	if (strlen(refnum_want) > REFNUM_MAX)
 		refnum_want[REFNUM_MAX] = 0;
 
-	/* If the user doesnt care */
+	/* If the user doesn't care */
 	if (!strcmp(refnum_want, empty_string))
 	{
 		/* Find the lowest refnum available */
@@ -321,7 +302,7 @@ static	int	create_timer_ref (char *refnum_want, char *refnum_gets)
 			if (refnum < ref)
 				refnum = ref;
 		}
-		strmcpy(refnum_gets, ltoa(refnum+1), REFNUM_MAX);
+		strlcpy(refnum_gets, ltoa(refnum+1), REFNUM_MAX);
 	}
 	else
 	{
@@ -331,7 +312,7 @@ static	int	create_timer_ref (char *refnum_want, char *refnum_gets)
 			if (!my_stricmp(tmp->ref, refnum_want))
 				return -1;
 		}
-		strmcpy(refnum_gets, refnum_want, REFNUM_MAX);
+		strlcpy(refnum_gets, refnum_want, REFNUM_MAX);
 	}
 
 	return 0;
@@ -374,34 +355,6 @@ extern int BX_delete_timer (char *ref)
 	}
 	say("TIMER: Can't delete %s, no such refnum", ref);
 	return -1;
-}
-
-int kill_timer(char *ref)
-{
-	TimerList	*tmp;
-	for (tmp = PendingTimers; tmp; tmp = tmp->next)
-	{
-		/* can only delete user created timers */
-		if (!my_stricmp(tmp->ref, ref))
-		{
-			tmp->delete = 1;
-			return 0;
-		}
-	}
-	return -1;
-}
-
-int get_delete_timer(char *ref)
-{
-	TimerList	*tmp;
-	for (tmp = PendingTimers; tmp; tmp = tmp->next)
-	{
-		/* can only delete user created timers */
-		if (!my_stricmp(tmp->ref, ref))
-			return tmp->delete;
-	}
-	return -1;
-
 }
 
 void BX_delete_all_timers (void)
@@ -454,34 +407,34 @@ static	TimerList *get_timer (char *ref)
 
 char *function_timer(char *n, char *args)
 {
-char *ref;
-char *out = NULL;
-TimerList *tmp;
-	ref = next_arg(args, &args);
-	if (ref && *ref && (tmp = get_timer(ref)))
-	{
-		double time_left;
-		struct timeval current;
-		char buf[40];
-		get_time(&current);
-		time_left = BX_time_diff(current, tmp->time);
-		if (time_left < 0)
-			time_left = 0.0;
-		sprintf(buf, "%0.3f", time_left);
-		malloc_sprintf(&out, "%s %d %d %d %d %s %s %s", tmp->ref, tmp->server, tmp->window, tmp->interval, tmp->events, buf, tmp->callback? "(internal callback)" : (tmp->command? tmp->command : ""), tmp->whom ? tmp->whom : empty_string );
-		return ref;
-	}
-	return m_strdup(empty_string);
+	char *ref = next_arg(args, &args);
+	TimerList *t = NULL;
+	double time_left;
+
+	if (ref && *ref)
+		t = get_timer(ref);
+
+	if (!t)
+		return m_strdup(empty_string);
+
+	time_left = time_until(&t->time);
+	if (time_left < 0)
+		time_left = 0.0;
+
+	return m_sprintf("%s %d %d %.16g %d %0.3f %s%s", t->ref, t->server,
+		t->window, t->interval, t->events, time_left, 
+		t->callback ? "(internal callback) " : t->command,
+		t->whom ? t->whom : "");
 }
 
 /*
  * You call this to register a timer callback.
  *
  * The arguments:
- *  refnum_want: The refnUm requested.  This should only be sepcified
+ *  refnum_want: The refnum requested.  This should only be specified
  *		 by the user, functions wanting callbacks should specify
- *		 the value -1 which means "dont care".
- * The rest of the arguments are dependant upon the value of "callback"
+ *		 the value -1 which means "don't care".
+ * The rest of the arguments are dependent upon the value of "callback"
  *	-- if "callback" is NULL then:
  *  callback:	 NULL
  *  what:	 some ircII commands to run when the timer goes off
@@ -500,24 +453,11 @@ char *BX_add_timer(int update, char *refnum_want, double when, long events, int 
 {
 	TimerList	*ntimer, *otimer = NULL;
 	char		refnum_got[REFNUM_MAX+1] = "";
-	double		seconds = 0.0, milli = 0.0;	
-extern	double		fmod(double, double);
 	
 	ntimer = (TimerList *) new_malloc(sizeof(TimerList));
 
 	get_time(&ntimer->time);
-#if 1
-	milli = when * 1000 + ntimer->time.tv_usec;
-	seconds = ntimer->time.tv_sec + (milli / 1000000);
-
-	milli = ((unsigned long)milli) % 1000000;
-	ntimer->time.tv_sec = seconds;
-	ntimer->time.tv_usec = milli;
-#else
-	ntimer->time.tv_usec += (unsigned long)when;
-	ntimer->time.tv_sec += ((when + ntimer->time.tv_usec) / 1000);
-	ntimer->time.tv_usec %= 1000;
-#endif
+	time_offset(&ntimer->time, when / 1000.0);
 
 	ntimer->interval = when / 1000;
 	ntimer->events = events;
@@ -587,7 +527,7 @@ static char *schedule_timer (TimerList *ntimer)
 	/* we've created it, now put it in order */
 	for (slot = &PendingTimers; *slot; slot = &(*slot)->next)
 	{
-		if (BX_time_diff((*slot)->time, ntimer->time) < 0)
+		if (time_cmp(&(*slot)->time, &ntimer->time) > 0)
 			break;
 	}
 	ntimer->next = *slot;
@@ -595,34 +535,13 @@ static char *schedule_timer (TimerList *ntimer)
 	return ntimer->ref;
 }
 
-static	struct timeval current;
-
-
 /*
  * TimerTimeout:  Called from irc_io to help create the timeout
  * part of the call to select.
  */
 
-time_t TimerTimeout (void)
+void TimerTimeout(struct timeval *wake_time)
 {
-	time_t	timeout_in;
-	time_t t = MAGIC_TIMEOUT;
-	
-	if (is_server_queue() && (t = get_int_var(QUEUE_SENDS_VAR)))
-		;
-	else
-		t = MAGIC_TIMEOUT;
-	get_time(&current);
-	if (!PendingTimers)
-		timeout_in = tclTimerTimeout(MAGIC_TIMEOUT);
-	else
-	{
-		timeout_in = (time_t)(BX_time_diff(current, PendingTimers->time) * 1000);
-		timeout_in = (time_t)(tclTimerTimeout((timeout_in < 0) ? 0 : timeout_in));
-	}
-	
-	if (t < timeout_in)
-		timeout_in = t * 1000;
-		
-	return (timeout_in < 0) ? 0 : timeout_in + 100;
+	if (PendingTimers && time_cmp(wake_time, &PendingTimers->time) > 0)
+		*wake_time = PendingTimers->time;
 }

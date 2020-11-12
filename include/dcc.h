@@ -4,9 +4,12 @@
  * Copyright(c) 1998 Colten Edwards 
  *
  */
+#ifndef DCC_H_
+#define DCC_H_
 
-#ifndef __dcc_h_
-#define __dcc_h_
+#include "struct.h"
+
+extern DCC_dllcommands *dcc_dllcommands;
 
 	/* 
 	 * these are all used in the bot_link layer. the dcc_printf is used in
@@ -97,21 +100,27 @@
 #define DCC_OFFER	0x00040000
 #define DCC_DELETE	0x00080000
 #define DCC_TWOCLIENTS	0x00100000
-
-#ifdef NON_BLOCKING_CONNECTS
-#define DCC_CNCT_PEND	0x00200000
-#endif
-
-#ifdef HAVE_SSL
-#define DCC_SSL		0x04000000
-#endif
-
+#define DCC_RESUME_REQ	0x00200000
 #define DCC_QUEUE	0x00400000
 #define DCC_TDCC	0x00800000
 #define DCC_BOTCHAT	0x01000000
 #define DCC_ECHO	0x02000000
+#define DCC_SSL		0x04000000
 #define DCC_STATES	0xffffff00
 
+/* This collects together the various broken-out fields of a
+ * CTCP DCC offer, because they're passed around as a group.
+ */
+struct dcc_offer {
+	char *nick;
+	char *type;
+	char *description;
+	char *address;
+	char *port;
+	char *size;
+	char *extra;
+	char *userhost;
+};
 
 	int	check_dcc_list (char *);
 	int	dcc_exempt_save (FILE *);
@@ -132,11 +141,11 @@
 	int	dcc_activechat(char *);	/* identify all active chat dcc's */
 	int	dcc_activebot(char *);	/* identify all active bot's */
 	int	dcc_activeraw(char *);  /* identify all active raw connects */
-	void	dcc_chat_transmit(char *, char *, char *, char *, int);
-	void	dcc_bot_transmit(char *, char *, char *);
-	void	dcc_raw_transmit(char *, char *, char *);
+	void	dcc_chat_transmit(char *, char *, char *, unsigned);
+	void	dcc_bot_transmit(char *, char *, unsigned);
+	void	dcc_raw_transmit(char *, char *, unsigned);
 
-	void	register_dcc_type(char *, char *, char *, char *, char *, char *, char *, char *, void (*func)(int));
+	void	handle_dcc_offer(struct dcc_offer *);
 
 	void	dcc_reject(char *, char *, char *);
 	char	*dcc_raw_connect(char *, unsigned short);
@@ -147,13 +156,34 @@
 	int	check_dcc_socket(int);
 	char	*get_dcc_info(SocketList *, DCC_int *, int);
 	void	init_dcc_table(void);
-	int BX_remove_all_dcc_binds(char *);
+	int BX_remove_all_dcc_binds(const char *);
 	int BX_remove_dcc_bind(char *, int);
-	
-	
-	int	BX_add_dcc_bind(char *, char *, void *, void *, void *, void *, void *);
 
-	SocketList *BX_find_dcc(char *, char *, char *, int, int, int, int);	
+/* Function pointers for the operations implementing a DCC type.
+ * This structure is part of the module ABI - if you change it,
+ * you need to roll MODULE_VERSION in <module.h>.
+ *
+ * .init() is called when a matching DCC offer is received over IRC
+ * .open() is called when a DCC connection is established
+ * .input() is called to fetch some data when the socket becomes readable
+ * .output() is called to write a message to the socket
+ * .close() is called when the DCC connection is closed
+ */
+struct dcc_ops
+{
+	int (*init)(const char *, const char *, const char *, const char *, const char *, const char *, unsigned long, unsigned short);
+	int (*open)(int, int, unsigned long, unsigned short);
+	int (*input)(int, int, char *, int, int);
+	int (*output)(int, int, char *, int);
+	int (*close)(int, unsigned long, unsigned short);
+};
+	
+	int	BX_add_dcc_bind(char *, char *, const struct dcc_ops *);
+/* add_socketread() callbacks for ordinary CHAT and SEND DCCs */
+extern void BX_dcc_chat_socketread(int);
+extern void BX_dcc_send_socketread(int);
+
+	SocketList *BX_find_dcc(const char *, const char *, const char *, int, int, int, int);	
 	void	BX_erase_dcc_info(int, int, char *, ...);
 	DCC_int	*BX_dcc_create(char *, char *, char *, unsigned long, int, int, unsigned long, void (*func)(int));
 	int	close_dcc_number(int);
@@ -162,4 +192,4 @@
 	
 #define DCC_STRUCT_TYPE  0xdcc0dcc0
 
-#endif /* __dcc_h_ */
+#endif /* DCC_H_ */

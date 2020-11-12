@@ -4,7 +4,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: mail.c 3 2008-02-25 09:49:14Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(mail_c)
 #include "struct.h"
 
@@ -87,8 +87,8 @@ int count_maildir_mail(void)
 
 
 #ifdef WANT_DLL
-#define check_ext_mail global_table[CHECK_EXT_MAIL]
-#define check_ext_mail_status global_table[CHECK_EXT_MAIL_STATUS]
+#define check_ext_mail ((char *(*)(void))global_table[CHECK_EXT_MAIL])
+#define check_ext_mail_status ((int (*)(void))global_table[CHECK_EXT_MAIL_STATUS])
 #endif
 
 /*
@@ -111,7 +111,7 @@ static time_t old_stat = 0;
 struct stat stat_buf;
 #endif        
 #ifdef WANT_DLL
-	if (check_ext_mail)
+	if (check_ext_mail_status)
 		return (*check_ext_mail_status)();
 #endif
 	if (!get_int_var(MAIL_VAR))
@@ -182,7 +182,7 @@ static	char ret_str[12];
 static  int	i = 0;
 #ifdef WANT_DLL
 	if (check_ext_mail)
-		return (char *)(*check_ext_mail)();
+		return (*check_ext_mail)();
 #endif
 	switch (get_int_var(MAIL_VAR))
 	{
@@ -203,7 +203,7 @@ static  int	i = 0;
 				if (i == 4)
 					i = 0;
 			}
-			sprintf(ret_str, "%c", this[i]);
+			snprintf(ret_str, sizeof ret_str, "%c", this[i]);
 
 			return ret_str;
 #else
@@ -216,7 +216,7 @@ static  int	i = 0;
 					reset_display_target();
 					if (i == 4)
 						i = 0;
-					sprintf(ret_str, "%c", this[i++]);
+					snprintf(ret_str, sizeof ret_str, "%c", this[i++]);
 				case 1:
 					if (!*ret_str)
 						return NULL;
@@ -246,7 +246,7 @@ static  int	i = 0;
 			}
 
 			old_count = count;
-			sprintf(ret_str, "%d", old_count);
+			snprintf(ret_str, sizeof ret_str, "%d", old_count);
 			return ret_str;
 #else
 			FILE *mail;
@@ -263,7 +263,7 @@ static  int	i = 0;
 						return NULL;
 
 					while (fgets(buffer, 254, mail))
-						if (!strncmp(MAIL_DELIMITER, buffer, 5))
+						if (strbegins(buffer, MAIL_DELIMITER))
 							count++;
 
 					fclose(mail);
@@ -277,7 +277,7 @@ static  int	i = 0;
 					}
 	
 					old_count = count;
-					sprintf(ret_str, "%d", old_count);
+					snprintf(ret_str, sizeof ret_str, "%d", old_count);
 				}
 				case 1:
 					if (*ret_str)

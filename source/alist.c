@@ -7,8 +7,8 @@
  * that your compiler will allocate disparate structures congruently as 
  * long as the members match as to their type and location.  This is
  * critically important for how this code works, and all hell will break
- * loose if your compiler doesnt do this.  Every compiler i know of does
- * it, which is why im assuming it, even though im not allowed to assume it.
+ * loose if your compiler doesn't do this.  Every compiler I know of does
+ * it, which is why I'm assuming it, even though I'm not allowed to assume it.
  *
  * This file is hideous.  Ill kill each and every one of you who made
  * me do this. ;-)
@@ -17,7 +17,7 @@
 #define _cs_alist_hash_
 #define _ci_alist_hash_
 #include "irc.h"
-static char cvsrevision[] = "$Id: alist.c 107 2011-02-02 12:11:03Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(alist_c)
 #include "alist.h"
 #include "ircaux.h"
@@ -88,7 +88,7 @@ Array_item *BX_remove_from_array (Array *array, char *name)
 
 		return array_pop(array, location);
 	}
-	return NULL;	/* Cant delete whats not there */
+	return NULL;	/* Can't delete what's not there */
 }
 
 /* Remove the 'which'th item from the given array */
@@ -123,7 +123,7 @@ Array_item *BX_remove_all_from_array (Array *array, char *name)
 		array->max--;
 		return ret;
 	}
-	return NULL;	/* Cant delete whats not there */
+	return NULL;	/* Can't delete what's not there */
 }
 
 Array_item *BX_array_lookup (Array *array, char *name, int wild, int delete)
@@ -313,7 +313,7 @@ Array_item *BX_find_array_item (Array *set, char *name, int *cnt, int *loc)
 
 	/*
 	 * Repeat the same ordeal, except this time we walk upwards
-	 * from 'pos' until we dont find a match.
+	 * from 'pos' until we don't find a match.
 	 */
 	max = pos + 1;
 	while (max < set->max && !set->func(name, ARRAY_ITEM(set, max)->name, len))
@@ -351,7 +351,7 @@ Array_item *BX_find_array_item (Array *set, char *name, int *cnt, int *loc)
  * This code is identical to find_array_item except ``list'' is a 1st
  * level array instead of a 2nd level array.
  */
-void * BX_find_fixed_array_item (void *list, size_t size, int howmany, char *name, int *cnt, int *loc)
+void * BX_find_fixed_array_item (void *list, size_t size, int howmany, const char *name, int *cnt, int *loc)
 {
 	int	len = strlen(name),
 		min = 0,
@@ -399,7 +399,7 @@ void * BX_find_fixed_array_item (void *list, size_t size, int howmany, char *nam
 
 	/*
 	 * Repeat the same ordeal, except this time we walk upwards
-	 * from 'pos' until we dont find a match.
+	 * from 'pos' until we don't find a match.
 	 */
 	max = pos + 1;
 	while ((max < howmany) && !strncmp(name, FIXED_ITEM(list, max, size).name, len))

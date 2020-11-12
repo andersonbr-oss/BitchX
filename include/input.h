@@ -7,11 +7,11 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: input.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
+#ifndef INPUT_H_
+#define INPUT_H_
 
-#ifndef __input_h_
-#define __input_h_
 	char	input_pause (char *);
 	void	BX_set_input (char *);
 	void	BX_set_input_prompt (Window *, char *, int);
@@ -22,11 +22,12 @@
 	void	input_move_cursor (int);
 	void	change_input_prompt (int);
 	void	BX_cursor_to_input (void);
+	void	edit_char(char);
 
 /* keybinding functions */
 	void 	backward_character 	(char, char *);
 	void 	backward_history 	(char, char *);
-	void 	clear_screen 		(char, char *);
+	void 	input_clear_screen 	(char, char *);
 	void	command_completion 	(char, char *);
 	void 	forward_character	(char, char *);
 	void 	forward_history 	(char, char *);
@@ -177,4 +178,4 @@ extern	NickTab *autoreply_array;
 	void	wm_process(int param);
 #endif
 
-#endif /* __input_h_ */
+#endif /* INPUT_H_ */

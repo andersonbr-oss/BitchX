@@ -2,16 +2,15 @@
  * Module/dll handling code written by Colten Edwards.
  * Copyright 1997
  */
- 
-#ifndef _MODULE_H
-#define _MODULE_H
+#ifndef MODULE_H_
+#define MODULE_H_
 
 
 /*
  * if we change the table below, we change this module number to the 
- * current date.
+ * current date (YYYYMMDDxx where xx is a serial number).
  */
-#define MODULE_VERSION 011000
+#define MODULE_VERSION 2018020801UL
 
 #include "struct.h"
 
@@ -88,11 +87,12 @@ extern CtcpEntryDll *dll_ctcp;
 extern WindowDll *dll_window;
 extern IrcVariableDll *dll_variable;
 
-
+IrcCommandDll *find_dll_command(const char *, int *);
 char *BX_get_dllstring_var(char *);
 int BX_get_dllint_var(char *);
 void BX_set_dllstring_var(char *, char *);
 void BX_set_dllint_var(char *, unsigned int);
+void BX_save_dllvar(FILE *, char *);
 RawDll *find_raw_proc(char *, char **);
 
 int check_version(unsigned long);
@@ -201,7 +201,7 @@ enum FUNCTION_VALUE
 	
 /* words.c */
 	STRSEARCH,
-	MOVE_TO_ABS_WORD,
+	MOVE_TO_WORD,
 	MOVE_WORD_REL,
 	EXTRACT,
 	EXTRACT2,
@@ -254,7 +254,6 @@ enum FUNCTION_VALUE
 	ADD_TO_SERVER_LIST,
 	BUILD_SERVER_LIST,
 	DISPLAY_SERVER_LIST,
-	CREATE_SERVER_LIST,
 	PARSE_SERVER_INFO,
 	SERVER_LIST_SIZE,
 /* misc server/nickname functions */
@@ -268,7 +267,7 @@ enum FUNCTION_VALUE
 	RESET_NICKNAME,
 /* various set server struct functions */
 	SET_SERVER_COOKIE,
-	SET_SERVER_FLAG,
+	UPDATE_SERVER_UMODE,
 	SET_SERVER_MOTD,
 	SET_SERVER_OPERATOR,
 	SET_SERVER_ITSNAME,
@@ -286,8 +285,7 @@ enum FUNCTION_VALUE
 	GET_SERVER_MOTD,
 	GET_SERVER_OPERATOR,
 	GET_SERVER_VERSION,
-	GET_SERVER_FLAG,
-	GET_POSSIBLE_UMODES,
+	GET_SERVER_UMODE,
 	GET_SERVER_PORT,
 	GET_SERVER_LAG,
 	GET_SERVER2_8,
@@ -420,6 +418,7 @@ enum FUNCTION_VALUE
 	SET_DLLINT_VAR,
 	GET_DLLSTRING_VAR,
 	SET_DLLSTRING_VAR,
+	SAVE_DLLVAR,
 	GET_INT_VAR,
 	SET_INT_VAR,
 	GET_STRING_VAR,
@@ -586,6 +585,8 @@ enum FUNCTION_VALUE
 	ADD_TO_QUEUE,
 	DCC_FILESEND,
 	DCC_RESEND,
+	DCC_CHAT_SOCKETREAD,
+	DCC_SEND_SOCKETREAD,
 		
 /* who.c */
 	WHOBASE,
@@ -616,15 +617,7 @@ enum FUNCTION_VALUE
 	SCREEN_LIST,
 	IRCLOG_FP,
 	DOING_NOTICE,
-	LAST_SENT_MSG_BODY, /* NO LONGER USED */
-	SENT_NICK, /* NO LONGER USED */
 
-	DLL_FUNCTIONS,
-	DLL_NUMERIC,
-	DLL_COMMANDS,
-	DLL_VARIABLE,
-	DLL_CTCP,
-	DLL_WINDOW,
 	WINDOW_DISPLAY,
 	STATUS_UPDATE_FLAG,
 	TABKEY_ARRAY,

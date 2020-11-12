@@ -32,7 +32,7 @@ INSTALL_IRC = @INSTALL_IRC@
 IRCLIB = @IRCLIB@
 
 CC = @CC@
-DEFS = @INCLUDES@
+CPPFLAGS = @CPPFLAGS@ @INCLUDES@ @DEFS@
 LIBS = @LIBS@
 
 # Tcl library.
@@ -160,7 +160,7 @@ Makefile: Makefile.in
 	  && ./config.status
 
 hint.o: $(srcdir)/hint.c
-	$(CC) $(DEFS) $(SHLIB_CFLAGS) $(CFLAGS) -c $(srcdir)/hint.c
+	$(CC) $(CPPFLAGS) $(SHLIB_CFLAGS) $(CFLAGS) -c $(srcdir)/hint.c
 
 hint$(SHLIB_SUFFIX): hint.o ../dllinit.o
 	$(SHLIB_LD) hint.o ../dllinit.o $(SHLIB_CFLAGS) -o hint$(SHLIB_SUFFIX)
@@ -173,4 +173,4 @@ distclean: clean
 
 install:
 	$(INSTALL) $(PLUGIN_NAME)$(SHLIB_SUFFIX) $(DESTDIR)$(PLUGINDIR)
-	$(INSTALL) $(srcdir)/BitchX.hints $(DESTDIR)$(PLUGINDIR)/@HINT_FILE@
+	$(INSTALL_DATA) $(srcdir)/BitchX.hints $(DESTDIR)$(PLUGINDIR)/@HINT_FILE@

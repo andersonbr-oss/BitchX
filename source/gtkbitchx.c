@@ -532,7 +532,7 @@ void gtk_label_set_color(GtkWidget *label, int color)
 /* This may be going away, it replaces code which is currently elsewhere in BitchX */
 void gtk_resize(Screen *this_screen)
 {
-	co = this_screen->co; li = this_screen->li;
+	current_term->co = this_screen->co; current_term->li = this_screen->li;
 
 	/* Recalculate some stuff that was done in input.c previously */
 	this_screen->input_line = this_screen->li-1;
@@ -762,7 +762,7 @@ char * fencode (unsigned char * input)
 	}
 	result[i] = '\0';
 
-	return result;		/* DONT USE RETURN_STR HERE! */
+	return result;		/* DON'T USE RETURN_STR HERE! */
 }
 
 typedef struct _gtkparam {
@@ -2179,8 +2179,8 @@ void gui_init(void)
 {
 	current_term->TI_cols = 80;
 	current_term->TI_lines = 25;
-	li = current_term->TI_lines;
-	co = current_term->TI_cols;
+	current_term->li = current_term->TI_lines;
+	current_temr->co = current_term->TI_cols;
 
 	pthread_mutex_init(&evmutex, NULL);
 	pthread_cond_init(&evcond, NULL);
@@ -2259,7 +2259,7 @@ GtkWidget *newsubmenu(MenuStruct *menutoadd)
 			 menus in GTK */
 			if(tmp->refnum > 0)
 			{
-				/* If we already have an entry defined, use it's info */
+				/* If we already have an entry defined, use its info */
 				MenuRef *tmpref = find_menuref(menutoadd->root, tmp->refnum);
 				if(tmpref)
 				{
@@ -2544,7 +2544,7 @@ void gtk_new_window(Screen *gtknew, Window *win)
 	else
 		zvt_load_font("fixed", gtknew);
 
-	gtknew->co = co; gtknew->li = li;
+	gtknew->co = current_term->co; gtknew->li = current_term->li;
 	zvt_term_set_scrollback((ZvtTerm *)gtknew->viewport, 0);
 	zvt_term_set_blink((ZvtTerm *)gtknew->viewport, TRUE);
 	zvt_term_set_bell((ZvtTerm *)gtknew->viewport, TRUE);
@@ -2832,13 +2832,13 @@ void gtk_main_paste (int refnum)
 					{
 						if(*current_window->query_nick && bit && *bit)
 							if (do_hook(PASTE_LIST, "%s %s", current_window->query_nick, bit))
-								send_text(current_window->query_nick, bit, NULL, 1, 0);
+								send_text(current_window->query_nick, bit, 0);
 					}
 					else
 					{
 						if(channel && *channel && bit && *bit)
 							if (do_hook(PASTE_LIST, "%s %s", channel, bit))
-								send_text(channel, bit, NULL, 1, 0);
+								send_text(channel, bit, 0);
 					}
 				} else
 				{
@@ -2905,13 +2905,13 @@ void gtk_main_paste (int refnum)
 						{
 							if(*current_window->query_nick && *smart)
 								if (do_hook(PASTE_LIST, "%s %s", current_window->query_nick, smart))
-									send_text(current_window->query_nick, smart, NULL, 1, 0);
+									send_text(current_window->query_nick, smart, 0);
 						}
 						else
 						{
 							if(channel && *channel && *smart)
 								if (do_hook(PASTE_LIST, "%s %s", channel, smart))
-									send_text(channel, smart, NULL, 1, 0);
+									send_text(channel, smart, 0);
 						}
 					}
 					else

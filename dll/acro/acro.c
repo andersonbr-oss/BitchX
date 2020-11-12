@@ -9,9 +9,9 @@ int Acro_Init(IrcCommandDll **intp, Function_ptr *global_table)
 {
 	initialize_module("Acromania");
 	add_module_proc(RAW_PROC, "acro", "PRIVMSG", NULL, 0, 0, acro_main, NULL);
-	add_module_proc(COMMAND_PROC, "scores", "scores", NULL, 0, 0, put_scores, NULL);
+	add_module_proc(COMMAND_PROC, "acro", "scores", NULL, 0, 0, put_scores, NULL);
 
-	gscores = read_scores();
+	read_scores();
 	if (!game)
 		game = init_acro(game);
 	put_it("BitchX Acromania dll v0.9b by By-Tor loaded...");
@@ -51,7 +51,7 @@ static int acro_main (char *comm, char *from, char *userhost, char **args)
 		send_to_server("PRIVMSG %s :Round %d", args[0], game->round);
 		send_to_server("PRIVMSG %s :The acronym for this round is %s. You have 60 seconds.", args[0], game->nym);
 		send_to_server("PRIVMSG %s :/msg %s \"acro <your answer>\"", args[0], get_server_nickname(from_server));
-		add_timer(0, "Acro", 60 * 1000, 1, (int(*)(void *))warn_acro, m_sprintf("%s", args[0]), NULL, NULL, "acro");
+		add_timer(0, "Acro", 60 * 1000, 1, warn_acro, m_sprintf("%s", args[0]), NULL, -1, "acro");
 	}
 	return 0;
 }
@@ -76,25 +76,30 @@ BUILT_IN_DLL(put_scores)
 */
 }
 
-void warn_acro(char *chan)
+int warn_acro(void *arg, char *subarg)
 {
+	char *chan = arg;
+
 	send_to_server("PRIVMSG %s :30 seconds! Puzzle is: %s", chan, game->nym);
-	add_timer(0, "Acro", 30 * 1000, 1, (int(*)(void *))start_vote, m_sprintf("%s", chan), NULL, NULL, "acro");
+	add_timer(0, "Acro", 30 * 1000, 1, start_vote, m_sprintf("%s", chan), NULL, -1, "acro");
+	return 0;
 }
 
-void start_vote(char *chan)
+int start_vote(void *arg, char *subarg)
 {
+	char *chan = arg;
+
 	if (game->players >= MINPLAYERS)
 	{
 		send_to_server("PRIVMSG %s :Time's up, lets vote!\r\nPRIVMSG %s :/msg %s \"acro #\" to vote", chan, chan, get_server_nickname(from_server));
 		game->progress = 2;
 		show_acros(player, chan);
-		add_timer(0, "Acro", 30 * 1000, 1, (int(*)(void *))warn_vote, m_sprintf("%s", chan), NULL, NULL, "acro");
+		add_timer(0, "Acro", 30 * 1000, 1, warn_vote, m_sprintf("%s", chan), NULL, -1, "acro");
 	}
 	else if (game->extended < EXTENSIONS)
 	{
 		send_to_server("PRIVMSG %s :Aww, too few players! Puzzle is: %s", chan, game->nym);
-		add_timer(0, "Acro", 30 * 1000, 1, (int(*)(void *))start_vote, m_sprintf("%s", chan), NULL, NULL, "acro");
+		add_timer(0, "Acro", 30 * 1000, 1, start_vote, m_sprintf("%s", chan), NULL, -1, "acro");
 		game->extended++;
 	}
 	else
@@ -104,16 +109,22 @@ void start_vote(char *chan)
 		game->players = 0;
 		game->progress = 0;
 	}
+	return 0;
 }
  
-void warn_vote(char *chan)
+int warn_vote(void *arg, char *subarg)
 {
+	char *chan = arg;
+
 	send_to_server("PRIVMSG %s :30 seconds left to vote!", chan);
-	add_timer(0, "Acro", 30 * 1000, 1, (int(*)(void *))end_voting, m_sprintf("%s", chan), NULL, NULL, "acro");
+	add_timer(0, "Acro", 30 * 1000, 1, end_voting, m_sprintf("%s", chan), NULL, -1, "acro");
+	return 0;
 }
 
-void end_voting(char *chan)
+int end_voting(void *arg, char *subarg)
 {
+	char *chan = arg;
+
 	put_it("END_VOTING");
 	send_to_server("PRIVMSG %s :Voting complete, sorting scores...", chan);
 	gscores = end_vote(voter, player, gscores);
@@ -137,7 +148,7 @@ void end_voting(char *chan)
 		send_to_server("PRIVMSG %s :Round %d", chan, game->round);
 		send_to_server("PRIVMSG %s :The acronym for this round is %s. You have 60 seconds.", chan, game->nym);
 		send_to_server("PRIVMSG %s :/msg %s \"acro <your answer>\"", chan, get_server_nickname(from_server));
-		add_timer(0, "Acro", 60 * 1000, 1, (int(*)(void *))warn_acro, m_sprintf("%s", chan), NULL, NULL, "acro");
+		add_timer(0, "Acro", 60 * 1000, 1, warn_acro, m_sprintf("%s", chan), NULL, -1, "acro");
 	}		
 	else
 	{
@@ -147,6 +158,7 @@ void end_voting(char *chan)
 		new_free(&game->nym);
 		init_acro(game);
 	}
+	return 0;
 }
 
 grec *init_acro(grec *gtmp)
@@ -225,13 +237,10 @@ prec *take_acro(grec *acro, prec *players, char *nick, char *host, char *stuff)
 	prec *tmp, *last = NULL;
 	if (!players)
 	{
-		players = (prec *)new_malloc(sizeof(prec));
-		players->nick = (char *)new_malloc(strlen(nick)+1);
-		players->host = (char *)new_malloc(strlen(host)+1);
-		players->acro = (char *)new_malloc(strlen(stuff)+1);
-		strcpy(players->nick, nick);
-		strcpy(players->host, host);
-		strcpy(players->acro, stuff);
+		players = new_malloc(sizeof(prec));
+		players->nick = m_strdup(nick);
+		players->host = m_strdup(host);
+		players->acro = m_strdup(stuff);
 		send_to_server("PRIVMSG %s :Answer set to \"%s\"\r\nPRIVMSG %s :You are player #%d", nick, stuff, nick, ++acro->players);
 		return players;
 	}
@@ -253,8 +262,7 @@ prec *take_acro(grec *acro, prec *players, char *nick, char *host, char *stuff)
 				return players;
 			}
 			else {
-				tmp->last = (char *)new_malloc(strlen(stuff)+1);
-				strcpy(tmp->last, stuff);
+				tmp->last = m_strdup(stuff);
 				send_to_server("PRIVMSG %s :You already submitted an answer, submit once more to change.", nick);
 				return players;
 			}
@@ -263,13 +271,10 @@ prec *take_acro(grec *acro, prec *players, char *nick, char *host, char *stuff)
 	}
 	if (acro->players < MAXPLAYERS && last)
 	{
-		tmp = last->next = (prec *)new_malloc(sizeof(prec));
-		tmp->nick = (char *)new_malloc(strlen(nick)+1);
-		tmp->host = (char *)new_malloc(strlen(host)+1);
-		tmp->acro = (char *)new_malloc(strlen(stuff)+1);
-		strcpy(tmp->nick, nick);
-		strcpy(tmp->host, host);
-		strcpy(tmp->acro, stuff);
+		tmp = last->next = new_malloc(sizeof(prec));
+		tmp->nick = m_strdup(nick);
+		tmp->host = m_strdup(host);
+		tmp->acro = m_strdup(stuff);
 		send_to_server("PRIVMSG %s :Answer set to \"%s\"\r\nPRIVMSG %s :You are player #%d", nick, stuff, nick, ++acro->players);
 	}
 	else
@@ -295,12 +300,10 @@ vrec *take_vote(grec *acro, vrec *voters, prec *players, char *nick, char *host,
 	}
 	if (!voters)
 	{
-		voters = (vrec *)new_malloc(sizeof(vrec));
-		voters->nick = (char *)new_malloc(strlen(nick)+1);
-		voters->host = (char *)new_malloc(strlen(host)+1);
+		voters = new_malloc(sizeof(vrec));
+		voters->nick = m_strdup(nick);
+		voters->host = m_strdup(host);
 		voters->vote = atoi(num)-1;
-		strcpy(voters->nick, nick);
-		strcpy(voters->host, host);
 		send_to_server("PRIVMSG %s :Vote recorded...", nick);
 		return voters;
 	}
@@ -315,68 +318,52 @@ vrec *take_vote(grec *acro, vrec *voters, prec *players, char *nick, char *host,
 	}
 	if (last && !last->next)
 	{
-		last = last->next = (vrec *)new_malloc(sizeof(vrec));
-		last->nick = (char *)new_malloc(strlen(nick)+1+sizeof(char *));
-		last->host = (char *)new_malloc(strlen(host)+1+sizeof(char *));
+		last = last->next = new_malloc(sizeof(vrec));
+		last->nick = m_strdup(nick);
+		last->host = m_strdup(host);
 		last->vote = atoi(num)-1;
-		strcpy(last->nick, nick);
-		strcpy(last->host, host);
 		send_to_server("PRIVMSG %s :Vote recorded...", nick);
 	}
 	return voters;
 }
 
-srec *read_scores()
+void read_scores(void)
 {
-	srec *tmp, *tmp2;
-	char buff[100], *p;
-	FILE *sf;
-	tmp = tmp2 = (srec *)new_malloc(sizeof(srec));
-	memset(buff, 0, sizeof(buff));
-	sf = fopen(SCOREFILE, "r");
-	if (!sf)
-		return 0;
-	while (!feof(sf))
+	FILE *infile;
+	srec *record;
+	unsigned long score;
+	char nick[64];
+
+	infile = fopen(SCOREFILE, "r");
+	if (infile == NULL)
+		return;
+
+	while (fscanf(infile, " %63[^ ,] , %lu", nick, &score) == 2)
 	{
-		if (fgets(buff, 51, sf))
-		{
-			if (tmp->nick)
-				tmp = tmp->next = (srec *)new_malloc(sizeof(srec));
-			if (buff[strlen(buff)-1] == '\n')
-				buff[strlen(buff)-1] = 0;
-			if (!*buff)
-				break;
-			if ((p = (char *)strchr(buff, ',')))
-				*p++ = 0;
-			else if (!p)
-			{
-				return tmp2;
-				fclose(sf);
-			}
-			tmp->nick = (char *)new_malloc(strlen(buff+1));
-			strcpy(tmp->nick, buff);
-			if (p)
-				tmp->score = strtoul(p, NULL, 10);
-		}
-		else
-			break;
+		record = new_malloc(sizeof(srec));
+		record->nick = m_strdup(nick);
+		record->score = score;
+		add_to_list((List **)&gscores, (List *)record);
 	}
-	fclose(sf);
-	return tmp2;
+
+	fclose(infile);
 }
 
 int write_scores(srec *tmp)
 {
 	FILE *sf;
+
 	if (!tmp)
 		return 0;
-	tmp = sort_scores(tmp);
+
 	sf = fopen(SCOREFILE, "w");
 	if (!sf)
 		return 0;
+
 	for (; tmp; tmp = tmp->next)
 		if (tmp->score > 0)
 			fprintf(sf, "%s,%lu\n", tmp->nick, tmp->score);
+
 	fclose(sf);
 	return 1;
 }
@@ -401,7 +388,7 @@ srec *end_vote(vrec *voters, prec *players, srec *stmp)
 	prec *tmp2 = NULL;
 	srec *tmp3 = NULL, *last;
 	if (!stmp && voters && players)
-		stmp = (srec *)new_malloc(sizeof(srec));
+		stmp = new_malloc(sizeof(srec));
 	for (tmp = voters; tmp; tmp = tmp->next)
 	{
 		gotscore = 0;
@@ -410,8 +397,7 @@ srec *end_vote(vrec *voters, prec *players, srec *stmp)
 			tmp2 = tmp2->next;
 		if (stmp && !stmp->nick)
 		{
-			stmp->nick = (char *)new_malloc(strlen(tmp2->nick)+1);
-			strcpy(stmp->nick, tmp2->nick);
+			stmp->nick = m_strdup(tmp2->nick);
 			stmp->score = 1;
 			continue;
 		}
@@ -427,39 +413,12 @@ srec *end_vote(vrec *voters, prec *players, srec *stmp)
 		}
 		if (!gotscore)
 		{
-			tmp3 = last->next = (srec *)new_malloc(sizeof(srec));
-			tmp3->nick = (char *)new_malloc(strlen(tmp2->nick)+1);
-			strcpy(tmp3->nick, tmp2->nick);
+			tmp3 = last->next = new_malloc(sizeof(srec));
+			tmp3->nick = m_strdup(tmp2->nick);
 			tmp3->score = 1;
 		}
 	}
 	return stmp;
-}
-
-srec *sort_scores(srec *stmp)
-{
-	int i = 0;
-	srec *tmp;
-	srec **sort, **ctmp;
-	if (!stmp->next)
-		return stmp;
-	for (tmp = stmp; tmp; tmp = tmp->next)
-		i++;
-	ctmp = sort = (srec **)new_malloc(i*sizeof(srec *));
-	put_it("START SORTING");
-	put_scores(NULL, NULL, NULL, NULL, NULL);
-	for (tmp = stmp; tmp; tmp = tmp->next)
-		*ctmp++ = tmp;
-        qsort((void *)sort, i+1, sizeof(srec *), (int (*)(const void *, const void *))comp_score);
-	ctmp = sort;
-	for (tmp = *ctmp++; *ctmp; ctmp++)
-		tmp = tmp->next = *ctmp;
-	tmp->next = NULL;
-	tmp = *sort;
-	new_free(&sort);
-	put_scores(NULL, NULL, NULL, NULL, NULL);
-	put_it("END SCORES");
- 	return tmp;
 }
 
 /* 
@@ -468,8 +427,11 @@ srec *sort_scores(srec *stmp)
  * me going for a while, no wonder it didnt sort right at first! :)
 */
 
-int comp_score(srec **one, srec **two)
+static int comp_score(const void *a, const void *b)
 {
+  srec * const *one = a;
+  srec * const *two = b;
+
   if ((*one)->score > (*two)->score)
     return -1;
   if ((*one)->score < (*two)->score)
@@ -478,87 +440,89 @@ int comp_score(srec **one, srec **two)
     return strcasecmp((*one)->nick, (*two)->nick);
 }
 
+srec *sort_scores(srec *stmp)
+{
+	size_t n = 0;
+	srec *tmp;
+	srec **sort, **ctmp;
+	
+	if (!stmp->next)
+		return stmp;
+
+	for (tmp = stmp; tmp; tmp = tmp->next)
+		n++;
+	ctmp = sort = (srec **)new_malloc(n * sizeof sort[0]);
+
+	put_it("START SORTING");
+	put_scores(NULL, NULL, NULL, NULL, NULL);
+
+	for (tmp = stmp; tmp; tmp = tmp->next)
+		*ctmp++ = tmp;
+	qsort(sort, n, sizeof sort[0], comp_score);
+
+	tmp = sort[0];
+	for (ctmp = &sort[1]; ctmp < &sort[n]; ctmp++)
+	{
+		tmp->next = *ctmp;
+		tmp = *ctmp;
+	}
+	tmp->next = NULL;
+
+	tmp = sort[0];
+	new_free(&sort);
+	put_scores(NULL, NULL, NULL, NULL, NULL);
+	put_it("END SCORES");
+ 	return tmp;
+}
+
 void show_acros(prec *players, char *chan)
 {
 	prec *tmp;
 	int i = 1;
-	char *line, buff[201];
 	if (!players)
 		return;
-	line = (char *)new_malloc(513);
-	memset(buff, 0, sizeof(buff));
 	for (tmp = players; tmp; tmp = tmp->next)
-	{
-		snprintf(buff, 198, "PRIVMSG %s :%2d: %s", chan, i++, tmp->acro);
-		strcat(buff, "\r\n");
-		if (strlen(line)+strlen(buff) >= 512)
-		{
-			send_to_server("%s", line);
-			memset(line, 0, 513);
-		}
-		strcat(line, buff);
-		memset(buff, 0, sizeof(buff));
-	}
-	if (line)
-		send_to_server("%s", line);
-	new_free(&line);
+		send_to_server("PRIVMSG %s :%2d: %s", chan, i++, tmp->acro);
 } 
 
 void show_scores(grec *acro, srec *score, srec *gscore, char *chan)
 {
-	char *line, buff[201];
 	int i;
-	line = (char *)new_malloc(513);
-	memset(buff, 0, sizeof(buff));
 	if (score)
 		score = sort_scores(score);
 	if (gscore && (acro->round >= acro->rounds))
 		gscore = sort_scores(gscore);
 	if (acro->round < acro->rounds)
-		sprintf(line, "PRIVMSG %s :Scores for round %d\r\nPRIVMSG %s :Nick        Score\r\nPRIVMSG %s :-----------------\r\n", chan, acro->round, chan, chan);
+		send_to_server("PRIVMSG %s :Scores for round %d\r\nPRIVMSG %s :Nick        Score\r\nPRIVMSG %s :-----------------", chan, acro->round, chan, chan);
 	else
-		sprintf(line, "PRIVMSG %s :Game over, tallying final scores...\r\nPRIVMSG %s :   Game Score          Overall Score\r\nPRIVMSG %s :Nick        Score    Nick        Score\r\nPRIVMSG %s :-----------------    -----------------\r\n", chan, chan, chan, chan);
+		send_to_server("PRIVMSG %s :Game over, tallying final scores...\r\nPRIVMSG %s :   Game Score          Overall Score\r\nPRIVMSG %s :Nick        Score    Nick        Score\r\nPRIVMSG %s :-----------------    -----------------", chan, chan, chan, chan);
 	for (i = 0; i < acro->top && (score || gscore); i++)
 	{
 		if ((acro->round < acro->rounds) && score)
 		{
-			snprintf(buff, 198, "PRIVMSG %s :%-9s    %lu", chan, score->nick, score->score);
-			strcat(buff, "\r\n");
+			send_to_server("PRIVMSG %s :%-9s    %lu", chan, score->nick, score->score);
 			score = score->next;
 		}
 		else if (acro->round == acro->rounds && (score || gscore)) 
 		{
 			if (!score && gscore)
 			{
-				snprintf(buff, 198, "PRIVMSG %s :                     %-9s   %lu", chan, gscore->nick, gscore->score);
-				strcat(buff, "\r\n");
+				send_to_server("PRIVMSG %s :                     %-9s   %lu", chan, gscore->nick, gscore->score);
 				gscore = gscore->next;
 			}
 			else if (score && !gscore)
 			{
-				snprintf(buff, 198, "PRIVMSG %s :%-9s    %lu", chan, score->nick, score->score);
-				strcat(buff, "\r\n");
+				send_to_server("PRIVMSG %s :%-9s    %lu", chan, score->nick, score->score);
 				score = score->next;
 			}
 			else if (gscore && score)
 			{
-				snprintf(buff, 198, "PRIVMSG %s :%-9s    %-5lu   %-9s    %lu", chan, score->nick, score->score, gscore->nick, gscore->score);
-				strcat(buff, "\r\n");
+				send_to_server("PRIVMSG %s :%-9s    %-5lu   %-9s    %lu", chan, score->nick, score->score, gscore->nick, gscore->score);
 				gscore = gscore->next;
 				score = score->next;
 			}
 		}
-		if (strlen(line)+strlen(buff) >= 512)
-		{
-			send_to_server("%s", line);
-			memset(line, 0, 513);
-		}
-		strcat(line, buff);
-		memset(buff, 0, sizeof(buff));
 	}
-	if (line)
-		send_to_server("%s", line);
-	new_free(&line);
 } 
 
 void free_round(prec **players, vrec **voters)

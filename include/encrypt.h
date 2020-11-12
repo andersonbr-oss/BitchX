@@ -1,5 +1,5 @@
 /*
- * crypt.h: header for crypt.c 
+ * encrypt.h: header for encrypt.c 
  *
  * Written By Michael Sandrof
  *
@@ -7,20 +7,17 @@
  *
  * See the COPYRIGHT file, or do a HELP IRCII COPYRIGHT 
  *
- * @(#)$Id: encrypt.h 3 2008-02-25 09:49:14Z keaston $
+ * @(#)$Id$
  */
+#ifndef ENCRYPT_H_
+#define ENCRYPT_H_
 
-#ifndef __CRYPT_H_
-#define __CRYPT_H_
-
-	char	*crypt_msg (char *, char *);
-	char	*decrypt_msg (char *, char *);
-	void	encrypt_cmd (char *, char *, char *, char *);
-	char	*is_crypted (char *);
-	void	BX_my_decrypt (char *, int, char *);
-	void	BX_my_encrypt (char *, int, char *);
+void encrypt_cmd(char *, char *, char *, char *);
+const char *is_crypted(char *);
+void BX_my_decrypt(char *, int, const char *);
+void BX_my_encrypt(char *, int, const char *);
 
 #define CRYPT_HEADER ""
 #define CRYPT_HEADER_LEN 5
 
-#endif /* __crypt_h_ */
+#endif /* ENCRYPT_H_ */

@@ -4,6 +4,7 @@
  */
 
 #include "irc.h"
+#include "ircaux.h"
 #include "struct.h"
 #include "hook.h"
 #include "module.h"
@@ -181,7 +182,7 @@ void q_timer(int fd) {
 	querying = 0;
 }
 
-void query_q_server(char *server, int port, int game) {
+void query_q_server(char *server, unsigned short port, int game) {
 	char buffer[16];
 
 	struct sockaddr_in qsock;
@@ -227,7 +228,7 @@ void query_q_server(char *server, int port, int game) {
 
 int pub_proc(char *which, char *str, char **unused) {
 	char *loc, *nick, *chan, *cmd, *serv;
-	int port = 0;
+	unsigned short port = 0;
 
 	if(qbx_on == 0) return 1;
 	loc = LOCAL_COPY(str);

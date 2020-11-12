@@ -1,18 +1,13 @@
 /*
- * Everything that im not directly responsible for i put in here.  Almost
+ * Everything that I'm not directly responsible for I put in here.  Almost
  * all of this stuff is either borrowed from somewhere else (for those poor
- * saps that dont have something you need), or i wrote (and put into the 
+ * saps that don't have something you need), or I wrote (and put into the 
  * public domain) in order to make epic compile on some of the more painful
- * systems.  None of this is part of EPIC-proper, so dont feel that youre 
+ * systems.  None of this is part of EPIC-proper, so don't feel that you're 
  * going to hurt my feelings if you re-use this.
  */
 
-#include "defs.h"
-#include "ircaux.h"
 #include "irc_std.h"
-#define MAIN_SOURCE
-#include "modval.h"
-
 
 /* --- start of tparm.c --- */
 #ifndef HAVE_TPARM
@@ -188,7 +183,7 @@ static int termcap;
 	%c	output pop as a char
 	%'c'	push character constant c.
 	%{n}	push decimal constant n.
-	%p[1-9] push paramter [1-9]
+	%p[1-9] push parameter [1-9]
 	%g[a-z] push variable [a-z]
 	%P[a-z] put pop in variable [a-z]
 	%l	push the length of pop (a string)
@@ -226,7 +221,7 @@ static int termcap;
 (UW)	%sx	subtract parameter FROM the character x
 	%>xy	if parameter > character x then add character y to parameter
 	%B	convert to BCD (parameter = (parameter/10)*16 + parameter%16)
-	%D	Delta Data encode (parameter = parameter - 2*(paramter%16))
+	%D	Delta Data encode (parameter = parameter - 2*(parameter%16))
 	%i	increment the first two parameters by one
 	%n	xor the first two parameters by 0140
 (GNU)	%m	xor the first two parameters by 0177
@@ -234,7 +229,7 @@ static int termcap;
 (GNU)	%b	backup to previous parameter
 (GNU)	%f	skip this parameter
 
-  Note the two definitions of %a, the GNU defintion is used if the characters
+  Note the two definitions of %a, the GNU definition is used if the characters
   after the 'a' are valid, otherwise the UW definition is used.
 
   (GNU) used by GNU Emacs termcap libraries
@@ -334,8 +329,8 @@ char *tparm(const char *str, ...) {
 					return OOPS;
 				if ((sp[1] == 'p' || sp[1] == 'c')
 			            && sp[2] != '\0' && fmt == NULL) {
-					/* GNU aritmitic parameter, what they
-					   realy need is terminfo.	      */
+					/* GNU arithmetic parameter, what they
+					   really need is terminfo.	      */
 					int val, lc;
 					if (sp[1] == 'p'
 					    && getarg(termcap - 1 + sp[2] - '@',
@@ -344,7 +339,7 @@ char *tparm(const char *str, ...) {
 					if (sp[1] == 'c') {
 						lc = cvtchar(sp + 2, &c) + 2;
 					/* Mask out 8th bit so \200 can be
-					   used for \0 as per GNU doc's    */
+					   used for \0 as per GNU docs    */
 						val = c & 0177;
 					} else
 						lc = 2;
@@ -879,132 +874,12 @@ unsigned long strtoul (const char *nptr, char **endptr, int base)
 #endif /* DO NOT HAVE STRTOUL */
 /* --- end of strtoul.c --- */
 
-/* --- start of scandir.c --- */
-#ifndef HAVE_SCANDIR
-/*
- * Scandir.c -- A painful file for painful operating systems
- *
- * Technically, scandir is not a "standard" function.  It belongs to
- * 4.2BSD derived systems, and most everone that has any repsect for their
- * customers implements it sanely.  Which probably explains why its broken
- * on Solaris 2.
- *
- * I removed the 4BSD scandir function because it required intimite knowledge
- * of what was inside the DIR type, which sort of defeats the point.  What I
- * left was this extremely generic scandir function that only depends on
- * opendir(), readdir(), and closedir(), and perhaps the DIRSIZ macro.
- * The only member of struct dirent we peer into is d_name.
- *
- * Public domain
- */
-
-
-#define RESIZEDIR(x, y, z) x = realloc((void *)(x), sizeof(y) * (z))
-
-/* Initial guess at directory size. */
-#define INITIAL_SIZE	30
-
-typedef struct dirent DIRENT;
-
-/*
- * If the system doesnt have a way to tell us how big a directory entry
- * is, then we make a wild guess.  This shouldnt ever be SMALLER than 
- * the actual size, and if its larger, so what?  This will probably not
- * be a size thats divisible by 4, so the memcpy() may not be super
- * efficient.  But so what?  Any system that cant provide a decent scandir
- * im not worried about efficiency.
- */
-/* The SCO hack is at the advice of FireClown, thanks! =) */
-#if defined(_SCO_DS)
-# undef DIRSIZ
-#endif
-
-#ifndef DIRSIZ
-#  define DIRSIZ(d) (sizeof(DIRENT) + strlen(d->d_name) + 1)
-#endif
-
-
-/*
- * Scan the directory dirname calling select to make a list of selected
- * directory entries then sort using qsort and compare routine dcomp. Returns
- * the number of entries and a pointer to a list of pointers to struct direct
- * (through namelist). Returns -1 if there were any errors. 
- */
-int	scandir (const char *name, 
-		 DIRENT ***list,
-		 int 	(*selector) (DIRENT *), 
-		 int 	(*sorter) (const void *, const void *))
-{
-		DIRENT	**names;
-	static	DIRENT	*e;
-    		DIR	*dp;
-    		int	i;
-    		int	size = INITIAL_SIZE;
-
-	if (!(names = (DIRENT **)malloc(size * sizeof(DIRENT *))))
-		return -1;
-
-	if (access(name, R_OK | X_OK))
-		return -1;
-
-	if (!(dp = opendir(name)))
-		return -1;
-
-	/* Read entries in the directory. */
-	for (i = 0; (e = readdir(dp));)
-	{
-		if (!selector || (*selector)(e))
-		{
-			if (i + 1 >= size)
-			{
-				size <<= 1;
-				RESIZEDIR(names, DIRENT *, size);
-				if (!names)
-				{
-					closedir(dp);
-					return (-1);
-				}
-			}
-			names[i] = (DIRENT *)malloc(DIRSIZ(e));
-			if (names[i] == NULL)
-			{
-				int j;
-				for (j = 0; j < i; j++)
-					free(names[j]);
-				free(names);
-				closedir(dp);
-				return -1;
-			}
-			memcpy(names[i], e, DIRSIZ(e));
-			i++;
-		}
-	}
-
-	/*
-	 * Truncate the "names" array down to its actual size (why?)
-	 */
-	RESIZEDIR(names, DIRENT *, i + 2);
-	names[i + 1] = 0;
-	*list = names;
-	closedir(dp);
-
-	/*
-	 * Sort if neccesary...
-	 */
-	if (i && sorter)
-		qsort(names, i, sizeof(DIRENT *), sorter);
-
-	return i;
-}
-#endif
-/* --- end of scandir.c --- */
-
 /* --- start of env.c --- */
 #ifndef HAVE_SETENV
 /*
  * Copyright (c) 1987, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
- * See above for the neccesary list of conditions on use.
+ * See above for the necessary list of conditions on use.
  */
 
 #include <stdlib.h>
@@ -1022,7 +897,7 @@ int   bsd_setenv(const char *name, const char *value, int rewrite);
  *
  *	This routine *should* be a static; don't use it.
  */
-__inline__ static char *__findenv(const char *name, int *offset)
+static char *__findenv(const char *name, int *offset)
 {
 	extern char **environ;
 	register int len, i;
@@ -1151,7 +1026,7 @@ void bsd_unsetenv(const char *name)
  * Copyright (c) 1983, 1990, 1993
  *    The Regents of the University of California.  All rights reserved.
  * Portions Copyright (c) 1993 by Digital Equipment Corporation.
- * See above for the neccesary list of conditions on use.
+ * See above for the necessary list of conditions on use.
  */
 
 /* 
@@ -1255,33 +1130,6 @@ int inet_aton(const char *cp, struct in_addr *addr)
 /* --- end of inet_aton.c --- */
 
 /* --- start of misc stuff --- */
-#if 0
-int vsnprintf (char *str, size_t size, const char *format, va_list ap)
-{
-	int ret = vsprintf(str, format, ap);
-
-	/* If the string ended up overflowing, just give up. */
-	if (ret == (int)str && strlen(str) > size)
-		ircpanic("Buffer overflow in vsnprintf");
-	if (ret != (int)str && ret > size)
-		ircpanic("Buffer overflow in vsnprintf");
-
-	return ret;
-}
-#endif
-
-#if 0
-int snprintf (char *str, size_t size, const char *format, ...)
-{
-	int ret;
-	va_list args;
-
-	va_start(args, format);
-	ret = vsnprintf(str, size, format, args);
-	va_end(args);
-	return ret;
-}
-#endif
 
 /*
 
@@ -1295,7 +1143,7 @@ int snprintf (char *str, size_t size, const char *format, ...)
   */
 
 /*
- * $Id: compat.c 3 2008-02-25 09:49:14Z keaston $
+ * $Id$
  * $Log: compat.c,v $
  * Revision 1.1.1.1  2003/04/11 01:09:07  dan
  * inital import into backup cvs server
@@ -2060,7 +1908,7 @@ int	setsid	(void)
 #endif
 
 #ifndef HAVE_MEMMOVE
-/*  $Revision: 3 $
+/*  $Revision$
 **
 **  This file has been modified to get it to compile more easily
 **  on pre-4.4BSD systems.  Rich $alz, June 1991.
@@ -2148,7 +1996,6 @@ retval:
 
 #ifdef CLOAKED
 
-char proctitlestr[140];
 char **Argv = NULL;             /* pointer to argument vector */
 char *LastArgv = NULL;          /* end of argv */
 
@@ -2366,16 +2213,17 @@ int uname(struct utsname *buf)
 	if (aulBuffer[0] == 20)
 	{
 		int i = (unsigned int)aulBuffer[1];
-		strcpy(buf->release, ltoa(i));
 		if (i > 20)
 		{
 			strcpy(buf->sysname,"Warp");
-			sprintf(buf->release, "%d.%d", (int)i/10, i-(((int)i/10)*10));
+			sprintf(buf->release, "%d.%d", i / 10, i % 10);
 		}
 		else if (i == 10)
 			strcpy(buf->release, "2.1");
 		else if (i == 0)
 			strcpy(buf->release, "2.0");
+		else
+			sprintf(buf->release, "%d", i);
 		strcpy(buf->machine, "i386");
 		if(getenv("HOSTNAME") != NULL)
 			strcpy(buf->nodename, getenv("HOSTNAME"));
@@ -2401,58 +2249,3 @@ register unsigned int count = 0;
 	return count;
 }
 #endif
-
-/* ----------------------- start of base64 stuff ---------------------------*/
-/*
- * Copyright (c) 1995-2001 Kungliga Tekniska Högskolan
- * (Royal Institute of Technology, Stockholm, Sweden).
- * All rights reserved.
- *
- * This is licensed under the 3-clause BSD license, which is found above.
- */
-
-static char base64_chars[] = 
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/*
- * Return a malloced, base64 string representation of the first 'size' bytes
- * starting at 'data'.  Returns strlen(*str).
- */
-int	my_base64_encode (const void *data, int size, char **str)
-{
-    char *s, *p;
-    int i;
-    unsigned c;
-    const unsigned char *q;
-
-// XXX
-//    p = s = (char *)new_malloc(size * 4 / 3 + 4);
-    p = s = (char *)malloc(size * 4 / 3 + 4);
-    if (p == NULL)
-	return -1;
-    q = (const unsigned char *) data;
-    i = 0;
-    for (i = 0; i < size;) {
-	c = (unsigned)(unsigned char)q[i++];
-	c *= 256;
-	if (i < size)
-	    c += (unsigned)(unsigned char)q[i];
-	i++;
-	c *= 256;
-	if (i < size)
-	    c += (unsigned)(unsigned char)q[i];
-	i++;
-	p[0] = base64_chars[(c & 0x00fc0000) >> 18];
-	p[1] = base64_chars[(c & 0x0003f000) >> 12];
-	p[2] = base64_chars[(c & 0x00000fc0) >> 6];
-	p[3] = base64_chars[(c & 0x0000003f) >> 0];
-	if (i > size)
-	    p[3] = '=';
-	if (i > size + 1)
-	    p[2] = '=';
-	p += 4;
-    }
-    *p = 0;
-    *str = s;
-    return strlen(s);
-}

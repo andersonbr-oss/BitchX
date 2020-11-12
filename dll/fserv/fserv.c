@@ -191,7 +191,7 @@ char *make_mp3_string(FILE *fp, Files *f, char *fs, char *dirbuff)
 					*s++ = *fs;
 					break;
 				case 'b':
-					sprintf(s, "%*u", prec, f->bitrate);
+					sprintf(s, "%*d", prec, f->bitrate);
 					break;
 				case 's':
 					if (!prec) prec = 3;
@@ -216,7 +216,7 @@ char *make_mp3_string(FILE *fp, Files *f, char *fs, char *dirbuff)
 					sprintf(s, "%*.*f", prec, fl, ((double)f->freq) / ((double)1000.0));
 					break;
 				case 'h':
-					sprintf(s, "%*u", prec, f->freq);
+					sprintf(s, "%*d", prec, f->freq);
 					break;
 				default:
 					*s++ = *fs;
@@ -244,7 +244,7 @@ char *make_mp3_string(FILE *fp, Files *f, char *fs, char *dirbuff)
 		fs++;
 	}
 	if (fp && *buffer)
-		fprintf(fp, buffer);
+		fputs(buffer, fp);
 	return buffer;
 }
 
@@ -293,10 +293,9 @@ char *fs = NULL;
 	*dir = 0;
 	for (new = fserv_files; new; new = new->next)
 	{
-		if (!pattern || (pattern && wild_match(pattern, new->filename)))
+		if (!pattern || wild_match(pattern, new->filename))
 		{
 			char *p;
-			p = LOCAL_COPY(new->filename);
 			p = strrchr(new->filename, '/');
 			p++;
 			if (do_hook(MODULE_LIST, "FS: File \"%s\" %s %u %lu %lu %u", p, mode_str(new->stereo), new->bitrate, new->time, new->filesize, new->freq))
@@ -459,7 +458,7 @@ int gethdr(int file, AUDIO_HEADER *header)
 	return 0;
 }
 
-long get_bitrate(char *filename, time_t *mp3_time, unsigned int *freq_rate, int *id3, unsigned long *filesize, int *stereo)
+long get_bitrate(char *filename, time_t *mp3_time, int *freq_rate, int *id3, unsigned long *filesize, int *stereo)
 {
 	short t_bitrate[2][3][15] = {{
 	{0,32,48,56,64,80,96,112,128,144,160,176,192,224,256},
@@ -721,44 +720,60 @@ Files *search_list(char *nick, char *pat, int wild)
 	return NULL;
 }
 
-
 char *make_temp_list(char *nick)
 {
-	char	*nam;
-	char	*real_nam;
-	FILE	*fp;
-	
-	if (!(nam = get_dllstring_var("fserv_filename")) || !*nam)
-		nam = tmpnam(NULL);
-	real_nam = expand_twiddle(nam);
-	if (!fserv_files || !real_nam || !*real_nam)
-	{
-		new_free(&real_nam);
+	Files *file;
+	FILE *fp;
+	const time_t when = now;
+	int count;
+	char *fmt, *name;
+	char buf[BIG_BUFFER_SIZE + 1];
+
+	if (fserv_files == NULL)
 		return NULL;
-	}
-	if ((fp = fopen(real_nam, "w")))
+
+	name = get_dllstring_var("fserv_filename");
+	if (name != NULL && *name != '\0')
 	{
-		char	buffer2[BIG_BUFFER_SIZE+1];
-		char	*fs;
-		int	count = 0;
-		
-		time_t t = now;
-		Files *new;
-		strftime(buffer2, 200, "%X %d/%m/%Y", localtime(&t));
-		for (new = fserv_files; new; new = new->next)
-			count++;
-		fprintf(fp, "Temporary mp3 list created for %s by %s on %s with %d mp3's\n\n", nick, get_server_nickname(from_server), buffer2, count);
-		*buffer2 = 0;
-		if (!(fs = get_dllstring_var("fserv_format")) || !*fs)
-			fs = " %6.3s %3b [%t]\t %f\n";
-		for (new = fserv_files; new; new = new->next)
-			make_mp3_string(fp, new, fs, buffer2);
-		fclose(fp);
-		new_free(&real_nam);
-		return nam;
+		char *real_name = expand_twiddle(name);
+
+		if (real_name == NULL || *real_name == '\0')
+			return NULL;
+		fp = fopen(real_name, "w");
+		new_free(&real_name);
+		if (fp == NULL)
+			return NULL;
 	}
-	new_free(&real_nam);
-	return NULL;
+	else
+	{
+		int fd;
+		static char template[sizeof("fserv_XXXXXX")];
+
+		name = strcpy(template, "fserv_XXXXXX");
+		fd = mkstemp(template);
+		if (fd == -1)
+			return NULL;
+		fp = fdopen(fd, "w");
+		if (fp == NULL)
+		{
+			close(fd);
+			return NULL;
+		}
+	}
+
+	for (count = 0, file = fserv_files; file != NULL; file = file->next)
+		count++;
+	strftime(buf, sizeof(buf), "%X %d/%m/%Y", localtime(&when));
+	fprintf(fp, "Temporary mp3 list created for %s by %s on %s with %d mp3's\n\n",
+		nick, get_server_nickname(from_server), buf, count);
+	fmt = get_dllstring_var("fserv_format");
+	if (fmt == NULL || *fmt == '\0')
+		fmt = " %6.3s %3b [%t]\t %f\n";
+	for (*buf = '\0', file = fserv_files; file != NULL; file = file->next)
+		make_mp3_string(fp, file, fmt, buf);
+
+	fclose(fp);
+	return name;
 }
 
 BUILT_IN_DLL(list_fserv)
@@ -911,7 +926,7 @@ int search_proc(char *which, char *str, char **unused)
 	return 1;
 }
 
-void impress_me(void *args)
+int impress_me(void *args, char *sub)
 {
 	int		timer;
 	char		*ch = NULL;
@@ -979,6 +994,7 @@ void impress_me(void *args)
 	}
 	add_timer(0, empty_string, timer * 1000, 1, impress_me, NULL, NULL, -1, "fserv");
 	new_free(&ch);
+	return 0;
 }
 
 BUILT_IN_FUNCTION(func_convert_mp3time)
@@ -1028,13 +1044,13 @@ char *fserv_savname = NULL;
 		fprintf(fp, "%s%s %s\n", bogus, "_filename", p);
 	if ((p = get_dllstring_var("fserv_format")))
 		fprintf(fp, "%s%s %s\n", bogus, "_format", p);
-	fprintf(fp, "%s%s %u\n", bogus, "_time", get_dllint_var("fserv_time"));
-	fprintf(fp, "%s%s %u\n", bogus, "_max_match", get_dllint_var("fserv_max_match"));
+	fprintf(fp, "%s%s %d\n", bogus, "_time", get_dllint_var("fserv_time"));
+	fprintf(fp, "%s%s %d\n", bogus, "_max_match", get_dllint_var("fserv_max_match"));
 	fprintf(fp, "%s%s %s\n", bogus, "_impress", on_off(get_dllint_var("fserv_impress")));
 	if (statistics.files_served)
 	{
 		fprintf(fp, "%s%s %lu\n", bogus, "_totalserved", statistics.files_served);
-		fprintf(fp, "%s%s %lu\n", bogus, "_totalstart", statistics.starttime);
+		fprintf(fp, "%s%s %ld\n", bogus, "_totalstart", (long)statistics.starttime);
 		fprintf(fp, "%s%s %lu\n", bogus, "_totalsizeserved", statistics.filesize_served);
 	}
 	fclose(fp);
@@ -1163,7 +1179,7 @@ char buffer[BIG_BUFFER_SIZE+1];
 	add_completion_type("fsload", 3, FILE_COMPLETION);
 
 	add_timer(0, empty_string, get_dllint_var("fserv_time"), 1, impress_me, NULL, NULL, -1, "fserv");
-	strcpy(FSstr, cparse(FS, NULL, NULL));
+	strmcpy(FSstr, cparse(FS, NULL, NULL), sizeof(FSstr) - 1);
 	put_it("%s %s", FSstr, convert_output_format("$0 v$1 by panasync.", "%s %s", fserv_version, AUTO_VERSION));
 	sprintf(buffer, "$0+%s by panasync - $2 $3", fserv_version);
 	fset_string_var(FORMAT_VERSION_FSET, buffer);

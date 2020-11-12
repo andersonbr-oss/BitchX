@@ -8,7 +8,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: functions.c 204 2012-06-02 14:53:37Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(functions_c)
 #include "struct.h"
 
@@ -164,8 +164,8 @@ static	BuiltIns built_in[] =
 static		char	*function_channels 	(char *, char *);
 static		char	*function_connect 	(char *, char *);
 static		char	*function_curpos 	(char *, char *);
-		char	*function_decode 	(char *, unsigned char *);
-static		char	*function_encode 	(char *, unsigned char *);
+static		char	*function_decode 	(char *, char *);
+static		char	*function_encode 	(char *, char *);
 static		char	*function_index 	(char *, char *);
 static		char	*function_ischannel 	(char *, char *);
 static		char	*function_ischanop 	(char *, char *);
@@ -502,12 +502,12 @@ static BuiltInFunctions built_in_functions[] =
 	{ "CURPOS",		function_curpos 	},
 	{ "CURRCHANS",		function_currchans	},
 	{ "DCCITEM",		function_dccitem	},
-	{ "DECODE",	  (bf *)function_decode 	},
+	{ "DECODE",		function_decode 	},
 	{ "DELARRAY",           function_delarray 	},
 	{ "DELITEM",            function_delitem 	},
 	{ "DEUHC",		function_deuhc		},
 	{ "DIFF",               function_diff 		},
-	{ "ENCODE",	  (bf *)function_encode 	},
+	{ "ENCODE",		function_encode 	},
 	{ "EOF",		function_eof 		},
 	{ "EPIC",		function_epic		},
 	{ "FEXIST",             function_fexist 	},
@@ -820,14 +820,14 @@ int i = 0;
 char str[80];
 	while (built_in_functions[i].func)
 	{
-		sprintf(str, "_%s", built_in_functions[i].name);
+		snprintf(str, sizeof str, "_%s", built_in_functions[i].name);
 		Tcl_CreateCommand(tcl_interp, lower(str), func1?func1:built_in_functions[i].func, NULL, NULL);
 		i++;
 	}
 	i = 0;
 	while (built_in[i].func)
 	{
-		sprintf(str, "_%c", built_in[i].name);
+		snprintf(str, sizeof str, "_%c", built_in[i].name);
 		Tcl_CreateCommand(tcl_interp, str, func2?func2:built_in[i].func, NULL, NULL);
 		i++;
 	}
@@ -944,7 +944,6 @@ static BuiltInFunctions new;
 
 char **get_builtins(char *name, int *cnt)
 {
-char *last_match = NULL;
 int matches_size = 5;
 int i = 0;
 int len;
@@ -962,7 +961,6 @@ BuiltInDllFunctions *dll = NULL;
 		{
 			matches[*cnt] = NULL;
 			malloc_strcpy(&(matches[*cnt]), built_in_functions[i].name);
-			last_match = matches[*cnt];
 			if (++(*cnt) == matches_size)
 			{
 				matches_size += 5;
@@ -1095,7 +1093,7 @@ static	char	*alias_invite 		(void) { return m_strdup((invite_channel) ? invite_c
 static	char	*alias_oper 		(void) { return m_strdup(get_server_operator(from_server) ?  get_string_var(STATUS_OPER_VAR) : empty_string); }
 static	char	*alias_version 		(void) { return m_strdup(internal_version); }
 static  char    *alias_online 		(void) { return m_sprintf("%ld",(long)start_time); }
-static  char    *alias_idle 		(void) { return m_sprintf("%ld",now-idle_time); }
+static  char    *alias_idle 		(void) { return m_sprintf("%ld",(long)(now - idle_time)); }
 static  char    *alias_show_userhost 	(void) { return m_strdup(get_server_userhost(from_server)); }
 static	char	*alias_current_numeric	(void) { return m_sprintf("%03d", -current_numeric); }
 static	char	*alias_hookname		(void) { return m_sprintf("%s", *hook_name?hook_name:empty_string); }
@@ -1104,7 +1102,7 @@ static	char	*alias_uptime		(void) { return m_sprintf("%s", convert_time(now-star
 static	char	*alias_bitchx		(void) { return m_strdup("[BX]"); }
 extern char *return_this_alias (void);
 static	char	*alias_thisaliasname	(void) { return m_strdup(return_this_alias()); }
-static	char	*alias_serverlag	(void) { return m_sprintf("%ld", get_server_lag(from_server)); }
+static	char	*alias_serverlag	(void) { return m_sprintf("%d", get_server_lag(from_server)); }
 static	char	*alias_currentwindow	(void) { return m_sprintf("%d", current_window ? current_window->refnum : 0); }
 static	char	*alias_serverlistsize	(void) { return m_sprintf("%d", server_list_size()); }
 
@@ -1148,10 +1146,10 @@ static	char	*alias_server 		(void)
 
 static	char	*alias_awaytime		(void) 
 { 
-	return m_sprintf("%lu", parsing_server_index != -1 ? 
-					get_server_awaytime(parsing_server_index):
+	return m_sprintf("%ld", parsing_server_index != -1 ? 
+					(long)get_server_awaytime(parsing_server_index):
 					get_window_server(0) != -1 ? 
-					get_server_awaytime(get_window_server(0)):
+					(long)get_server_awaytime(get_window_server(0)):
 					0); 
 }
 
@@ -1185,12 +1183,9 @@ static	char	*alias_target 		(void)
 
 static	char	*alias_cmdchar 		(void)
 {
-	char	*cmdchars, tmp[2];
+	const char *cmdchars = get_string_var(CMDCHARS_VAR);
+	char tmp[2] = { cmdchars[0], 0 };
 
-	if ((cmdchars = get_string_var(CMDCHARS_VAR)) == NULL)
-		cmdchars = DEFAULT_CMDCHARS;
-	tmp[0] = cmdchars[0];
-	tmp[1] = 0;
 	return m_strdup(tmp);
 }
 
@@ -1240,9 +1235,9 @@ static	char	*alias_server_version  (void)
  * you consistently use these macros to do the dirty work for you, you
  * will never have to do bounds checking as the macros do that for you. >;-) 
  *
- * Yes, i realize it makes the code slightly less efficient, but i feel that 
- * the cost is minimal compared to how much time i have spent over the last 
- * year debugging these functions and the fact i wont have to again. ;-)
+ * Yes, I realize it makes the code slightly less efficient, but I feel that
+ * the cost is minimal compared to how much time I have spent over the last
+ * year debugging these functions and the fact I won't have to again. ;-)
  */
 
 #define EMPTY empty_string
@@ -1252,7 +1247,7 @@ static	char	*alias_server_version  (void)
 #define GET_INT_ARG(x, y) {RETURN_IF_EMPTY(y); x = atol(safe_new_next_arg(y, &y));}
 #define GET_FLOAT_ARG(x, y) {RETURN_IF_EMPTY(y); x = atof(safe_new_next_arg(y, &y));}
 #define GET_STR_ARG(x, y) {RETURN_IF_EMPTY(y); x = new_next_arg(y, &y);RETURN_IF_EMPTY(x);}
-#define RETURN_STR(x) return m_strdup(x ? x : EMPTY)
+#define RETURN_STR(x) return m_strdup((x) != NULL ? (x) : EMPTY)
 #define RETURN_MSTR(x) return ((x) ? (x) : EMPTY_STRING);
 #define RETURN_INT(x) return m_strdup(ltoa(x))
 
@@ -1347,13 +1342,31 @@ BUILT_IN_FUNCTION(function_mid, word)
  */
 BUILT_IN_FUNCTION(function_rand, word)
 {
-	long	tempin;
-	int 	result;
+	long tempin;
+	unsigned long rand_n;
+	int result;
 
 	GET_INT_ARG(tempin, word);
-	if (tempin == 0)
-		tempin = (unsigned long) -1;	/* This is cheating. :P */
-	result = random_number(0L) % tempin;
+
+	switch (get_int_var(RANDOM_SOURCE_VAR))
+	{
+		case 0:
+		default:
+			rand_n = randd(0);
+			break;
+		case 1:
+			rand_n = randm(0);
+			break;
+		case 2:
+			rand_n = randt(0);
+			break;
+	}
+
+	if (tempin)
+		result = rand_n % tempin;
+	else
+		result = rand_n;
+
 	RETURN_INT(result);
 }
 
@@ -1365,7 +1378,9 @@ BUILT_IN_FUNCTION(function_rand, word)
  */
 BUILT_IN_FUNCTION(function_srand, word)
 {
-	random_number((long) now);
+	/* randd() and randt() do not accept seeding */
+	randm((long)now);
+
 	RETURN_EMPTY;
 }
 
@@ -1450,7 +1465,7 @@ BUILT_IN_FUNCTION(function_tdiff, input)
 		/*
 		 * If we have a decmial point, and is_number() returns 1,
 		 * then we know that we have a real, authentic number AFTER
-		 * the decmial point.  As long as it isnt zero, we want it.
+		 * the decmial point.  As long as it isn't zero, we want it.
 		 */
 		if (*after == '.')
 			number = atol(after + 1);
@@ -1494,7 +1509,7 @@ BUILT_IN_FUNCTION(function_index, input)
 /*
  * Usage: $rindex(characters text)
  * Returns: The number of leading characters in <text> that occur before the
- *          *last* occurance of any of the characters in the <characters> 
+ *          *last* occurrence of any of the characters in the <characters>
  *          argument.
  * Example: $rindex(f three fine frogs) returns 12 (the 'f' in 'frogs')
  *          $rindex(frg three fine frogs) returns 15 (the 'g' in 'froGs')
@@ -1503,9 +1518,9 @@ BUILT_IN_FUNCTION(function_rindex, word)
 {
 	char	*chars, *last;
 
-	/* need to find out why ^x doesnt work */
+	/* need to find out why ^x doesn't work */
 	GET_STR_ARG(chars, word);
-	last = rsindex(word + strlen(word) - 1, word, chars, 1);
+	last = rsindex(word + strlen(word), word, chars);
 	RETURN_INT(last ? last - word : -1);
 }
 
@@ -1582,7 +1597,7 @@ BUILT_IN_FUNCTION(function_rmatch, input)
 
 /*
  * Usage: $userhost()
- * Returns: the userhost (if any) of the most previously recieved message.
+ * Returns: the userhost (if any) of the most previously received message.
  * Caveat: $userhost() changes with every single line that appears on
  *         your screen, so if you want to save it, you will need to assign
  *         it to a variable.
@@ -1603,7 +1618,7 @@ BUILT_IN_FUNCTION(function_userhost, input)
 			else
 				m_s3cat(&retval, space, unknown_userhost);
 		}
-		return retval;		/* DONT USE RETURN_STR HERE! */
+		return retval;		/* DON'T USE RETURN_STR HERE! */
 	}
 	RETURN_STR(FromUserHost);
 }
@@ -1640,7 +1655,7 @@ BUILT_IN_FUNCTION(function_strip, input)
 	}
 	*dp = '\0';
 
-	return result;		/* DONT USE RETURN_STR HERE! */
+	return result;		/* DON'T USE RETURN_STR HERE! */
 }
 
 /*
@@ -1652,21 +1667,21 @@ BUILT_IN_FUNCTION(function_strip, input)
  * Note: $encode($decode(text)) returns text (most of the time)
  *       $decode($encode(text)) also returns text.
  */
-static char * function_encode (char *n, unsigned char * input)
+BUILT_IN_FUNCTION(function_encode, input)
 {
-	char	*result;
+	char *result;
 	int	i = 0;
 
-	result = (char *)new_malloc(strlen((char *)input) * 2 + 1);
+	result = new_malloc(strlen(input) * 2 + 1);
 	while (*input)
 	{
-		result[i++] = (*input >> 4) + 0x41;
-		result[i++] = (*input & 0x0f) + 0x41;
+		result[i++] = ((unsigned char)*input >> 4) + 'A';
+		result[i++] = ((unsigned char)*input & 0x0f) + 'A';
 		input++;
 	}
 	result[i] = '\0';
 
-	return result;		/* DONT USE RETURN_STR HERE! */
+	return result;		/* DON'T USE RETURN_STR HERE! */
 }
 
 
@@ -1684,23 +1699,23 @@ static char * function_encode (char *n, unsigned char * input)
  *       But it ignores non-ascii text, so use this as compression at your
  *	 own risk and peril.
  */
-char *function_decode(char *n, unsigned char * input)
+BUILT_IN_FUNCTION(function_decode, input)
 {
-	unsigned char	*result;
+	unsigned char *result;
 	int	i = 0;
 
-	result = (unsigned char *)new_malloc(strlen((char *)input) / 2 + 1);
+	result = new_malloc(strlen(input) / 2 + 1);
 
 	while (input[0] && input[1])
 	{
-		/* oops, this isnt quite right. */
-		result[i] = ((input[0] - 0x41) << 4) | (input[1] - 0x41);
+		/* oops, this isn't quite right. */
+		result[i] = ((input[0] - 'A') << 4) | (input[1] - 'A');
 		input += 2;
 		i++;
 	}
 	result[i] = '\0';
 
-	return result;		/* DONT USE RETURN_STR HERE! */
+	return (char *)result;		/* DON'T USE RETURN_STR HERE! */
 }
 
 
@@ -1831,7 +1846,7 @@ BUILT_IN_FUNCTION(function_connect, input)
 	GET_STR_ARG(host, input);
 	GET_INT_ARG(port, input);
 
-	return dcc_raw_connect(host, port);	/* DONT USE RETURN_STR HERE! */
+	return dcc_raw_connect(host, port);	/* DON'T USE RETURN_STR HERE! */
 }
 
 
@@ -1853,7 +1868,7 @@ BUILT_IN_FUNCTION(function_listen, input)
 	}
 
 	result = dcc_raw_listen(port);
-	RETURN_STR(result);			/* DONT REMOVE RESULT! */
+	RETURN_STR(result);			/* DON'T REMOVE RESULT! */
 }
 
 BUILT_IN_FUNCTION(function_toupper, input)
@@ -1871,24 +1886,56 @@ BUILT_IN_FUNCTION(function_curpos, input)
 	RETURN_INT(current_window->screen->buffer_pos);
 }
 
+/* $mychannels([window refnum])
+ *
+ * Returns the list of channels associated with the server for the given window.
+ *
+ * Note that this differs from the EPIC4/EPIC5 function of the same name, which
+ * takes a server refnum instead.
+ */
 BUILT_IN_FUNCTION(function_channels, input)
 {
-	long	winnum;
-	Window  *window = current_window;
+	Window *window = current_window;
 
 	if (isdigit((unsigned char)*input))
 	{
+		long winnum;
+
 		GET_INT_ARG(winnum, input);
 		window = get_window_by_refnum(winnum);
 	}
-	if (window->server <= -1)
+
+	if (!window)
 		RETURN_EMPTY;
-	return create_channel_list(window);	/* DONT USE RETURN_STR HERE! */
+
+	return create_channel_list(window);	/* DON'T USE RETURN_STR HERE! */
 }
 
 BUILT_IN_FUNCTION(function_servers, input)
 {
-	return create_server_list(input);		/* DONT USE RETURN_STR HERE! */
+	const int n_servers = server_list_size();
+	int	i;
+	int	do_read = 0;
+	char *value = NULL;
+
+	if (input && *input == '1')
+		do_read = 1;
+
+	for (i = 0; i < n_servers; i++)
+	{
+		if (do_read)
+		{
+			if (is_server_connected(i))
+				m_s3cat(&value, " ", ltoa(i));
+		}
+		else
+		{
+			if (is_server_open(i))
+				m_s3cat(&value, " ", get_server_itsname(i));
+		}
+	}
+
+	RETURN_MSTR(value);
 }
 
 BUILT_IN_FUNCTION(function_pid, input)
@@ -1946,12 +1993,12 @@ BUILT_IN_FUNCTION(function_idle, input)
  */
 BUILT_IN_FUNCTION(function_before, word)
 {
-	char	*pointer = NULL;
+	char	*pointer;
 	char	*chars;
 	char	*tmp;
 	long	numint;
 
-	GET_STR_ARG(tmp, word);			/* DONT DELETE TMP! */
+	GET_STR_ARG(tmp, word);			/* DON'T DELETE TMP! */
 	numint = atol(tmp);
 
 	if (numint)
@@ -1964,10 +2011,7 @@ BUILT_IN_FUNCTION(function_before, word)
 		chars = tmp;
 	}
 
-	if (numint < 0 && strlen(word))
-		pointer = word + strlen(word) - 1;
-
-	pointer = strsearch(word, pointer, chars, numint);
+	pointer = strsearch(word, chars, numint);
 
 	if (!pointer)
 		RETURN_EMPTY;
@@ -1984,7 +2028,7 @@ BUILT_IN_FUNCTION(function_before, word)
 BUILT_IN_FUNCTION(function_after, word)
 {
 	char	*chars;
-	char	*pointer = NULL;
+	char	*pointer;
 	char 	*tmp;
 	long	numint;
 
@@ -1999,10 +2043,7 @@ BUILT_IN_FUNCTION(function_after, word)
 		chars = tmp;
 	}
 
-	if (numint < 0 && strlen(word))
-		pointer = word + strlen(word) - 1;
-
-	pointer = strsearch(word, pointer, chars, numint);
+	pointer = strsearch(word, chars, numint);
 
 	if (!pointer || !*pointer)
 		RETURN_EMPTY;
@@ -2022,7 +2063,7 @@ BUILT_IN_FUNCTION(function_leftw, word)
 	if (value < 1)
 		RETURN_EMPTY;
 
-	return (extract(word, 0, value-1));	/* DONT USE RETURN_STR HERE! */
+	return (extract(word, 0, value-1));	/* DON'T USE RETURN_STR HERE! */
 }
 
 /* $rightw(num string of text)
@@ -2089,7 +2130,7 @@ BUILT_IN_FUNCTION(function_notw, word)
 	else /* where == 0 */
 		booya = extract(word, 1, EOS);
 
-	return booya;				/* DONT USE RETURN_STR HERE! */
+	return booya;				/* DON'T USE RETURN_STR HERE! */
 }
 
 /* $restw(num string of text)
@@ -2112,46 +2153,54 @@ BUILT_IN_FUNCTION(function_restw, word)
  * returns "string of text" with the word "word" removed
  * EX: $remw(the now is the time for) returns "now is time for"
  */
-BUILT_IN_FUNCTION(function_remw, word)
+BUILT_IN_FUNCTION(function_remw, text)
 {
-	char 	*word_to_remove;
-	int	len;
-	char	*str;
+	char *word_to_remove;
+	size_t len;
+	char *str;
 
-	GET_STR_ARG(word_to_remove, word);
+	GET_STR_ARG(word_to_remove, text);
 	len = strlen(word_to_remove);
 
-	str = stristr(word, word_to_remove);
-	for (; str && *str; str = stristr(str + 1, word_to_remove))
+	/* Find the first instance of word_to_remove that's either at the start
+	 * of the text or preceded by a space, and is either at the end of the
+	 * text or followed by a space. */
+	str = stristr(text, word_to_remove);
+
+	while (str && 
+		((str != text && !isspace((unsigned char)str[-1])) ||
+		 (str[len] && !isspace((unsigned char)str[len]))))
 	{
-		if (str == word || isspace((unsigned char)str[-1]))
-		{
-			if (!str[len] || isspace((unsigned char)str[len]))
-			{
-				if (!str[len])
-				{
-					if (str != word)
-						str--;
-					*str = 0;
-				}
-				else if (str > word)
-				{
-					char *safe = (char *)alloca(strlen(str));
-					strcpy(safe, str + len);
-					strcpy(str - 1, safe);
-				}
-				else 
-				{
-					char *safe = (char *)alloca(strlen(str));
-					strcpy(safe, str + len + 1);
-					strcpy(str, safe);
-				}
-				break;
-			}
-		}
+		str = stristr(str + 1, word_to_remove);
 	}
 
-	RETURN_STR(word);
+	if (str)
+	{
+		/* Move from the following space (if any) */
+		char *src = str + len;
+		char *dest;
+
+		/* We always discard at least one space around the word (except for the
+		 * special case where the text is exactly equal to the word).  If the
+		 * word was found in the middle or end of text, we discard the space
+		 * preceding the word, but if the word was found at the start of text
+		 * we have to discard the space following the word, if any.
+		 */
+		if (str == text)
+		{
+			dest = str;
+			if (*src)
+				src++;
+		}
+		else
+		{
+			dest = str - 1;
+		}
+
+		memmove(dest, src, strlen(src) + 1);
+	}
+
+	RETURN_STR(text);
 }
 
 /* $insertw(num word string of text)
@@ -2187,7 +2236,7 @@ BUILT_IN_FUNCTION(function_insertw, word)
 		new_free(&str2);
 	}
 
-	return booya;				/* DONT USE RETURN_STR HERE! */
+	return booya;				/* DON'T USE RETURN_STR HERE! */
 }
 
 /* $chngw(num word string of text)
@@ -2225,7 +2274,7 @@ BUILT_IN_FUNCTION(function_chngw, word)
 
 
 /* $common (string of text / string of text)
- * Given two sets of words seperated by a forward-slash '/', returns
+ * Given two sets of words separated by a forward-slash '/', returns
  * all words that are found in both sets.
  * EX: $common(one two three / buckle my two shoe one) returns "one two"
  * NOTE: returned in order found in first string.
@@ -2261,11 +2310,11 @@ BUILT_IN_FUNCTION(function_common, word)
 	if (!booya)
 		RETURN_EMPTY;
 
-	return (booya);				/* DONT USE RETURN_STR HERE! */
+	return (booya);				/* DON'T USE RETURN_STR HERE! */
 }
 
 /* $diff(string of text / string of text)
- * given two sets of words, seperated by a forward-slash '/', returns
+ * given two sets of words, separated by a forward-slash '/', returns
  * all words that are not found in both sets
  * EX: $diff(one two three / buckle my two shoe)
  * returns "one two three buckle my shoe"
@@ -2648,7 +2697,7 @@ BUILT_IN_FUNCTION(function_channelnicks, word)
 		NickList *list = NULL;
 		if (word && *word)
 			GET_INT_ARG(sort_type, word);
-		list = sorted_nicklist(chan, NICKSORT_NORMAL);
+		list = sorted_nicklist(chan, sort_type);
 		for (tmp = list; tmp; tmp = tmp->next)
 			m_s3cat(&nicks, ",", tmp->nick);
 		clear_sorted_nicklist(&list);
@@ -2835,7 +2884,7 @@ BUILT_IN_FUNCTION(function_nohighlight, input)
 			case BOLD_TOG:
 			case BLINK_TOG:
 			case ALL_OFF:
-			case '\003':
+			case COLOR_CHAR:
 			case '\033':
 			{
 				*ptr++ = REV_TOG;
@@ -3024,7 +3073,7 @@ char	*function_pop(char *n, char *word)
 	if (!(pointer = strrchr(value, ' ')))
 	{
 		window_display = 0;
-		add_var_alias(var, empty_string); /* dont forget this! */
+		add_var_alias(var, empty_string); /* don't forget this! */
 		window_display = old_display;
 		return value;	/* one word -- return it */
 	}
@@ -3035,7 +3084,7 @@ char	*function_pop(char *n, char *word)
 	window_display = old_display;
 
 	/* because pointer points to value, we *must* make a copy of it
-	 * *before* we free value! (And we cant forget to free value, either) 
+	 * *before* we free value! (And we can't forget to free value, either) 
 	 */
 	blech = m_strdup(pointer);
 	new_free(&value);
@@ -3055,19 +3104,38 @@ char	*function_pop(char *n, char *word)
 */
 BUILT_IN_FUNCTION(function_sar, word)
 {
-	register char    delimiter;
-	register char	*pointer	= NULL;
-	char    *search         = NULL;
-	char    *replace        = NULL;
-	char    *data		= NULL;
-	char	*value		= NULL;
-	char	*booya		= NULL;
-	int	variable = 0,this_global = 0,searchlen,oldwindow = window_display;
-	char *(*func) (const char *, const char *) = strstr;
-	char 	*svalue;
+	char delimiter;
+	char *pointer = NULL;
+	char *search = NULL;
+	char *replace = NULL;
+	char *data = NULL;
+	char *value = NULL;
+	char *booya = NULL;
+	int	variable = 0;
+	int this_global = 0;
+	int searchlen;
+	int oldwindow = window_display;
+	char *(*func)(const char *, const char *) = strstr;
+	char *svalue;
 
-	while (((*word == 'r') && (variable = 1)) || ((*word == 'g') && (this_global = 1)) || ((*word == 'i') && (func = (char *(*)(const char *, const char *))global[STRISTR])))
+	while (*word == 'r' || *word == 'g' || *word == 'i')
+	{
+		switch (*word)
+		{
+			case 'r':
+			variable = 1;
+			break;
+
+			case 'g':
+			this_global = 1;
+			break;
+
+			case 'i':
+			func = &stristr;
+			break;
+		}
 		word++;
+	}
 
 	RETURN_IF_EMPTY(word);
 
@@ -3138,23 +3206,41 @@ BUILT_IN_FUNCTION(function_sar, word)
    The delimiter MUST be the first character after the command
    Returns empty string on error
 */
-#if 0
 BUILT_IN_FUNCTION(function_msar, word)
 {
-	register char    delimiter;
-	register char	*pointer	= NULL;
-	char    *search         = NULL;
-	char    *replace        = NULL;
-	char    *data		= NULL;
-	char	*value		= NULL;
-	char	*booya		= NULL;
-	char	*p		= NULL;
-	int	variable = 0,this_global = 0,searchlen,oldwindow = window_display;
-	char *(*func) (const char *, const char *) = strstr;
-	char 	*svalue = NULL;
+	char delimiter;
+	char *pointer = NULL;
+	char *search = NULL;
+	char *replace = NULL;
+	char *data = NULL;
+	char *value = NULL;
+	char *booya = NULL;
+	char *p = NULL;
+	int variable = 0;
+	int this_global = 0;
+	int searchlen;
+	int oldwindow = window_display;
+	char *(*func)(const char *, const char *) = strstr;
+	char *svalue;
 
-	while (((*word == 'r') && (variable = 1)) || ((*word == 'g') && (this_global = 1)) || ((*word == 'i') && (func = (char *(*)(const char *, const char *))global[STRISTR])))
+	while (*word == 'r' || *word == 'g' || *word == 'i')
+	{
+		switch (*word)
+		{
+			case 'r':
+			variable = 1;
+			break;
+
+			case 'g':
+			this_global = 1;
+			break;
+
+			case 'i':
+			func = &stristr;
+			break;
+		}
 		word++;
+	}
 
 	RETURN_IF_EMPTY(word);
 
@@ -3176,7 +3262,7 @@ BUILT_IN_FUNCTION(function_msar, word)
 		*p++ = 0;
 		value = (variable == 1) ? get_variable(p) : m_strdup(p);
 	}
-	
+
 	if (!value || !*value)
 	{
 		new_free(&value);
@@ -3187,7 +3273,8 @@ BUILT_IN_FUNCTION(function_msar, word)
 
 	do 
 	{
-		if ( (searchlen = (strlen(search) - 1)) < 0)
+		searchlen = strlen(search) - 1;
+		if (searchlen < 0)
 			searchlen = 0;
 		if (this_global)
 		{
@@ -3223,7 +3310,7 @@ BUILT_IN_FUNCTION(function_msar, word)
 					*data++ = 0;
 			}
 			/* patch from RoboHak */
-			if (!replace || !search)
+			if (!replace)
 			{
 				pointer = value = svalue;
 				break;
@@ -3241,116 +3328,7 @@ BUILT_IN_FUNCTION(function_msar, word)
 		window_display = oldwindow;
 	}
 	new_free(&svalue);
-	return booya ? booya : m_strdup(empty_string);
-}
-#endif
-BUILT_IN_FUNCTION(function_msar, word)
-{
-	char    delimiter;
-	char    *pointer        = NULL;
-	char    *search         = NULL;
-	char    *replace        = NULL;
-	char    *data           = NULL;
-	char    *value          = NULL;
-	char    *booya          = NULL;
-	char    *p              = NULL;
-	int     variable 	= 0,
-		this_global 		= 0,
-		searchlen,
-		oldwindow 	= window_display;
-	char 	*(*func) (const char *, const char *) = strstr;
-	char    *svalue;
-
-        while (((*word == 'r') && (variable = 1)) || ((*word == 'g') && (this_global = 1)) || ((*word == 'i') && (func = (char *(*)(const char *, const char *))global[STRISTR])))
-                word++;
-
-        RETURN_IF_EMPTY(word);
-
-        delimiter = *word;
-        search = word + 1;
-        if (!(replace = strchr(search, delimiter)))
-                RETURN_EMPTY;
-
-        *replace++ = 0;
-        if (!(data = strchr(replace,delimiter)))
-                RETURN_EMPTY;
-
-        *data++ = 0;
-
-        if (!(p = strrchr(data, delimiter)))
-                value = (variable == 1) ? get_variable(data) : m_strdup(data);
-        else
-        {
-                *p++ = 0;
-                value = (variable == 1) ? get_variable(p) : m_strdup(p);
-        }
-
-        if (!value || !*value)
-        {
-                new_free(&value);
-                RETURN_EMPTY;
-        }
-
-        pointer = svalue = value;
-
-        do 
-        {
-                searchlen = strlen(search) - 1;
-                if (searchlen < 0)
-                        searchlen = 0;
-                if (this_global)
-                {
-                        while ((pointer = func(pointer,search)))
-                        {
-                                pointer[0] = pointer[searchlen] = 0;
-                                pointer += searchlen + 1;
-                                m_e3cat(&booya, value, replace);
-                                value = pointer;
-                                if (!*pointer)
-                                        break;
-                        }
-                } 
-                else
-                {
-                        if ((pointer = func(pointer,search)))
-                        {
-                                pointer[0] = pointer[searchlen] = 0;
-                                pointer += searchlen + 1;
-                                m_e3cat(&booya, value, replace);
-                                value = pointer;
-                        }
-                }
-                malloc_strcat(&booya, value);
-                if (data && *data)
-                {
-			new_free(&svalue);
-                        search = data;
-                        if ((replace = strchr(data, delimiter)))
-                        {
-                                *replace++ = 0;
-                                if ((data = strchr(replace, delimiter)))
-                                        *data++ = 0;
-                        }
-			/* patch from RoboHak */
-			if (!replace || !search)
-			{
-				pointer = value = svalue;
-				break;
-			}
-			pointer = value = svalue = booya;
-			booya = NULL;
-                } else 
-                        break;
-        } while (1);
-
-        if (variable) 
-        {
-                window_display = 0;
-                add_var_alias(data, booya);
-                window_display = oldwindow;
-        }
-        new_free(&svalue);
-        return (booya);
+	return (booya);
 }
 
 
@@ -3393,11 +3371,11 @@ BUILT_IN_FUNCTION(function_split, word)
 BUILT_IN_FUNCTION(function_chr, word)
 {
 	char aboo[BIG_BUFFER_SIZE];
-	unsigned char *ack = aboo;
-	char *blah;
+	unsigned char *ack = (unsigned char *)aboo;
+	char *chr;
 
-	while ((blah = next_arg(word, &word)))
-		*ack++ = (unsigned char)atoi(blah);
+	while ((chr = next_arg(word, &word)))
+		*ack++ = (unsigned char)atoi(chr);
 
 	*ack = '\0';
 	RETURN_STR(aboo);
@@ -3406,15 +3384,15 @@ BUILT_IN_FUNCTION(function_chr, word)
 BUILT_IN_FUNCTION(function_ascii, word)
 {
 	char *aboo = NULL;
-	unsigned char *w = word;
+
 	if (!word || !*word)
 		RETURN_EMPTY;
 
-	aboo = m_strdup(ltoa((unsigned long) *w));
-	while (*++w)
-		m_3cat(&aboo, space, ltoa((unsigned long) *w));
+	aboo = m_strdup(ltoa((unsigned char)*word));
+	while (*++word)
+		m_3cat(&aboo, space, ltoa((unsigned char)*word));
 		
-	return (aboo);
+	return aboo;
 }
 
 BUILT_IN_FUNCTION(function_which, word)
@@ -3495,7 +3473,7 @@ BUILT_IN_FUNCTION(function_serverpass, input)
 	if (servnum < 0 || servnum > server_list_size())
 		RETURN_EMPTY;
 
-	return m_sprintf("%d", get_server_pass(servnum));	
+	return m_strdup(get_server_pass(servnum));	
 }
 
 BUILT_IN_FUNCTION(function_open, words)
@@ -3794,10 +3772,10 @@ BUILT_IN_FUNCTION(function_truncate, words)
 		float foo;
 		int end;
 
-		sprintf(format, "%%.%de", -num-1);
-		sprintf(buffer, format, value);
+		snprintf(format, sizeof format, "%%.%de", -num-1);
+		snprintf(buffer, sizeof buffer, format, value);
 		foo = atof(buffer);
-		sprintf(buffer, "%f", foo);
+		snprintf(buffer, sizeof buffer, "%f", foo);
 		end = strlen(buffer) - 1;
 		if (end == 0)
 			RETURN_EMPTY;
@@ -3809,8 +3787,8 @@ BUILT_IN_FUNCTION(function_truncate, words)
 	}
 	else if (num > 0)
 	{
-		sprintf(format, "%%10.%dlf", num);
-		sprintf(buffer, format, value);
+		snprintf(format, sizeof format, "%%10.%dlf", num);
+		snprintf(buffer, sizeof buffer, format, value);
 	}
 	else
 		RETURN_EMPTY;
@@ -3823,64 +3801,60 @@ BUILT_IN_FUNCTION(function_truncate, words)
 
 
 /*
- * Apprantly, this was lifted from a CS client.  I reserve the right
+ * Apparently, this was lifted from a CS client.  I reserve the right
  * to replace this code in future versions. (hop)
  */
 /*
 	I added this little function so that I can have stuff formatted
-	into days, hours, minutes, seconds; but with d, h, m, s abreviations.
+	into days, hours, minutes, seconds; but with d, h, m, s abbreviations.
 		-Taner
 */
 
 BUILT_IN_FUNCTION(function_tdiff2, input)
 {
-	time_t	ltime;
-	time_t	days,
-		hours,
-		minutes,
-		seconds;
-	char	tmp[80];
-	char	*tstr;
+	long ltime;
+	long days, hours, minutes, seconds;
+	char days_str[30], hours_str[6], minutes_str[6], seconds_str[6];
+	char result_str[45];
 
 	GET_INT_ARG(ltime, input);
 
 	seconds = ltime % 60;
-	ltime = (ltime - seconds) / 60;
-	minutes = ltime%60;
-	ltime = (ltime - minutes) / 60;
+	ltime /= 60;
+	minutes = ltime % 60;
+	ltime /= 60;
 	hours = ltime % 24;
-	days = (ltime - hours) / 24;
-	tstr = tmp;
+	days = ltime / 24;
 
 	if (days)
-	{
-		sprintf(tstr, "%ldd ", days);
-		tstr += strlen(tstr);
-	}
-	if (hours)
-	{
-		sprintf(tstr, "%ldh ", hours);
-		tstr += strlen(tstr);
-	}
-	if (minutes)
-	{
-		sprintf(tstr, "%ldm ", minutes);
-		tstr += strlen(tstr);
-	}
-	if (seconds || (!days && !hours && !minutes))
-	{
-		sprintf(tstr, "%lds", seconds);
-		tstr += strlen(tstr);
-	}
+		snprintf(days_str, sizeof days_str, " %ldd", days);
 	else
-		*--tstr = 0;	/* chop off that space! */
+		days_str[0] = 0;
 
-	RETURN_STR(tmp);
+	if (hours)
+		snprintf(hours_str, sizeof hours_str, " %ldh", hours);
+	else
+		hours_str[0] = 0;
+
+	if (minutes)
+		snprintf(minutes_str, sizeof minutes_str, " %ldm", minutes);
+	else
+		minutes_str[0] = 0;
+
+	if (seconds || (!days && !hours && !minutes))
+		snprintf(seconds_str, sizeof seconds_str, " %lds", seconds);
+	else
+		seconds_str[0] = 0;
+
+	snprintf(result_str, sizeof result_str, "%s%s%s%s", 
+		days_str, hours_str, minutes_str, seconds_str);
+
+	RETURN_STR(result_str + 1);
 }
 
 
 /* 
- * Apparantly, this was lifted from a CS client.  I reserve the right 
+ * Apparently, this was lifted from a CS client.  I reserve the right
  * to replace this code in a future release.
  */
 BUILT_IN_FUNCTION(function_utime, input)
@@ -3897,11 +3871,11 @@ BUILT_IN_FUNCTION(function_utime, input)
  */
 BUILT_IN_FUNCTION(function_stripansi, input)
 {
-	register unsigned char	*cp;
+	char *cp;
+
 	for (cp = input; *cp; cp++)
-		if (*cp < 31 && *cp > 13)
-			if (*cp != 15 && *cp !=22)
-				*cp = (*cp & 127) | 64;
+		if (*cp < 31 && *cp > 13 && *cp != 15 && *cp != 22)
+			*cp |= 64;
 	RETURN_STR(input);
 }
 
@@ -4045,45 +4019,45 @@ BUILT_IN_FUNCTION(function_strlen, input)
 }
 
 /* 
- * Next two contributed by Scott H Kilau (sheik), who for some reason doesnt 
+ * Next two contributed by Scott H Kilau (sheik), who for some reason doesn't 
  * want to take credit for them. *shrug* >;-)
  *
- * Deciding not to be controversial, im keeping the original (contributed)
+ * Deciding not to be controversial, I'm keeping the original (contributed)
  * semantics of these two functions, which is to return 1 on success and
- * -1 on error.  If you dont like it, then tough. =)  I didnt write it, and
- * im not going to second guess any useful contributions. >;-)
+ * -1 on error.  If you don't like it, then tough. =)  I didnt write it, and
+ * I'm not going to second guess any useful contributions. >;-)
  */
 BUILT_IN_FUNCTION(function_fexist, words)
 {
 #ifdef PUBLIC_ACCESS
 	RETURN_INT(0);
 #else
-        char	FileBuf[BIG_BUFFER_SIZE+1];
+        char	FileBuf[BIG_BUFFER_SIZE];
 	char	*filename, *fullname;
 
 	*FileBuf = 0;
 	if ((filename = new_next_arg(words, &words)))
 	{
 		if (*filename == '/')
-			strlcpy(FileBuf, filename, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, filename, sizeof FileBuf);
 
 		else if (*filename == '~') 
 		{
 			if (!(fullname = expand_twiddle(filename)))
 				RETURN_INT(-1);
 
-			strmcpy(FileBuf, fullname, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, fullname, sizeof FileBuf);
 			new_free(&fullname);
 		}
 #if defined(__EMX__) || defined(WINNT)
 		else if (is_dos(filename))
-			strmcpy(FileBuf, filename, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, filename, sizeof FileBuf);
 #endif
 		else 
 		{
-			getcwd(FileBuf, BIG_BUFFER_SIZE);
-			strmcat(FileBuf, "/", BIG_BUFFER_SIZE);
-			strmcat(FileBuf, filename, BIG_BUFFER_SIZE);
+			getcwd(FileBuf, sizeof FileBuf);
+			strlcat(FileBuf, "/", sizeof FileBuf);
+			strlcat(FileBuf, filename, sizeof FileBuf);
 		}
 #if defined(__EMX__) || defined(WINNT)
 		convert_dos(FileBuf);
@@ -4104,7 +4078,7 @@ BUILT_IN_FUNCTION(function_fsize, words)
 #ifdef PUBLIC_ACCESS
 	RETURN_INT(0);
 #else 
-        char	FileBuf[BIG_BUFFER_SIZE+1];
+        char	FileBuf[BIG_BUFFER_SIZE];
 	char	*filename, *fullname;
         struct  stat    stat_buf;
 	off_t	filesize = 0;
@@ -4114,25 +4088,25 @@ BUILT_IN_FUNCTION(function_fsize, words)
 	if (filename && *filename) 
 	{
 		if (*filename == '/')
-			strlcpy(FileBuf, filename, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, filename, sizeof FileBuf);
 
 		else if (*filename == '~') 
 		{
 			if (!(fullname = expand_twiddle(filename)))
 				RETURN_INT(-1);
 
-			strmcpy(FileBuf, fullname, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, fullname, sizeof FileBuf);
 			new_free(&fullname);
 		}
 #if defined(__EMX__) || defined(WINNT)
 		else if (is_dos(filename))
-			strmcpy(FileBuf, filename, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, filename, sizeof FileBuf);
 #endif
 		else 
 		{
-			getcwd(FileBuf, BIG_BUFFER_SIZE);
-			strmcat(FileBuf, "/", BIG_BUFFER_SIZE);
-			strmcat(FileBuf, filename, BIG_BUFFER_SIZE);
+			getcwd(FileBuf, sizeof FileBuf);
+			strlcat(FileBuf, "/", sizeof FileBuf);
+			strlcat(FileBuf, filename, sizeof FileBuf);
 		}
 
 #if defined(__EMX__) || defined(WINNT)
@@ -4152,7 +4126,7 @@ BUILT_IN_FUNCTION(function_fsize, words)
  * Contributed by CrowMan
  * I changed two instances of "RETURN_INT(result)"
  * (where result was a null pointer) to RETURN_STR(empty_string)
- * because i dont think he meant to return a null pointer as an int value.
+ * because I don't think he meant to return a null pointer as an int value.
  */
 /*
  * $crypt(password seed)
@@ -4169,16 +4143,13 @@ BUILT_IN_FUNCTION(function_crypt, words)
 #if defined(WINNT)
 	RETURN_STR(empty_string);
 #else
-        char pass[9] = "\0";
-        char seed[3] = "\0";
-        char *blah, *bleh, *crypt (const char *, const char *);
+	char *pass, *salt;
+	extern char *crypt(const char *, const char *);
 
-	GET_STR_ARG(blah, words)
-	GET_STR_ARG(bleh, words)
-	strmcpy(pass, blah, 8);
-	strmcpy(seed, bleh, 2);
+	GET_STR_ARG(pass, words)
+	GET_STR_ARG(salt, words)
 
-	RETURN_STR(crypt(pass, seed));
+	RETURN_STR(crypt(pass, salt));
 #endif
 }
 
@@ -4199,7 +4170,7 @@ BUILT_IN_FUNCTION(function_info, words)
 	else
 */
 		return m_sprintf("%s+%s", version, compile_time_options);
-	/* more to be added as neccesary */
+	/* more to be added as necessary */
 }
 
 /*
@@ -4241,8 +4212,7 @@ BUILT_IN_FUNCTION(function_channelmode, word)
 
 BUILT_IN_FUNCTION(function_geom, words)
 {
-	/* Erf. CO and LI are ints. (crowman) */
-	return m_sprintf("%d %d", current_term->TI_cols, current_term->TI_lines);
+	return m_sprintf("%d %d", current_window->screen->co, current_window->screen->li);
 }
 
 BUILT_IN_FUNCTION(function_pass, words)
@@ -4267,32 +4237,20 @@ BUILT_IN_FUNCTION(function_pass, words)
 
 BUILT_IN_FUNCTION(function_uptime, input)
 {
-	time_t  ltime;
-	time_t  days,hours,minutes,seconds;
-	struct  timeval         tp;
-	static time_t timestart = 0;
-	time_t timediff;
-	char buffer[BIG_BUFFER_SIZE+1];
+	long ltime = now - start_time;
+	long days, hours, minutes, seconds;
+	char result[45];
 
-	*buffer = '\0';
-
-	get_time(&tp);
-	if (timestart == 0)  
-	{
-		timestart = tp.tv_sec;
-		timediff = 0;
-	} else
-		timediff = tp.tv_sec - timestart;
-
-	ltime = timediff;
 	seconds = ltime % 60;
-	ltime = (ltime - seconds) / 60;
-	minutes = ltime%60;
-	ltime = (ltime - minutes) / 60;
+	ltime /= 60;
+	minutes = ltime % 60;
+	ltime /= 60;
 	hours = ltime % 24;
-	days = (ltime - hours) / 24;
-	sprintf(buffer, "%ldd %ldh %ldm %lds", days, hours, minutes, seconds);
-	RETURN_STR(buffer);
+	days = ltime / 24;
+
+	snprintf(result, sizeof result, "%ldd %ldh %ldm %lds", 
+		days, hours, minutes, seconds);
+	RETURN_STR(result);
 }
 
 BUILT_IN_FUNCTION(function_cluster, input)
@@ -4385,7 +4343,7 @@ register UserList *tmp;
 	if (!uh || !*uh || !channel || !*channel)
 		RETURN_EMPTY;
 	if ((tmp = find_bestmatch("*", uh, channel, NULL)))
-		return m_sprintf("%d %s %s %s", tmp->flags, tmp->host, tmp->channels, tmp->password?tmp->password:empty_string);
+		return m_sprintf("%lu %s %s %s", tmp->flags, tmp->host, tmp->channels, tmp->password?tmp->password:empty_string);
 #endif
 	RETURN_EMPTY;
 }
@@ -4395,7 +4353,7 @@ BUILT_IN_FUNCTION(function_rot13, input)
 	char temp[BIG_BUFFER_SIZE+1];
 	register char *p = NULL;
 	int rotate = 13;
-	strmcpy(temp, input, BIG_BUFFER_SIZE);
+	strlcpy(temp, input, sizeof temp);
 	for (p = temp; *p; p++) {
 		if (*p >= 'A' && *p <='Z')
 			*p = (*p - 'A' + rotate) % 26 + 'A';
@@ -4565,7 +4523,7 @@ BUILT_IN_FUNCTION(function_sort, words)
 
 	wordc = splitw(words, &wordl);
 	qsort((void *)wordl, wordc, sizeof(char *), sort_it);
-	return unsplitw(&wordl, wordc);	/* DONT USE RETURN_STR() HERE */
+	return unsplitw(&wordl, wordc);	/* DON'T USE RETURN_STR() HERE */
 }
 
 BUILT_IN_FUNCTION(function_notify, words)
@@ -4608,7 +4566,7 @@ BUILT_IN_FUNCTION(function_notify, words)
 		}
 	}
  
-	/* dont use RETURN_STR() here. */
+	/* don't use RETURN_STR() here. */
 	return ret ? ret : get_notify_nicks(showserver, showon, NULL, 0);
 }
 
@@ -4652,7 +4610,7 @@ BUILT_IN_FUNCTION(function_watch, words)
 		}
 	}
  
-	/* dont use RETURN_STR() here. */
+	/* don't use RETURN_STR() here. */
 	return ret ? ret : get_watch_nicks(showserver, showon, NULL, 0);
 }
 
@@ -4690,7 +4648,7 @@ BUILT_IN_FUNCTION(function_numsort, words)
 	wordc = splitw(words, &wordl);
 	qsort((void *)wordl, wordc, sizeof(char *), num_sort_it);
 
-	return unsplitw(&wordl, wordc);	/* DONT USE RETURN_STR() HERE */
+	return unsplitw(&wordl, wordc);	/* DON'T USE RETURN_STR() HERE */
 }
 
 #ifdef NEED_GLOB
@@ -4819,7 +4777,7 @@ register ShitList *Shit;
 	else
 		channel = "*";
 	if ((User = lookup_userlevelc("*", uhost, channel, NULL)))
-		return m_sprintf("USER %d %s %s", User->flags, User->host, User->channels);
+		return m_sprintf("USER %lu %s %s", User->flags, User->host, User->channels);
 	if ((Shit = nickinshit(nick, uhost)) && check_channel_match(Shit->channels, channel))
 		return m_sprintf("SHIT %s %d %s", Shit->filter, Shit->level, Shit->channels);
 #endif
@@ -4827,24 +4785,24 @@ register ShitList *Shit;
 }
 
 /*
-$pad(N string of text goes here)
-if N is negative, it'll pad to the right 
-if N is positive, it'll pad to the left
-
-so something like: $pad(20 letters) would output:
-            letters
-and $pad(20 some string) would be:
-        some string
-GREAT way to allign shit, and if you use $curpos() can can add that and
-figure out the indent :p
-hohoho, aren't we ingenious, better yet, you can do a strlen() on the
-string youw anna output, then - the curpos, and if its over, grab all
-words to the right of that position and output them [so its on one line]
-then indent, grab the next section of words( and then the next and then
-next
-
-   Jordy (jordy@thirdwave.net) 19960622 
-*/
+ * $pad(N string of text goes here)
+ * if N is negative, it'll pad to the right 
+ * if N is positive, it'll pad to the left
+ * 
+ * so something like: $pad(20 letters) would output:
+ * "             letters"
+ * and $pad(20 some string) would be:
+ * "         some string"
+ * GREAT way to align shit, and if you use $curpos() you can add that and
+ * figure out the indent :p
+ * hohoho, aren't we ingenious, better yet, you can do a strlen() on the
+ * string you wanna output, then - the curpos, and if it's over, grab all
+ * words to the right of that position and output them [so it's on one line]
+ * then indent, grab the next section of words (and then the next and then
+ * next).
+ * 
+ *    Jordy (jordy@thirdwave.net) 19960622 
+ */
 
 BUILT_IN_FUNCTION(function_pad, word)
 {
@@ -5082,9 +5040,9 @@ char *blah;
 
 BUILT_IN_FUNCTION(function_getreason, word)
 {
-char *nick = NULL;
+	char *nick = NULL;
 	GET_STR_ARG(nick, word);
-	RETURN_STR(get_reason(nick, word));
+	RETURN_STR(get_reason(nick, get_server_nickname(from_server), word));
 }
 
 BUILT_IN_FUNCTION(function_chmod, words)
@@ -5434,7 +5392,7 @@ BUILT_IN_FUNCTION(function_ftime, words)
 #ifdef PUBLIC_ACCESS
 	RETURN_INT(0);
 #else
-        char	FileBuf[BIG_BUFFER_SIZE+1];
+        char	FileBuf[BIG_BUFFER_SIZE];
 	char	*filename, *fullname;
 	struct stat s;
 
@@ -5442,25 +5400,25 @@ BUILT_IN_FUNCTION(function_ftime, words)
 	if ((filename = new_next_arg(words, &words)))
 	{
 		if (*filename == '/')
-			strlcpy(FileBuf, filename, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, filename, sizeof FileBuf);
 
 		else if (*filename == '~') 
 		{
 			if (!(fullname = expand_twiddle(filename)))
 				RETURN_EMPTY;
 
-			strmcpy(FileBuf, fullname, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, fullname, sizeof FileBuf);
 			new_free(&fullname);
 		}
 #if defined(__EMX__) || defined(WINNT)
 		else if (is_dos(filename))
-			strmcpy(FileBuf, filename, BIG_BUFFER_SIZE);
+			strlcpy(FileBuf, filename, sizeof FileBuf);
 #endif
 		else 
 		{
-			getcwd(FileBuf, BIG_BUFFER_SIZE);
-			strmcat(FileBuf, "/", BIG_BUFFER_SIZE);
-			strmcat(FileBuf, filename, BIG_BUFFER_SIZE);
+			getcwd(FileBuf, sizeof FileBuf);
+			strlcat(FileBuf, "/", sizeof FileBuf);
+			strlcat(FileBuf, filename, sizeof FileBuf);
 		}
 #if defined(__EMX__) || defined(WINNT)
 		convert_dos(FileBuf);
@@ -5664,7 +5622,7 @@ BUILT_IN_FUNCTION(function_regexec, input)
 			new_free((char **)&preg);
 		}
 	}
-	RETURN_INT(retval);		/* DONT PASS FUNC CALL TO RETURN_INT */
+	RETURN_INT(retval);		/* DON'T PASS FUNC CALL TO RETURN_INT */
 }
 
 BUILT_IN_FUNCTION(function_regerror, input)
@@ -5718,7 +5676,7 @@ BUILT_IN_FUNCTION(function_regfree, input)  { RETURN_EMPTY; }
  */
 BUILT_IN_FUNCTION(function_igmask, input)
 {
-	return get_ignores_by_pattern(input, 0);	/* DONT MALLOC THIS */
+	return get_ignores_by_pattern(input, 0);	/* DON'T MALLOC THIS */
 }
 
 /*
@@ -5729,7 +5687,7 @@ BUILT_IN_FUNCTION(function_igmask, input)
  */
 BUILT_IN_FUNCTION(function_rigmask, input)
 {
-	return get_ignores_by_pattern(input, 1);	/* DONT MALLOC THIS */
+	return get_ignores_by_pattern(input, 1);	/* DON'T MALLOC THIS */
 }
 
 BUILT_IN_FUNCTION(function_count, input)
@@ -5758,16 +5716,16 @@ BUILT_IN_FUNCTION(function_count, input)
  */
 BUILT_IN_FUNCTION(function_leftpc, word)
 {
-	u_char  **prepared = NULL;
-	int	lines = 1;
+	char **prepared;
+	int	prepared_lines = 1;
 	int	count;
 
 	GET_INT_ARG(count, word);
 	if (count <= 0 || !*word)
 		RETURN_EMPTY;
 
-	prepared = prepare_display(word, count, &lines, PREPARE_NOWRAP);
-	RETURN_STR((char *)prepared[0]);
+	prepared = prepare_display(word, count, &prepared_lines, PREPARE_NOWRAP);
+	RETURN_STR(prepared[0]);
 }
 /*
  * $uname()
@@ -5854,7 +5812,7 @@ BUILT_IN_FUNCTION(function_winrefs, args)
 	while (traverse_all_windows(&w))
 		m_s3cat(&retval, space, ltoa(w->refnum));
 
-	return retval;		/* DONT MALLOC THIS! */
+	return retval;		/* DON'T MALLOC THIS! */
 }
 
 
@@ -5892,10 +5850,10 @@ BUILT_IN_FUNCTION(function_deuhc, input)
 	if (!strchr(buf, '!') || !strchr(buf, '@'))
 		RETURN_EMPTY;
 
-	if (!strncmp(buf, "*!", 2))
+	if (strbegins(buf, "*!"))
 	{
 		buf += 2;
-		if (!strncmp(buf, "*@", 2))
+		if (strbegins(buf, "*@"))
 			buf += 2;
 	}
 
@@ -5963,7 +5921,7 @@ BUILT_IN_FUNCTION(function_mask, args)
 	if (strchr("~^-+=", *user))
 		user++;
 
-	/* Make sure 'user' isnt too long for a ban... */
+	/* Make sure 'user' isn't too long for a ban... */
 	if (strlen(user) > 7)
 	{
 		user[7] = '*';
@@ -5971,11 +5929,11 @@ BUILT_IN_FUNCTION(function_mask, args)
 	}
 
 #define USER (user == star ? empty_string : user)
-#define MASK1(x, y) snprintf(stuff, BIG_BUFFER_SIZE, x, y); break;
-#define MASK2(x, y, z) snprintf(stuff, BIG_BUFFER_SIZE, x, y, z); break;
-#define MASK3(x, y, z, a) snprintf(stuff, BIG_BUFFER_SIZE, x, y, z, a); break;
-#define MASK4(x, y, z, a, b) snprintf(stuff, BIG_BUFFER_SIZE, x, y, z, a, b); break;
-#define MASK5(x, y, z, a, b, c) snprintf(stuff, BIG_BUFFER_SIZE, x, y, z, a, b, c); break;
+#define MASK1(x, y) snprintf(stuff, sizeof stuff, x, y); break;
+#define MASK2(x, y, z) snprintf(stuff, sizeof stuff, x, y, z); break;
+#define MASK3(x, y, z, a) snprintf(stuff, sizeof stuff, x, y, z, a); break;
+#define MASK4(x, y, z, a, b) snprintf(stuff, sizeof stuff, x, y, z, a, b); break;
+#define MASK5(x, y, z, a, b, c) snprintf(stuff, sizeof stuff, x, y, z, a, b, c); break;
 
 	if (ip == 0) 
 	switch (which)
@@ -6076,7 +6034,7 @@ BUILT_IN_FUNCTION(function_remws, word)
 	if (!booya)
 		RETURN_EMPTY;
 
-	return (booya);				/* DONT USE RETURN_STR HERE! */
+	return (booya);				/* DON'T USE RETURN_STR HERE! */
 }
 
 BUILT_IN_FUNCTION(function_stripansicodes, input)
@@ -6095,7 +6053,7 @@ BUILT_IN_FUNCTION(function_igtype, input)
 
 BUILT_IN_FUNCTION(function_rigtype, input)
 {
-	 return get_ignore_patterns_by_type(input);	/* DONT MALLOC! */
+	 return get_ignore_patterns_by_type(input);	/* DON'T MALLOC! */
 }
 
 BUILT_IN_FUNCTION(function_getuid, input)
@@ -6284,7 +6242,7 @@ BUILT_IN_FUNCTION(function_rest, input)
 }
 
 /*
- * take a servername and return it's refnum or -1 
+ * take a servername and return its refnum or -1 
  */
 BUILT_IN_FUNCTION(function_servref, input)
 {
@@ -6345,18 +6303,15 @@ BUILT_IN_FUNCTION(function_getflags, input)
 
 BUILT_IN_FUNCTION(function_numlines, input)
 {
-int count = 0;
-unsigned char **lines = NULL;
-char *s = NULL;
+	int count = 0;
+	char **split_lines = NULL;
+	char *s = NULL;
 	if (input && *input)
 	{
-		int cols;
+		int cols = window_columns(current_window);
+
 		s = LOCAL_COPY(input);
-		if (current_window->screen)
-			cols = current_window->screen->co;
-		else
-			cols = current_window->columns;
-		for (lines = split_up_line(s, cols + 1); *lines; lines++)
+		for (split_lines = split_up_line(s, cols + 1); *split_lines; split_lines++)
 			count++;
 	}
 	RETURN_INT(count);
@@ -6387,7 +6342,7 @@ BUILT_IN_FUNCTION(function_stripcrap, input)
 	output = new_malloc(strlen(input) * 2 + 1);
 	strcpy(output, input);
 	mangle_line(output, mangle, strlen(input) * 2);
-	return output;			/* DONT MALLOC THIS */
+	return output;			/* DON'T MALLOC THIS */
 }
 
 
@@ -6748,11 +6703,11 @@ BUILT_IN_FUNCTION(function_screensize, input)
 char retbuffer[50];
 
 	if (!my_stricmp(input, "cx"))
-		sprintf(retbuffer, "%d", gui_screen_width());
+		snprintf(retbuffer, sizeof retbuffer, "%d", gui_screen_width());
 	else if (!my_stricmp(input, "cy"))
-		sprintf(retbuffer, "%d", gui_screen_height());
+		snprintf(retbuffer, sizeof retbuffer, "%d", gui_screen_height());
 	else
-		sprintf(retbuffer, "%d %d", gui_screen_width(), gui_screen_height());
+		snprintf(retbuffer, sizeof retbuffer, "%d %d", gui_screen_width(), gui_screen_height());
 
 	RETURN_STR(retbuffer);
 }
@@ -7164,13 +7119,13 @@ BUILT_IN_FUNCTION(function_prefix, input)
 		 * characters with words[0] (which is chosen arbitrarily).
 		 * As long as all words start with the same leading chars,
 		 * we march along trying longer and longer substrings,
-		 * until one of them doesnt work, and then we exit right
+		 * until one of them doesn't work, and then we exit right
 		 * there.
 		 */
 		if (my_strnicmp(words[0], words[word_index], len_index))
 		{
-			retval = new_malloc(len_index + 1);
-			strmcpy(retval, words[0], len_index - 1);
+			retval = new_malloc(len_index);
+			strlcpy(retval, words[0], len_index);
 			new_free((char **)&words);
 			return retval;
 		}
@@ -7224,35 +7179,37 @@ BUILT_IN_FUNCTION(function_functioncall, input)
  * word-number would be used, such as $chngw().  The empty value is returned
  * if a syntax error returns.
  *
- * DONT ASK ME to support 'position' less than 0 to indicate a position
+ * DON'T ASK ME to support 'position' less than 0 to indicate a position
  * from the end of the string.  Either that can be supported, or you can 
  * directly use $index() as the first argument; you can't do both.  I chose
  * the latter intentionally.  If you really want to calculate from the end of
  * your string, then just add your negative value to $strlen(string) and
  * pass that.
+ *
+ * 10/01/02 At the suggestion of fudd and rain, if pos == len, then return
+ * the number of words in 'input' because if the cursor is at the end of the
+ * input prompt and you do $indextoword($curpos() $L), right now it would
+ * return EMPTY but it should return the word number right before the cursor.
  */
 BUILT_IN_FUNCTION(function_indextoword, input)
 {
-	size_t	pos;
-	size_t	len;
+	size_t pos;
+	size_t len;
+	int count;
 
 	GET_INT_ARG(pos, input);
-	if (pos < 0)
-		RETURN_EMPTY;
 	len = strlen(input);
-	if (pos < 0 || pos >= len)
+	if (pos > len)
 		RETURN_EMPTY;
 
-	/* 
-	 * XXX
-	 * Using 'word_count' to do this is a really lazy cop-out, but it
-	 * renders the desired effect and its pretty cheap.  Anyone want
-	 * to bicker with me about it?
-	 */
-	/* Truncate the string if neccesary */
+	/* Truncate the string if necessary */
 	if (pos + 1 < len)
 		input[pos + 1] = 0;
-	RETURN_INT(word_count(input));
+
+	count = word_count(input);
+	if (count > 0)
+		count--;
+	RETURN_INT(count);
 }
 
 BUILT_IN_FUNCTION(function_realpath, input)
@@ -7298,7 +7255,7 @@ BUILT_IN_FUNCTION(function_insert, word)
 
 	m_3cat(&result, inserted, word + where);
 
-	return result;				/* DONT USE RETURN_STR HERE! */
+	return result;				/* DON'T USE RETURN_STR HERE! */
 }
 
 BUILT_IN_FUNCTION(function_stat, input)
@@ -7311,7 +7268,7 @@ BUILT_IN_FUNCTION(function_stat, input)
 	if (stat(filename, &sb) < 0)
 		RETURN_EMPTY;
 
-	snprintf(retval, BIG_BUFFER_SIZE,
+	snprintf(retval, sizeof retval,
 		"%d %d %o %d %d %d %d %lu %lu %lu %ld %ld %ld",
 		(int)	sb.st_dev,		/* device number */
 		(int)	sb.st_ino,		/* Inode number */

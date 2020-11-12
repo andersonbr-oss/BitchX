@@ -1,5 +1,5 @@
 /*
- * $Id: expr2.c 3 2008-02-25 09:49:14Z keaston $
+ * $Id$
  * math.c - mathematical expression evaluation
  * This file is based on 'math.c', which is part of zsh, the Z shell.
  *
@@ -40,7 +40,7 @@
  * limitations of liability and the express disclaimer of all warranties.  
  * This software is provided "AS IS".
  *
- * $Id: expr2.c 3 2008-02-25 09:49:14Z keaston $
+ * $Id$
  */
 
 #include "irc.h"
@@ -59,21 +59,21 @@ static char *alias_special_char(char **, char *, const char *, char *, int *);
 
 /*
  * One thing of note is that while the original did only ints, we really
- * only do strings.  We convert to and from ints as neccesary.  Icky,
- * but given the semantics we require its the only way.
+ * only do strings.  We convert to and from ints as necessary.  Icky,
+ * but given the semantics we require it's the only way.
  */
 /*
  * All the information for each expression is stored in a struct.  This
- * is done so that there are no global variables in use (theyre all collected
+ * is done so that there are no global variables in use (they're all collected
  * making them easier to handle), and makes re-entrancy much easier since 
- * i dont have to ask myself "have i accounted for the old state of all the
+ * I don't have to ask myself "have I accounted for the old state of all the
  * global variables?"
  */
 
 /*
  * When we want to refer symbolically to a token, we just sling around
  * the integer index to the token table.  This serves two purposes:  We
- * dont have to worry about whether something is malloced or not, or who
+ * don't have to worry about whether something is malloced or not, or who
  * is resopnsible to free, or anything like that.  If you want to keep 
  * something around, you tokenize() it and that returns a "handle" to the
  * token and then you pass that handle around.  So the pair (context,handle)
@@ -84,7 +84,7 @@ typedef int	TOKEN;
 /*
  * This sets up whether we do floating point math or integer math
  */
-#ifdef FLOATING_POINT_MATH			/* XXXX This doesnt work yet */
+#ifdef FLOATING_POINT_MATH			/* XXXX This doesn't work yet */
   typedef	double		NUMBER;
   typedef 	long		BooL;
 # define STON atof
@@ -164,8 +164,8 @@ typedef struct
 	int	*args_flag;
 } expr_info;
 
-__inline static	TOKEN	tokenize (expr_info *c, const char *t);
-	 static char *	after_expando_special (expr_info *c);
+static inline	TOKEN	tokenize (expr_info *c, const char *t);
+static char *	after_expando_special (expr_info *c);
 
 void	setup_expr_info (expr_info *c)
 {
@@ -256,13 +256,13 @@ enum LEX {
 /*
  * Precedence table:  Operators with a lower precedence VALUE have a higher
  * precedence.  The theory behind infix notation (algebraic notation) is that
- * you have a sequence of operands seperated by (typically binary) operators.
+ * you have a sequence of operands separated by (typically binary) operators.
  * The problem of precedence is that each operand is surrounded by two
  * operators, so it is ambiguous which operator the operand "binds" to.  This
  * is resolved by "precedence rules" which state that given two operators,
  * which one is allowed to "reduce" (operate on) the operand.  For a simple
  * explanation, take the expression  (3+4*5).  Now the middle operand is a
- * '4', but we dont know if it should be reduced via the plus, or via the
+ * '4', but we don't know if it should be reduced via the plus, or via the
  * multiply.  If we look up both operators in the prec table, we see that
  * multiply has the lower value -- therefore the 4 is reduced via the multiply
  * and then the result of the multiply is reduced by the addition.
@@ -303,10 +303,10 @@ static	int	prec[TOKCOUNT] =
 
 
 /*
- * Associativity table: But precedence isnt enough.  What happens when you
+ * Associativity table: But precedence isn't enough.  What happens when you
  * have two identical operations to determine between?  Well, the easy way
  * is to say that the first operation is always done first.  But some
- * operators dont work that way (like the assignment operator) and always
+ * operators don't work that way (like the assignment operator) and always
  * reduce the LAST (or rightmost) operation first.  For example:
  *	(3+4+5)	    ((4+3)+5)    (7+5)    (12)
  *      (v1=v2=3)   (v1=(v2=3))  (v1=3)   (3)
@@ -363,7 +363,7 @@ static 	int 	assoc[TOKCOUNT] =
  * here and the index into the 'token' table is returned.
  */
 /* THIS FUNCTION MAKES A NEW COPY OF 'T'.  YOU MUST DISPOSE OF 'T' YOURSELF */
-__inline static	TOKEN		tokenize (expr_info *c, const char *t)
+static inline	TOKEN		tokenize (expr_info *c, const char *t)
 {
 	if (c->token >= TOKENCOUNT)
 	{
@@ -376,7 +376,7 @@ __inline static	TOKEN		tokenize (expr_info *c, const char *t)
 
 /* get_token gets the ``lvalue'', or original text, of a token */
 /* YOU MUST _NOT_ FREE THE RETURN VALUE FROM THIS FUNCTION! */
-__inline static	const char *		get_token (expr_info *c, TOKEN v)
+static inline	const char *		get_token (expr_info *c, TOKEN v)
 {
 	if (v == MAGIC_TOKEN)	/* Magic token */
 		return c->args;
@@ -472,7 +472,7 @@ static	char *	getsval2 (expr_info *c, TOKEN s)
 				return extract2(c->args, j, EOS);
 			}
 
-			/* Anything else we dont grok */
+			/* Anything else we don't grok */
 			else
 				return expand_alias(t, c->args, 
 							c->args_flag, NULL);
@@ -524,7 +524,7 @@ static	char *	getsval2 (expr_info *c, TOKEN s)
 	return NULL /* <whatever> */;
 }
 
-__inline static  NUMBER	getnval (expr_info *c, TOKEN s)
+static inline  NUMBER	getnval (expr_info *c, TOKEN s)
 {
 	char	*t;
 	NUMBER	retval;
@@ -541,7 +541,7 @@ __inline static  NUMBER	getnval (expr_info *c, TOKEN s)
 }
 
 #ifdef notused
-__inline static  BooL	getbval (expr_info *c, TOKEN s)
+static inline  BooL	getbval (expr_info *c, TOKEN s)
 {
 	char	*t;
 	long	retval;
@@ -564,12 +564,12 @@ __inline static  BooL	getbval (expr_info *c, TOKEN s)
  * When you have an lvalue (left hand side of an assignment) that needs to
  * be assigned to, then you can call these functions to assign to it the
  * appropriate type.  The basic operation is to assign and rvalue token
- * to an lvalue token.  But some times you dont always have a tokenized
+ * to an lvalue token.  But some times you don't always have a tokenized
  * rvalue, so you can just pass in a raw value and we will tokenize it for
  * you and go from there.  Note that the "result" of an assignment is the
  * rvalue token.  This is then pushed back onto the stack.
  */
-__inline static	TOKEN	setvar (expr_info *c, TOKEN l, TOKEN r)
+static inline	TOKEN	setvar (expr_info *c, TOKEN l, TOKEN r)
 {
 	char *t = expand_alias(get_token(c, l), c->args, c->args_flag, NULL);
 	char *u = getsval(c, r);
@@ -592,12 +592,12 @@ __inline static	TOKEN	setvar (expr_info *c, TOKEN l, TOKEN r)
 	return tokenize(c, s);
 }
 
-__inline static TOKEN 	setnvar (expr_info *c, TOKEN l, NUMBER v) 
+static inline TOKEN 	setnvar (expr_info *c, TOKEN l, NUMBER v) 
 {
 	 return setvar(c, l, tokenize(c, NTOS(v)));
 }
 
-__inline static	TOKEN	setsvar (expr_info *c, TOKEN l, char *v)
+static inline	TOKEN	setsvar (expr_info *c, TOKEN l, char *v)
 {
 	char	*s;
 
@@ -620,7 +620,7 @@ __inline static	TOKEN	setsvar (expr_info *c, TOKEN l, char *v)
  * when you want to shift a value that has not been tokenized.  So you call
  * one of the other functions that will do this for you.
  */
-__inline static	TOKEN	pusht (expr_info *c, TOKEN t)
+static inline	TOKEN	pusht (expr_info *c, TOKEN t)
 {
 	if (c->sp == STACKSZ - 1)
 	{
@@ -635,12 +635,12 @@ __inline static	TOKEN	pusht (expr_info *c, TOKEN t)
 	return ((c->stack[c->sp] = t));
 }
 
-__inline static	TOKEN	pushn (expr_info *c, NUMBER val)
+static inline	TOKEN	pushn (expr_info *c, NUMBER val)
 { 
 	return pusht(c, tokenize(c, NTOS(val)));
 }
 
-__inline static	TOKEN	pushs (expr_info *c, char *val)
+static inline	TOKEN	pushs (expr_info *c, char *val)
 {
 	char	*blah;
 	blah = alloca(strlen(val) + 2);
@@ -648,7 +648,7 @@ __inline static	TOKEN	pushs (expr_info *c, char *val)
 	return pusht(c, tokenize(c, blah)); 
 }
 
-__inline static TOKEN	top (expr_info *c)
+static inline TOKEN	top (expr_info *c)
 {
 	if (c->sp < 0)
 	{
@@ -659,13 +659,13 @@ __inline static TOKEN	top (expr_info *c)
 		return c->stack[c->sp];
 }
 
-__inline static	TOKEN	pop (expr_info *c)
+static inline	TOKEN	pop (expr_info *c)
 {
 	if (c->sp < 0)
 	{
 		/* 
 		 * Attempting to pop more operands than are available
-		 * Yeilds empty values.  Thats probably the most reasonable
+		 * yields empty values.  That's probably the most reasonable
 		 * course of action.
 		 */
 		error("Cannot pop operand: no more operands");
@@ -675,7 +675,7 @@ __inline static	TOKEN	pop (expr_info *c)
 		return c->stack[c->sp--];
 }
 
-__inline static	double	popn (expr_info *c)
+static inline	double	popn (expr_info *c)
 {
 	char *	x = getsval(c, pop(c));
 	NUMBER	i = atof(x);
@@ -685,12 +685,12 @@ __inline static	double	popn (expr_info *c)
 }
 
 /* YOU MUST FREE THE RETURN VALUE FROM THIS FUNCTION */
-__inline static	char *	pops (expr_info *c)
+static inline	char *	pops (expr_info *c)
 {
 	return getsval(c, pop(c));
 }
 
-__inline static BooL	popb (expr_info *c)
+static inline BooL	popb (expr_info *c)
 {
 	char *	x = getsval(c, pop(c));
 	BooL	i = check_val(x);
@@ -699,13 +699,13 @@ __inline static BooL	popb (expr_info *c)
 	return i;
 }
 
-__inline static void	pop2 (expr_info *c, TOKEN *t1, TOKEN *t2)
+static inline void	pop2 (expr_info *c, TOKEN *t1, TOKEN *t2)
 {
 	*t2 = pop(c);
 	*t1 = pop(c);
 }
 
-__inline static	void	pop2n (expr_info *c, NUMBER *a, NUMBER *b)
+static inline	void	pop2n (expr_info *c, NUMBER *a, NUMBER *b)
 {
 	TOKEN	t1, t2;
 	char	*x, *y;
@@ -719,7 +719,7 @@ __inline static	void	pop2n (expr_info *c, NUMBER *a, NUMBER *b)
 	new_free(&y);
 }
 
-__inline static void	pop2s (expr_info *c, char **s, char **t)
+static inline void	pop2s (expr_info *c, char **s, char **t)
 {
 	TOKEN	t1, t2;
 	char	*x, *y;
@@ -731,7 +731,7 @@ __inline static void	pop2s (expr_info *c, char **s, char **t)
 	*t = y;
 }
 
-__inline static void	pop2b (expr_info *c, BooL *a, BooL *b)
+static inline void	pop2b (expr_info *c, BooL *a, BooL *b)
 {
 	TOKEN	t1, t2;
 	char	*x, *y;
@@ -745,7 +745,7 @@ __inline static void	pop2b (expr_info *c, BooL *a, BooL *b)
 	new_free(&y);
 }
 
-__inline static	void	pop2n_a (expr_info *c, NUMBER *a, NUMBER *b, TOKEN *v)
+static inline	void	pop2n_a (expr_info *c, NUMBER *a, NUMBER *b, TOKEN *v)
 {
 	TOKEN	t1, t2;
 	char	*x, *y;
@@ -760,7 +760,7 @@ __inline static	void	pop2n_a (expr_info *c, NUMBER *a, NUMBER *b, TOKEN *v)
 	new_free(&y);
 }
 
-__inline static	void	pop2s_a (expr_info *c, char **s, char **t, TOKEN *v)
+static inline	void	pop2s_a (expr_info *c, char **s, char **t, TOKEN *v)
 {
 	TOKEN	t1, t2;
 	char	*x, *y;
@@ -773,8 +773,7 @@ __inline static	void	pop2s_a (expr_info *c, char **s, char **t, TOKEN *v)
 	*v = t1;
 }
 
-#if notused
-__inline static void	pop2b_a (expr_info *c, BooL *a, BooL *b, TOKEN *v)
+static inline void	pop2b_a (expr_info *c, BooL *a, BooL *b, TOKEN *v)
 {
 	TOKEN	t1, t2;
 	char	*x, *y;
@@ -788,9 +787,8 @@ __inline static void	pop2b_a (expr_info *c, BooL *a, BooL *b, TOKEN *v)
 	new_free(&x);
 	new_free(&y);
 }
-#endif
 
-__inline static	void	pop3 (expr_info *c, NUMBER *a, TOKEN *v, TOKEN *w)
+static inline	void	pop3 (expr_info *c, NUMBER *a, TOKEN *v, TOKEN *w)
 {
 	TOKEN	t1, t2, t3;
 	char	*x;
@@ -810,7 +808,7 @@ __inline static	void	pop3 (expr_info *c, NUMBER *a, TOKEN *v, TOKEN *w)
 
 /*
  * This is the reducer.  It takes the relevant arguments off the argument
- * stack and then performs the neccesary operation on them.
+ * stack and then performs the necessary operation on them.
  */
 void	op (expr_info *cx, int what)
 {
@@ -828,7 +826,7 @@ void	op (expr_info *cx, int what)
 	}
 
 	if (cx->errflag)
-		return;		/* Dont parse on an error */
+		return;		/* Don't parse on an error */
 
 #define BINARY(x) \
 	{ \
@@ -866,27 +864,41 @@ void	op (expr_info *cx, int what)
 	}
 #define IMPLIED(x) \
 	{ \
+		long r; \
 		pop2n_a(cx, &a, &b, &v); \
+		r = (x); \
 		if (x_debug & DEBUG_NEW_MATH_DEBUG) \
 			debugyell("O: %s = %s (%ld %ld) -> %ld",  \
-				get_token(cx, v), #x, a, b, x); \
-		pushn(cx, setnvar(cx, v, (x))); \
+				get_token(cx, v), #x, a, b, r); \
+		setnvar(cx, v, r); \
+		pushn(cx, r); \
+		break; \
+	}
+#define IMPLIED_BOOLEAN(x) \
+	{ \
+		long r; \
+		pop2b_a(cx, &c, &d, &v); \
+		r = (x); \
+		if (x_debug & DEBUG_NEW_MATH_DEBUG) \
+			debugyell("O: %s = %s (%ld %ld) -> %ld",  \
+				get_token(cx, v), #x, c, d, r); \
+		setnvar(cx, v, r); \
+		pushn(cx, r); \
 		break; \
 	}
 #define IMPLIED_NOZERO(x) \
 	{ \
+		long r = 0; \
 		pop2n_a(cx, &a, &b, &v); \
-		if (b == 0) { \
-			if (x_debug & DEBUG_NEW_MATH_DEBUG) \
-				debugyell("O: %s = %s (%ld %ld) -> 0",  \
-					get_token(cx, v), #x, a, b); \
-			error("Division by zero"); \
-			pushn(cx, setnvar(cx, v, 0)); \
-		} \
+		if (b != 0) \
+			r = (x); \
 		if (x_debug & DEBUG_NEW_MATH_DEBUG) \
 			debugyell("O: %s =  %s (%ld %ld) -> %ld",  \
-				get_token(cx, v), #x, a, b, x); \
-		pushn(cx, setnvar(cx, v, (x))); \
+				get_token(cx, v), #x, a, b, r); \
+		if (b == 0) \
+			error("Division by zero"); \
+		setnvar(cx, v, r); \
+		pushn(cx, r); \
 		break; \
 	}
 #define AUTO_UNARY(x, y) \
@@ -981,7 +993,7 @@ void	op (expr_info *cx, int what)
 				*tmp;
 
 			if (top(cx) == MAGIC_TOKEN)
-				break;		/* Dont do anything */
+				break;		/* Don't do anything */
 
 			s = pops(cx);
 			tmp = expand_alias(s, cx->args, cx->args_flag, NULL);
@@ -1040,9 +1052,9 @@ void	op (expr_info *cx, int what)
 		case OREQ:	IMPLIED(a | b)
 		case SHLEFTEQ:	IMPLIED(a << b)
 		case SHRIGHTEQ: IMPLIED(a >> b)
-		case DANDEQ:	IMPLIED((long)(c && d))
-		case DOREQ:	IMPLIED((long)(c || d))
-		case DXOREQ:	IMPLIED((long)((c && !d) || (!c && d)))
+		case DANDEQ:	IMPLIED_BOOLEAN(c && d)
+		case DOREQ:	IMPLIED_BOOLEAN(c || d)
+		case DXOREQ:	IMPLIED_BOOLEAN((c && !d) || (!c && d))
 		case STRCATEQ:
 			pop2s_a(cx, &s, &t, &v);
 			if (x_debug & DEBUG_NEW_MATH_DEBUG) 
@@ -1133,7 +1145,7 @@ void	op (expr_info *cx, int what)
 		case GEQ:	COMPARE(a >= b, my_stricmp(s, t) >= 0)
 
 
-		/* Miscelaneous operators */
+		/* Miscellaneous operators */
 		case QUEST:
 			pop3(cx, &a, &v, &w);
 			if (x_debug & DEBUG_NEW_MATH_DEBUG)
@@ -1192,7 +1204,7 @@ int	lexerr (expr_info *c, char *format, ...)
  * case 'operand' is set to 1.  When an operand is lexed, then the next token
  * is expected to be a binary operator, so 'operand' is set to 0. 
  */
-__inline int	check_implied_arg (expr_info *c)
+static inline int	check_implied_arg (expr_info *c)
 {
 	if (c->operand == 2)
 	{
@@ -1205,7 +1217,7 @@ __inline int	check_implied_arg (expr_info *c)
 	return c->operand;
 }
 
-__inline TOKEN 	operator (expr_info *c, char *x, int y, TOKEN z)
+static inline TOKEN 	operator (expr_info *c, char *x, int y, TOKEN z)
 {
 	check_implied_arg(c);
 	if (c->operand)
@@ -1216,7 +1228,7 @@ __inline TOKEN 	operator (expr_info *c, char *x, int y, TOKEN z)
 	return z;
 }
 
-__inline TOKEN 	unary (expr_info *c, char *x, int y, TOKEN z)
+static inline TOKEN 	unary (expr_info *c, char *x, int y, TOKEN z)
 {
 	if (!c->operand)
 		return lexerr(c, "An operator (%s) was found where "
@@ -1251,7 +1263,7 @@ static int	zzlex (expr_info *c)
 		case ')':
 			/*
 			 * If we get a close paren and the lexer is expecting
-			 * an operand, then obviously thats a syntax error.
+			 * an operand, then obviously that's a syntax error.
 			 * But we gently just insert the empty value as the
 			 * rhs for the last operand and hope it all works out.
 			 */
@@ -1469,11 +1481,11 @@ static int	zzlex (expr_info *c)
 			return QUEST;
 		case ':':
 			/*
-			 * I dont want to hear anything from you anti-goto
+			 * I don't want to hear anything from you anti-goto
 			 * bigots out there. ;-)  If you can't figure out
 			 * what this does, you ought to give up programming.
 			 * And a big old :p to everyone who insisted that
-			 * i support this horrid hack.
+			 * I support this horrid hack.
 			 */
 			if (c->operand)
 				goto handle_expando;
@@ -1593,7 +1605,7 @@ static void	mathparse (expr_info *c, int pc)
 		onoeval;
 
 	/*
-	 * Drop out of parsing if an error has occured
+	 * Drop out of parsing if an error has occurred
 	 */
 	if (c->errflag)
 		return;
@@ -1608,7 +1620,7 @@ static void	mathparse (expr_info *c, int pc)
 	 */
 	while (prec[c->mtok] <= pc) 
 	{
-		/* Drop out if an error has occured */
+		/* Drop out if an error has occurred */
 		if (c->errflag)
 			return;
 
@@ -1745,7 +1757,7 @@ static void	mathparse (expr_info *c, int pc)
  * This is the new math parser.  It sets up an execution context, which
  * contains sundry information like all the extracted tokens, intermediate
  * tokens, shifted tokens, and the like.  The expression context is passed
- * around from function to function, each function is totaly independant
+ * around from function to function, each function is totally independent
  * of state information stored in global variables.  Therefore, this math
  * parser is re-entrant safe.
  */

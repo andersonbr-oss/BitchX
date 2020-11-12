@@ -1,7 +1,7 @@
 /* MD5 Message Digest algorithm */
 
-#include "md5.h"
 #include <string.h>
+#include "md5.h"
 
 /* Prototypes */
 static void Transform(UINT_32 *, UINT_32 *);
@@ -217,7 +217,7 @@ static void Transform(UINT_32 *buf, UINT_32 *in)
    buf[2] += c;
    buf[3] += d;
 
-   memset((void *)in, 0, sizeof(in));
+   memset(in, 0, 16 * sizeof in[0]);
 }
 
 #if 0

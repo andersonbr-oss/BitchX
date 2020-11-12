@@ -10,7 +10,7 @@
 
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: window.c 87 2010-06-26 08:18:34Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(window_c)
 #include "struct.h"
 
@@ -29,7 +29,6 @@ CVS_REVISION(window_c)
 #include "output.h"
 #include "log.h"
 #include "hook.h"
-#include "dcc.h"
 #include "misc.h"
 #include "cset.h"
 #include "module.h"
@@ -148,14 +147,20 @@ Window	*BX_new_window(Screen *screen)
 	new->status_split = 1;	
 	new->scratch_line = -1;
 
-#ifdef DEFAULT_DOUBLE_STATUS
-	new->double_status = DEFAULT_DOUBLE_STATUS;
-#else
- 	if (new->refnum == 1)
-  		new->double_status = 1;
-  	else
+	switch (get_int_var(DOUBLE_STATUS_LINE_VAR))
+	{
+	case 0:
   		new->double_status = 0;
-#endif
+		break;
+	case 1:
+	 	if (new->refnum == 1)
+  			new->double_status = 1;
+		else
+  			new->double_status = 0;
+		break;
+	default:
+		new->double_status = 1;
+	}
 
 #ifdef DEFAULT_STATUS_LINES
 	new->status_lines = DEFAULT_STATUS_LINES;
@@ -234,9 +239,9 @@ void BX_delete_window(Window *window)
 		}
 	}
 	if (window->name)
-		strmcpy(buffer, window->name, BIG_BUFFER_SIZE - 1);
+		strlcpy(buffer, window->name, sizeof buffer);
 	else
-		sprintf(buffer, "%u", window->refnum);
+		snprintf(buffer, sizeof buffer, "%u", window->refnum);
 
 	/*
 	 * If this window is the "previous" window, then we make the current
@@ -414,12 +419,29 @@ void BX_add_to_invisible_list(Window *window)
 		invisible_list->prev = window;
 	invisible_list = window;
 	window->prev = NULL;
+
 	window->visible = 0;
+
+	/* Save the width of the screen the window was last on, to use for
+	 * wrapping output while the window is hidden.
+	 */
 	if (window->screen)
-		window->columns = window->screen->co;
+		window->saved_columns = window->screen->co;
 	else
-		window->columns = current_term->TI_cols;
+		window->saved_columns = main_screen->co;
 	window->screen = NULL;
+}
+
+/* window_columns()
+ *
+ * Returns the number of columns in the window for wrapping output.  For
+ * visible windows, this is the number of columns on the screen; for
+ * invisible windows, this is the saved size the window had when it was last
+ * visible.
+ */
+int window_columns(Window *window)
+{
+	return window->screen ? window->screen->co : window->saved_columns;
 }
 
 /*
@@ -503,8 +525,8 @@ void BX_remove_window_from_screen(Window *window)
 		ircpanic("This window is not on a screen");
 
 	/*
-	 * We  used to go to greath lengths to figure out how to fill
-	 * in the space vacated by this window.  Now we dont sweat that.
+	 * We used to go to greath lengths to figure out how to fill
+	 * in the space vacated by this window.  Now we don't sweat that.
 	 * we just blow away the window and then recalculate the entire
 	 * screen.
 	 */
@@ -569,7 +591,7 @@ static	void swap_window(Window *v_window, Window *window)
 	if (!window)
 	{
 		if (!get_int_var(WINDOW_QUIET_VAR))
-			say("The window to be swapped in does not exist.");
+			say("The window to be swapped in doesn't exist.");
 		return;
 	}
 
@@ -692,9 +714,7 @@ void BX_move_window(Window *window, int offset)
 void BX_resize_window(int how, Window *window, int offset)
 {
 	Window	*other;
-	int	after,
-		window_size,
-		other_size;
+	int	window_size, other_size;
 
 	if (!window)
 		window = current_window;
@@ -702,7 +722,7 @@ void BX_resize_window(int how, Window *window, int offset)
 	if (!window->visible)
 	{
 		if (!get_int_var(WINDOW_QUIET_VAR))
-			say("You cannot change the size of hidden windows!");
+			say("You can't change the size of hidden windows.");
 		return;
 	}
 
@@ -712,7 +732,6 @@ void BX_resize_window(int how, Window *window, int offset)
 		how = RESIZE_REL;
 	}
 
-	after = 1;
 	other = window;
 
 	do
@@ -720,14 +739,11 @@ void BX_resize_window(int how, Window *window, int offset)
 		if (other->next)
 			other = other->next;
 		else
-		{
 			other = window->screen->window_list;
-			after = 0;
-		}
 
 		if (other == window)
 		{
-			say("Can't change the size of this window!");
+			say("You can't change the size of the only visible, resizable window.");
 			return;
 		}
 
@@ -762,7 +778,7 @@ void BX_resize_window(int how, Window *window, int offset)
 	if ((window_size < 0) || (other_size < 0))
 	{
 		if (!get_int_var(WINDOW_QUIET_VAR))
-			say("Not enough room to resize this window!");
+			say("Not enough room to resize this window.");
 		return;
 	}
 
@@ -941,8 +957,8 @@ void BX_recalculate_windows (Screen *screen)
 	if (dumb_mode)
 		return;
 #ifdef GUI
-	current_term->TI_lines = screen->li;
-	current_term->TI_cols = screen->co;
+	current_term->li = screen->li;
+	current_term->co = screen->co;
 #endif
                 
 	if (!screen) /* it's a hidden window. ignore this */
@@ -952,10 +968,10 @@ void BX_recalculate_windows (Screen *screen)
 	 */
 	if (screen && !screen->current_window)
 	{
+		int display_size = current_term->li - 2 - screen->window_list->double_status;
 		screen->window_list->top = 0;
-		screen->window_list->display_size = current_term->TI_lines - 2 - screen->window_list->double_status;
-		screen->window_list->bottom = current_term->TI_lines - 2 - screen->window_list->double_status;
-		old_li = current_term->TI_lines;
+		screen->window_list->display_size = display_size;
+		screen->window_list->bottom = display_size;
 		return;
 	}
 
@@ -975,7 +991,7 @@ void BX_recalculate_windows (Screen *screen)
 			split += tmp->status_lines;
 	}
 
-	excess_li = current_term->TI_lines - old_li - split;
+	excess_li = current_term->li - old_li - split;
 
 	for (tmp = screen->window_list; tmp; tmp = tmp->next)
 	{
@@ -1072,14 +1088,15 @@ void BX_goto_window(Screen *s, int which)
 }
 
 /*
- * hide_window: sets the given window to invisible and recalculates remaing
+ * hide_window: sets the given window to invisible and recalculates remaining
  * windows to fill the entire screen 
  */
 void BX_hide_window(Window *window)
 {
 	if (!window->screen)
 	{
-		say("You can't hide an invisible window.");
+		if (!get_int_var(WINDOW_QUIET_VAR))
+			say("You can't hide an invisible window.");
 		return;
 	}
 	if (window->screen->visible_windows == 1)
@@ -1088,11 +1105,9 @@ void BX_hide_window(Window *window)
 			say("You can't hide the last window.");
 		return;
 	}
-	if (window->screen)
-	{
-		remove_window_from_screen(window);
-		add_to_invisible_list(window);
-	}
+
+	remove_window_from_screen(window);
+	add_to_invisible_list(window);
 }
 
 /*
@@ -1176,43 +1191,34 @@ char *BX_get_status_by_refnum(unsigned refnum, unsigned line)
 /*
  * get_window_by_desc: Given either a refnum or a name, find that window
  */
-Window *BX_get_window_by_desc (const char *stuff)
+Window *BX_get_window_by_desc(const char *desc)
 {
-Window *w = NULL;
-	do 
-	{
-		if ((w = get_window_by_name(stuff)))
-			break;
-		if (is_number(stuff) && (w = get_window_by_refnum(my_atol(stuff))))
-			break;
-		if (*stuff == '#')
-		{
-			stuff++;
-			continue;
-		}	
-	} while (0);
+	Window *w = get_window_by_name(desc);
+
+	if (!w && is_number(desc))
+		w = get_window_by_refnum(my_atol(desc));
+
 	return w;
 }
 
 /*
  * get_window_by_refnum: Given a reference number to a window, this returns a
  * pointer to that window if a window exists with that refnum, null is
- * returned otherwise.  The "safe" way to reference a window is throught the
- * refnum, since a window might be delete behind your back and and Window
+ * returned otherwise.  The "safe" way to reference a window is through the
+ * refnum, since a window might be deleted behind your back and and Window
  * pointers might become invalid.  
  */
 Window	* BX_get_window_by_refnum(unsigned int refnum)
 {
 	Window	*tmp = NULL;
 
-	if (refnum < 0)
-		return NULL;
 	if (refnum == 0)
 		return current_window;
-	else while ((traverse_all_windows(&tmp)))
+
+	while ((traverse_all_windows(&tmp)))
 	{
 		if (tmp->refnum == refnum)
-			return (tmp);
+			return tmp;
 	}
 	return NULL;
 }
@@ -1342,8 +1348,6 @@ void BX_previous_window(char key, char *ptr)
 	set_input_prompt(current_window, get_string_var(INPUT_PROMPT_VAR), 0);
 }
 
-
-
 /*
  * update_window_status: This updates the status line for the given window.
  * If the refresh flag is true, the entire status line is redrawn.  If not,
@@ -1360,7 +1364,9 @@ void BX_update_window_status(Window *window, int refresh)
 		new_free(&(window->wset->status_line[0]));
 		new_free(&(window->wset->status_line[1]));
 		new_free(&(window->wset->status_line[2]));
+		window->update &= ~REDRAW_STATUS;
 	}
+	window->update &= ~UPDATE_STATUS;
 	make_status(window);
 }
 
@@ -1553,9 +1559,8 @@ void set_query_nick(char *nick, char *host, char *cmd)
  * channel and attempt to replace it by a non-current channel or the 
  * current_channel of window specified by value of delete
  */
-int BX_is_current_channel(char *channel, int server, int delete)
+int BX_is_current_channel(const char *channel, int server, int delete)
 {
-
 	Window	*tmp = NULL;
 	int	found = 0;
 
@@ -1573,12 +1578,13 @@ int BX_is_current_channel(char *channel, int server, int delete)
 			}
 		}
 	}
-	return (found);
+
+	return found;
 }
 
 /*
  * set_current_channel_by_refnum: This sets the current channel for the current
- * window. It returns the current channel as it's value.  If channel is null,
+ * window. It returns the current channel as its value.  If channel is null,
  * the * current channel is not changed, but simply reported by the function
  * result.  This treats as a special case setting the current channel to
  * channel "0".  This frees the current_channel for the
@@ -1592,7 +1598,7 @@ const char	*BX_set_current_channel_by_refnum(unsigned int refnum, char *channel)
 		tmp = current_window;
 
 	oldc = tmp->current_channel;
-	if (!channel || (channel && !strcmp(channel, zero)))
+	if (!channel || !strcmp(channel, zero))
 		tmp->current_channel = NULL;
 	else
 		tmp->current_channel = m_strdup(channel);
@@ -2155,7 +2161,7 @@ void 	BX_set_display_target (const char *who, unsigned long level)
 
 		/*
 		 * We'd better check to see if this should go to a
-		 * specific window (i dont agree with this, though)
+		 * specific window (I don't agree with this, though)
 		 */
 		if (is_channel((char *)who_from) && from_server > -1)
 		{
@@ -2706,7 +2712,7 @@ static Window *window_balance (Window *window, char **args, char *usage)
 
 /*
  * /WINDOW BEEP_ALWAYS ON|OFF
- * Indicates that when this window is HIDDEN (sorry, thats not what it seems
+ * Indicates that when this window is HIDDEN (sorry, that's not what it seems
  * like it should do, but that is what it does), beeps to this window should
  * not be suppressed like they normally are for hidden windows.  The beep
  * occurs EVEN IF /set beep is OFF.
@@ -2771,7 +2777,7 @@ static Window *window_bind (Window *window, char **args, char *usage)
 #endif
 
 		/*
-		 * So we know this window doesnt have a current channel.
+		 * So we know this window doesn't have a current channel.
 		 * So we have to find the window where it IS the current
 		 * channel (if it is at all)
 		 */
@@ -2921,7 +2927,7 @@ void win_create(int var, int test)
  * This directs the client to open up a new physical screen and create a
  * new window in it.  This feature depends on the external "wserv" utility
  * and requires a multi-processing system, since it actually runs the new
- * screen in a seperate process.  Please note that the external screen is
+ * screen in a separate process.  Please note that the external screen is
  * not actually controlled by the client, but rather by "wserv" which acts
  * as a pass-through filter on behalf of the client.
  *
@@ -2976,40 +2982,36 @@ static Window *window_describe (Window *window, char **args, char *usage)
 	else
 		say("Window %u", window->refnum);
 
-	say("\tServer: [%d] %s",
-				window->server, 
-				window->server <= -1 ? 
-				get_server_name(window->server) : "<None>");
-	say("\tScreen: %p", window->screen);
+	say("\tServer: [%d] %s", window->server, get_server_name(window->server));
+	if (window->screen)
+	{
+		say("\tScreen: [%d] %s", window->screen->screennum,
+			window->screen->tty_name ? window->screen->tty_name : "");
+		say("\tCO, LI are [%d %d]", window->screen->co, window->screen->li);
+	}
+	else
+		say("\tScreen: <None>");
 	say("\tGeometry Info: [%d %d %d %d %d %d]", 
 				window->top, window->bottom, 
 				window->held_displayed, window->display_size,
 				window->cursor, window->distance_from_display);
 
-#ifndef GUI
-	say("\tCO, LI are [%d %d]", current_term->TI_cols, current_term->TI_lines);
-#else
-	say("\tCO, LI are [%d %d]", output_screen->co, output_screen->li);
-#endif
 	say("\tCurrent channel: %s", 
 				window->current_channel ? 
 				window->current_channel : "<None>");
-
-if (window->waiting_channel)
-	say("\tWaiting channel: %s", 
-				window->waiting_channel);
-
-if (window->bind_channel)
-	say("\tBound channel: %s", 
-				window->bind_channel);
+	if (window->waiting_channel)
+		say("\tWaiting channel: %s", window->waiting_channel);
+	if (window->bind_channel)
+		say("\tBound channel: %s", window->bind_channel);
 	say("\tQuery User: %s %s", 
 				window->query_nick ? 
 				window->query_nick : "<None>", 
 				window->query_cmd ? 
 				window->query_cmd : empty_string);
-	say("\tPrompt: %s", 
-				window->prompt ? 
-				window->prompt : "<None>");
+
+	if (window->prompt)
+		say("\tPrompt: %s", window->prompt);
+
 	say("\tSecond status line is %s", onoff[window->double_status]);
 	say("\tSplit line is %s triple is %s", onoff[window->status_split], onoff[window->status_lines]);
 	say("\tLogging is %s", 	 onoff[window->log]);
@@ -3019,16 +3021,11 @@ if (window->bind_channel)
 	else
 		say("\tNo logfile given");
 
-	say("\tNotification is %s", 
-			      onoff[window->miscflags & WINDOW_NOTIFY]);
-	say("\tHold mode is %s", 
-				onoff[window->hold_mode]);
-	say("\tWindow level is %s", 
-				bits_to_lastlog_level(window->window_level));
-	say("\tLastlog level is %s", 
-				bits_to_lastlog_level(window->lastlog_level));
-	say("\tNotify level is %s", 
-				bits_to_lastlog_level(window->notify_level));
+	say("\tNotification is %s", onoff[window->miscflags & WINDOW_NOTIFY]);
+	say("\tHold mode is %s", onoff[window->hold_mode]);
+	say("\tWindow level is %s", bits_to_lastlog_level(window->window_level));
+	say("\tLastlog level is %s", bits_to_lastlog_level(window->lastlog_level));
+	say("\tNotify level is %s", bits_to_lastlog_level(window->notify_level));
 
 	if (window->nicks)
 	{
@@ -3139,7 +3136,7 @@ static	Window *window_echo (Window *window, char **args, char *usage)
 	else
 		to_echo = *args, *args = NULL;
 
-	add_to_window(window, (const unsigned char *)to_echo);
+	add_to_window(window, to_echo);
 	return window;
 }
 
@@ -3309,7 +3306,7 @@ static Window *window_last (Window *window, char **args, char *usage)
  * /WINDOW LASTLOG <size>
  * This changes the size of the window's lastlog buffer.  The default value
  * foR a window's lastlog is the value of /set LASTLOG, but each window may
- * be independantly tweaked with this command.
+ * be independently tweaked with this command.
  */
 static Window *window_lastlog (Window *window, char **args, char *usage)
 {
@@ -3387,7 +3384,7 @@ static Window *window_level (Window *window, char **args, char *usage)
 
 /*
  * /WINDOW LIST
- * This lists all of the windows known to the client, and a breif summary
+ * This lists all of the windows known to the client, and a brief summary
  * of their current state.
  */
 Window *window_list (Window *window, char **args, char *usage)
@@ -3427,37 +3424,34 @@ Window *window_list (Window *window, char **args, char *usage)
  */
 static Window *window_log (Window *window, char **args, char *usage)
 {
-	char *logfile;
-	int add_ext = 1;
-	char buffer[BIG_BUFFER_SIZE + 1];
+	char logfile[MAXPATHLEN];
 
 	if (get_boolean("LOG", args, &window->log))
 		return NULL;
 
-	if ((logfile = window->logfile))
-		add_ext = 0;
-	else if (!(logfile = get_string_var(LOGFILE_VAR)))
-		logfile = empty_string;
-
-	strmcpy(buffer,  logfile, BIG_BUFFER_SIZE);
-
-	if (add_ext)
+	if (window->logfile)
 	{
-		char *title = empty_string;
-
-		strmcat(buffer, ".", BIG_BUFFER_SIZE);
-		if ((title = window->current_channel))
-			strmcat(buffer, title, BIG_BUFFER_SIZE);
-		else if ((title = window->query_nick))
-			strmcat(buffer, title, BIG_BUFFER_SIZE);
-		else
-		{
-			strmcat(buffer, "Window_", BIG_BUFFER_SIZE);
-			strmcat(buffer, ltoa(window->refnum), BIG_BUFFER_SIZE);
-		}
+		strlcpy(logfile, window->logfile, sizeof logfile);
 	}
-	strip_chars(buffer, "|\\:", '-'); 
-	do_log(window->log, buffer, &window->log_fp);
+	else
+	{
+		char *logfile_base = get_string_var(LOGFILE_VAR);
+
+		if (!logfile_base)
+			logfile_base = empty_string;
+
+		if (window->current_channel)
+			snprintf(logfile, sizeof logfile, "%s.%s", logfile_base, 
+				window->current_channel);
+		else if (window->query_nick)
+			snprintf(logfile, sizeof logfile, "%s.%s", logfile_base,
+				window->query_nick);
+		else
+			snprintf(logfile, sizeof logfile, "%s.Window_%u", logfile_base,
+				window->refnum);
+	}
+	strip_chars(logfile, "|\\:", '-'); 
+	do_log(window->log, logfile, &window->log_fp);
 	if (!window->log_fp)
 		window->log = 0;
 
@@ -3707,11 +3701,6 @@ Window *window_query (Window *window, char **args, char *usage)
 	/*
 	 * Nuke the old query list
 	 */
-	if (*args && !my_strnicmp(*args, "-cmd", 4))
-	{
-		cmd = next_arg(*args, args);
-		cmd = next_arg(*args, args);
-	}
 	if ((nick = window->query_nick))
 	{
 		say("Ending conversation with %s", current_window->query_nick);
@@ -3734,10 +3723,18 @@ Window *window_query (Window *window, char **args, char *usage)
 		new_free(&window->query_cmd);
 	}
 
+	nick = next_arg(*args, args);
+
+	if (nick && !my_strnicmp(nick, "-cmd", 4))
+	{
+		cmd = next_arg(*args, args);
+		nick = next_arg(*args, args);
+	}
+
 	if (cmd)
 		malloc_strcpy(&window->query_cmd, cmd);
 
-	if ((nick = next_arg(*args, args)))
+	if (nick)
 	{
 
 		if (args && *args)
@@ -3750,7 +3747,7 @@ Window *window_query (Window *window, char **args, char *usage)
 		else if (!strcmp(nick, ","))
 		{
 			if (!(nick = get_server_recv_nick(window->server)))
-				say("You have not recieved a message yet");
+				say("You have not received a message yet");
 		}
 		else if (!strcmp(nick, "*") && 
 			!(nick = get_current_channel_by_refnum(0)))
@@ -3766,8 +3763,6 @@ Window *window_query (Window *window, char **args, char *usage)
 		if (!nick)
 			return window;
 
-
-
 		/*
 		 * Create the new query list
 		 */
@@ -3776,10 +3771,10 @@ Window *window_query (Window *window, char **args, char *usage)
 		malloc_strcpy(&window->query_host, host);
 
 		window->update |= UPDATE_STATUS;
-		ptr = nick;
+
 		while ((ptr = next_in_comma_list(nick, &nick)))
 		{
-			if (!ptr || !*ptr)
+			if (!*ptr)
 				break;
 			tmp = (NickList *) new_malloc(sizeof(NickList));
 			tmp->nick = m_strdup(ptr);
@@ -3862,13 +3857,13 @@ static Window *window_remove (Window *window, char **args, char *usage)
 BUILT_IN_WINDOW(window_server)
 {
 	char *arg;
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
   	int withSSL = 0;
 #endif
 
 	if ((arg = next_arg(*args, args)))
 	{
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 		if (!my_strnicmp(arg, "-SSL", strlen(arg)))
 		{
 			withSSL = 1;
@@ -3880,7 +3875,7 @@ BUILT_IN_WINDOW(window_server)
 #endif
 			int i = find_server_refnum(arg, NULL);
 
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 			if(i != -1)
 			{
 				if(withSSL)
@@ -3903,7 +3898,7 @@ BUILT_IN_WINDOW(window_server)
 #endif
 			}
 			window_check_servers(from_server);
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 		}
 #endif
 	}
@@ -4289,7 +4284,7 @@ static window_ops options [] = {
 	{ "NOTIFY",		window_notify, 		"[on|off|toggle]\n- Turns notification on/off/toggle for the current window." },
 	{ "NOTIFY_LEVEL",	window_notify_level, 	"[level]\n- Set's current window notification level to [level]" },
 	{ "NUMBER",		window_number, 		"[number]\n- Set's the current windows refnum to #" },
-	{ "POP",		window_pop, 		"\n- Pops the top window off the window stack. if hidden it's made visible" },
+	{ "POP",		window_pop, 		"\n- Pops the top window off the window stack. If hidden it's made visible" },
 	{ "PREVIOUS",		window_previous, 	"\n- Sets the current window to the previous numbered windows" },
 	{ "PROMPT",		window_prompt, 		"[text]\n- Sets the current input prompt to [text]" },
 	{ "PUSH",		window_push, 		"[refnum]\n- Places the current window or specified window on the window stack" },
@@ -4323,17 +4318,18 @@ static window_ops options [] = {
 
 static Window *window_help (Window *window, char **args, char *usage)
 {
-int i, c = 0;
-char buffer[BIG_BUFFER_SIZE+1];
-char *arg = NULL;
-int done = 0;
+	int i, c = 0, done = 0;
+	char *cmd;
+	char buffer[BIG_BUFFER_SIZE];
+
 	*buffer = 0;
-	if (!(arg = next_arg(*args, args)))
+	cmd = next_arg(*args, args);
+	if (!cmd)
 	{
 		for (i = 0; options[i].command; i++)
 		{
-			strmcat(buffer, options[i].command, BIG_BUFFER_SIZE);
-			strmcat(buffer, space, BIG_BUFFER_SIZE);
+			strlcat(buffer, options[i].command, sizeof buffer);
+			strlcat(buffer, space, sizeof buffer);
 			if (++c == 5)
 			{
 				put_it("%s", convert_output_format("$G $[13]0 $[13]1 $[13]2 $[13]3 $[13]4", "%s", buffer));
@@ -4349,10 +4345,10 @@ int done = 0;
 	{
 		for (i = 0; options[i].command; i++)
 		{
-			if (!my_stricmp(options[i].command, arg))
+			if (!my_stricmp(options[i].command, cmd))
 			{
-				sprintf(buffer, "WINDOW %s", arg);
-				userage(buffer, options[i].usage?options[i].usage:" - No help available");
+				snprintf(buffer, sizeof buffer, "WINDOW %s", cmd);
+				userage(buffer, options[i].usage ? options[i].usage : " - No help available");
 				done++;
 			}
 		}
@@ -4436,7 +4432,7 @@ BUILT_IN_COMMAND(windowcmd)
 
 /* * * * * * * * * * * SCROLLBACK BUFFER * * * * * * * * * * * * * * */
 /* 
- * XXXX Dont you DARE touch this XXXX 
+ * XXXX Don't you DARE touch this XXXX 
  *
  * Most of the time, a delete_display_line() is followed somewhat
  * immediately by a new_display_line().  So most of the time we just
@@ -4476,7 +4472,7 @@ Display *new_display_line (Display *prev)
 }
 
 /* * * * * * * * * * * Scrollback functionality * * * * * * * * * * */
-void 	BX_scrollback_backwards_lines (int lines)
+void 	BX_scrollback_backwards_lines (int scroll_lines)
 {
 	Window	*window = current_window;
 	Display *new_top = window->top_of_display;
@@ -4497,7 +4493,7 @@ void 	BX_scrollback_backwards_lines (int lines)
 	if (!window->scrollback_point)
 		window->scrollback_point = window->top_of_display;
 
-	for (new_lines = 0; new_lines < lines; new_lines++)
+	for (new_lines = 0; new_lines < scroll_lines; new_lines++)
 	{
 		if (new_top == window->top_of_scrollback)
 			break;
@@ -4518,7 +4514,7 @@ void 	BX_scrollback_backwards_lines (int lines)
 #endif
 }
 
-void 	BX_scrollback_forwards_lines (int lines)
+void 	BX_scrollback_forwards_lines (int scroll_lines)
 {
 	Window	*window = current_window;
 	Display *new_top = window->top_of_display;
@@ -4536,7 +4532,7 @@ void 	BX_scrollback_forwards_lines (int lines)
 		return;
 	}
 
-	for (new_lines = 0; new_lines < lines; new_lines++)
+	for (new_lines = 0; new_lines < scroll_lines; new_lines++)
 	{
 		if (new_top == window->scrollback_point/*display_ip*/)
 			break;
@@ -4558,34 +4554,32 @@ void 	BX_scrollback_forwards_lines (int lines)
 #endif
 }
 
-void 	BX_scrollback_forwards (char dumb, char *dumber)
+/* window_scrollback_count:
+ *
+ * Returns the number of lines forwards or backwards that the window should scroll
+ * in one increment.
+ */
+static int window_scrollback_count(Window *w)
 {
-	int 	ratio = get_int_var(SCROLLBACK_RATIO_VAR);
-	int	lines;
+	int ratio = get_int_var(SCROLLBACK_RATIO_VAR);
 
-	if (ratio < 10 ) 
+	if (ratio < 10) 
 		ratio = 10;
 	if (ratio > 100) 
 		ratio = 100;
 
-	lines = current_window->display_size * ratio / 100;
-	scrollback_forwards_lines(lines);
+	return w->display_size * ratio / 100;
+}	
+
+void 	BX_scrollback_forwards (char dumb, char *dumber)
+{
+	scrollback_forwards_lines(window_scrollback_count(current_window));
 }
 
 void 	BX_scrollback_backwards (char dumb, char *dumber)
 {
-	int 	ratio = get_int_var(SCROLLBACK_RATIO_VAR);
-	int	lines;
-
-	if (ratio < 10 ) 
-		ratio = 10;
-	if (ratio > 100) 
-		ratio = 100;
-
-	lines = current_window->display_size * ratio / 100;
-	scrollback_backwards_lines(lines);
+	scrollback_backwards_lines(window_scrollback_count(current_window));
 }
-
 
 void 	BX_scrollback_end (char dumb, char *dumber)
 {
@@ -4672,8 +4666,6 @@ void	BX_set_hold_mode (Window *window, int flag, int update)
 		{
 			window->last_lines_held = window->lines_held;
 			update_window_status(window, 0);
-			if (window->update | UPDATE_STATUS)
-				window->update -= UPDATE_STATUS;
 			cursor_in_display(window);
 			update_input(NO_UPDATE);
 		}

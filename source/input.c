@@ -11,7 +11,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: input.c 160 2012-03-06 11:14:51Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(input_c)
 #include <pwd.h>
 #include "struct.h"
@@ -166,10 +166,9 @@ extern void BX_cursor_to_input (void)
  */
 extern void	BX_update_input (int update)
 {
-	int	old_zone;
-	char	*ptr, *ptr_free;
+	int old_zone;
+	char *ptr;
 	int	len,
-		free_it = 0,
 		echo = 1,
 		max;
 
@@ -177,7 +176,6 @@ extern void	BX_update_input (int update)
 	Screen	*os = last_input_screen;
 	Screen	*ns;
 	Window	*saved_current_window = current_window;
-
 
 #ifdef WANT_HEBREW
 	void BX_set_input_heb (char *str);
@@ -230,32 +228,29 @@ extern void	BX_update_input (int update)
 				
 		if (prompt && update != NO_UPDATE)
 		{
-			int	args_used;	
+			int args_used;
+			char *ptr_free = NULL;
 
 			if (is_valid_process(get_target_by_refnum(0)) != -1)
 				ptr = (char *)get_prompt_by_refnum(0);
 			else
 			{
 				ptr = expand_alias(prompt, empty_string, &args_used, NULL);
-				free_it = 1;
+				ptr_free = ptr;
 			}
 			if (last_input_screen->promptlist)
 				term_echo(last_input_screen->promptlist->echo);
 
-			ptr_free = ptr;
-			ptr = (char *)strip_ansi(ptr);
+			ptr = strip_ansi(ptr);
 			strcat(ptr, ALL_OFF_STR);	/* Yes, we can do this */
-			if (free_it)
-				new_free(&ptr_free);
-			free_it = 1;
+			new_free(&ptr_free);
 			
-			if ((ptr && !INPUT_LINE) || (!ptr && INPUT_LINE) ||
-				strcmp(ptr, last_input_screen->input_buffer))
+			if (!INPUT_LINE || strcmp(ptr, last_input_screen->input_buffer))
 			{
 				if (last_input_screen->input_prompt_malloc)
 					new_free(&INPUT_PROMPT);
 	
-				last_input_screen->input_prompt_malloc = free_it;
+				last_input_screen->input_prompt_malloc = 1;
 	
 				INPUT_PROMPT = ptr;
 				len = strlen(INPUT_PROMPT);
@@ -264,8 +259,7 @@ extern void	BX_update_input (int update)
 			}
 			else
 			{
-				if (free_it)
-					new_free(&ptr);
+				new_free(&ptr);
 			}
 		}
 
@@ -321,7 +315,7 @@ extern void	BX_update_input (int update)
 		 *	The number of characters since the origin of the input buffer
 		 *	is the number of printable chars in the input prompt plus the
 		 *	current position in the input buffer.  We subtract from that
-		 * 	the WIDTH delta to take off the first delta, which doesnt
+		 * 	the WIDTH delta to take off the first delta, which doesn't
 		 *	count towards the width of the zone.  Then we divide that by
 		 * 	the size of the zone, to get an integer, then we multiply it
 		 * 	back.  This gives us the first character on the screen.  We
@@ -502,7 +496,7 @@ extern void	input_move_cursor (int dir)
  */
 void	BX_set_input (char *str)
 {
-	strmcpy(INPUT_BUFFER + MIN_POS, str, INPUT_BUFFER_SIZE - MIN_POS);
+	strlcpy(INPUT_BUFFER + MIN_POS, str, INPUT_BUFFER_SIZE - MIN_POS);
 	THIS_POS = strlen(INPUT_BUFFER);
 }
 
@@ -513,7 +507,7 @@ void	BX_set_input (char *str)
  */
 void	BX_set_input_heb (char *str)
 {
-	strmcpy(INPUT_BUFFER + MIN_POS, str, INPUT_BUFFER_SIZE - MIN_POS);
+	strlcpy(INPUT_BUFFER + MIN_POS, str, INPUT_BUFFER_SIZE - MIN_POS);
 }
 #endif
 
@@ -706,11 +700,9 @@ BUILT_IN_KEYBINDING(input_end_of_line)
 BUILT_IN_KEYBINDING(input_delete_to_previous_space)
 {
 	int	old_pos;
-	char	c;
 
 	cursor_to_input();
 	old_pos = THIS_POS;
-	c = THIS_CHAR;
 
 	while (!my_isspace(THIS_CHAR) && THIS_POS >= MIN_POS)
 		THIS_POS--;
@@ -798,8 +790,7 @@ BUILT_IN_KEYBINDING(input_add_character)
 		{
 			char	*ptr = NULL;
 
-			ptr = alloca(strlen(&(THIS_CHAR)) + 1);
-			strcpy(ptr, &(THIS_CHAR));
+			ptr = LOCAL_COPY(&(THIS_CHAR));
 			THIS_CHAR = key;
 			NEXT_CHAR = 0;
 			ADD_TO_INPUT(ptr);
@@ -992,14 +983,11 @@ BUILT_IN_KEYBINDING(toggle_insert_mode)
 
 BUILT_IN_KEYBINDING(input_msgreply)
 {
-char *cmdchar;
-char *line, *cmd, *t;
-char *snick;
-NickTab *nick = NULL;
-int got_space = 0;
-
-	if (!(cmdchar = get_string_var(CMDCHARS_VAR))) 
-		cmdchar = DEFAULT_CMDCHARS;
+	const char *cmdchar = get_string_var(CMDCHARS_VAR);
+	char *line, *cmd, *t;
+	char *snick;
+	NickTab *nick = NULL;
+	int got_space = 0;
 
 	t = line = m_strdup(get_input());
 	if (t)
@@ -1181,14 +1169,10 @@ BUILT_IN_KEYBINDING(send_line)
 	}
 	else
 	{
-		char	*line,
-			*cmdchar,
-			*tmp = NULL;
+		const char *cmdchar = get_string_var(CMDCHARS_VAR);
+		char *line = get_input();
+		char *tmp = m_strdup(line);
 
-		line = get_input();
-		if (!(cmdchar = get_string_var(CMDCHARS_VAR)))
-			cmdchar = "/";
-		malloc_strcpy(&tmp, line);
 		if (line && (*line != *cmdchar) && get_int_var(NICK_COMPLETION_VAR) && !current_window->query_nick)
 		{
 			char auto_comp_char;
@@ -1316,10 +1300,10 @@ BUILT_IN_KEYBINDING(type_text)
 }
 
 /*
- * clear_screen: the CLEAR_SCREEN function for BIND.  Clears the screen and
+ * input_clear_screen: the CLEAR_SCREEN function for BIND.  Clears the screen and
  * starts it if it is held 
  */
-BUILT_IN_KEYBINDING(clear_screen)
+BUILT_IN_KEYBINDING(input_clear_screen)
 {
 	set_hold_mode(NULL, OFF, 1);
 	clear_window_by_refnum(0);
@@ -1335,7 +1319,7 @@ BUILT_IN_KEYBINDING(parse_text)
  * edit_char: handles each character for an input stream.  Not too difficult
  * to work out.
  */
-void	edit_char (u_char key)
+void edit_char(char key)
 {
 	void		(*func) (char, char *) = NULL;
 	char		*ptr = NULL;
@@ -1348,7 +1332,7 @@ void	edit_char (u_char key)
 #ifdef TIOCSTI
 		ioctl(0, TIOCSTI, &key);
 #else
-		say("Sorry, your system doesnt support 'faking' user input...");
+		say("Sorry, your system doesn't support 'faking' user input...");
 #endif
 		return;
 	}
@@ -1356,8 +1340,7 @@ void	edit_char (u_char key)
 	/* were we waiting for a keypress? */
 	if (last_input_screen->promptlist && last_input_screen->promptlist->type == WAIT_PROMPT_KEY)
 	{
-		unsigned char key_[2] = "\0";
-		key_[0] = key;
+		char key_[2] = { key, 0 };
 		oldprompt = last_input_screen->promptlist;
 		last_input_screen->promptlist = oldprompt->next;
 		(*oldprompt->func)(oldprompt->data, key_);
@@ -1397,7 +1380,7 @@ void	edit_char (u_char key)
                                                                                                                                                                 
 #ifdef TRANSLATE
 	if (translation)
-		extended_key = transFromClient[key];
+		extended_key = transFromClient[(unsigned char)key];
 	else
 #endif
 	extended_key = key;
@@ -2008,17 +1991,15 @@ NickTab *tmp, *new;
 
 NickTab *BX_getnextnick(int which, char *input_nick, char *oldnick, char *nick)
 {
-ChannelList *chan; 
-NickList *cnick = NULL;
-NickTab  *tmp =  (which == 1) ? autoreply_array : tabkey_array;
-int server = from_server;
-static NickTab sucks = { NULL };
+	ChannelList *chan;
+	NickList *cnick = NULL;
+	NickTab *tmp = (which == 1) ? autoreply_array : tabkey_array;
+	int server = from_server;
+	static NickTab sucks = { NULL };
 
 	if (tmp && (in_completion == STATE_NORMAL || in_completion == STATE_TABKEY))
 	{
-	
-
-		if (!oldnick && !nick && tmp)
+		if (!oldnick && !nick)
 		{
 			in_completion = STATE_TABKEY;
 			return tmp;
@@ -2206,8 +2187,7 @@ char *booya = NULL;
 char *path = NULL;
 char *path2, *freeme;
 glob_t globbers;
-int numglobs = 0, i;
-int globtype = GLOB_MARK;
+int globtype = GLOB_MARK, i;
 
 #if defined(__EMX__) || defined(WINNT)
 	if (possible && *possible)
@@ -2427,7 +2407,7 @@ int globtype = GLOB_MARK;
 	if (!path2)
 		path2 = path;
 	memset(&globbers, 0, sizeof(glob_t));
-	numglobs = glob(path2, globtype, NULL, &globbers);
+	glob(path2, globtype, NULL, &globbers);
 	for (i = 0; i < globbers.gl_pathc; i++)
 	{
 		if (strchr(globbers.gl_pathv[i], ' '))
@@ -2522,9 +2502,9 @@ char	buffer[BIG_BUFFER_SIZE+1];
 	if (old && *old)
 	{
 		if (strchr(completes[0], ' '))
-			sprintf(buffer, "%s%s\"%s\"", inp, space, i ? completes[0] : old);
+			snprintf(buffer, sizeof buffer, "%s%s\"%s\"", inp, space, i ? completes[0] : old);
 		else
-			sprintf(buffer, "%s%s%s", inp, space, i ? completes[0] : old);
+			snprintf(buffer, sizeof buffer, "%s%s%s", inp, space, i ? completes[0] : old);
 	}
 	else
 		strcpy(buffer, completes[0]);
@@ -2536,17 +2516,17 @@ char	buffer[BIG_BUFFER_SIZE+1];
 
 BUILT_IN_KEYBINDING(tab_completion)
 {
-int	count = 0, 
-	wcount = 0;
-enum completion type = NO_COMPLETION;
-char *inp = NULL;
-char *possible = NULL, *old_pos = NULL;
-char *cmdchar;
-char *suggested = NULL;
-int got_space = 0;
-char *get = NULL;
-Ext_Name_Type *extcomp = ext_completion;
-
+	int	count = 0, 
+		wcount = 0;
+	enum completion type = NO_COMPLETION;
+	char *inp = NULL;
+	char *possible = NULL, *old_pos = NULL;
+	const char *cmdchar = get_string_var(CMDCHARS_VAR);
+	char *suggested = NULL;
+	int got_space = 0;
+	char *get = NULL;
+	Ext_Name_Type *extcomp = ext_completion;
+	
 	/* 
 	 * is this the != second word, then just complete from the 
 	 * channel nicks. if it is the second word, grab the first word, and 
@@ -2559,8 +2539,7 @@ Ext_Name_Type *extcomp = ext_completion;
 	if (*inp && inp[strlen(inp)-1] == ' ')
 		got_space = 1;
 	wcount = word_count(inp);
-	if (!(cmdchar = get_string_var(CMDCHARS_VAR)))
-		cmdchar = "/";
+
 	switch(wcount)
 	{
 		case 0:
@@ -2685,13 +2664,13 @@ do_more_tab:
 			else if (suggested && *suggested)
 				p = m_3dup("/", suggested, "");
 			if (type == TABKEY_COMPLETION)
-				snprintf(buffer, BIG_BUFFER_SIZE, "%s %s%s%s ", (p && *p == '/') ? p : "/m", get, (p && (*p != '/'))?space:empty_string, (p && (*p != '/'))?p:empty_string);
+				snprintf(buffer, sizeof buffer, "%s %s%s%s ", (p && *p == '/') ? p : "/m", get, (p && (*p != '/'))?space:empty_string, (p && (*p != '/'))?p:empty_string);
 			else
 			{
 				if (wcount == 1 && got_space)
-					snprintf(buffer, BIG_BUFFER_SIZE, "%s %s ", get_input(), get);
+					snprintf(buffer, sizeof buffer, "%s %s ", get_input(), get);
 				else
-					snprintf(buffer, BIG_BUFFER_SIZE, "%s%s%s ", p ? p : get, p ? space : empty_string, p ? get : empty_string);
+					snprintf(buffer, sizeof buffer, "%s%s%s ", p ? p : get, p ? space : empty_string, p ? get : empty_string);
 			}
 			if ((type == CDCC_COMPLETION || type == LOAD_COMPLETION || type == FILE_COMPLETION || type == DCC_COMPLETION) || ((type == EXEC_COMPLETION) && (get[strlen(get)-1] == '/')))
 				chop(buffer, 1);
@@ -2709,7 +2688,6 @@ do_more_tab:
 			{
 				if (!got_space)
 				{
-					old = inp;
 					old = last_arg(&inp);
 					if ((*old == '"'))
 					{
@@ -2755,8 +2733,8 @@ do_more_tab:
 							q++;
 						else 
 							q = n;
-						strmcat(buffer, q, BIG_BUFFER_SIZE);
-						strmcat(buffer, space, BIG_BUFFER_SIZE);
+						strlcat(buffer, q, sizeof buffer);
+						strlcat(buffer, space, sizeof buffer);
 						if (++count == 4)
 						{
 							put_it("%s", convert_output_format(fget_string_var(FORMAT_COMPLETE_FSET),"%s", buffer));
@@ -2779,8 +2757,8 @@ do_more_tab:
 					count = 0;
 					while (n && *n)
 					{
-						strmcat(buffer, n, BIG_BUFFER_SIZE);
-						strmcat(buffer, space, BIG_BUFFER_SIZE);
+						strlcat(buffer, n, sizeof buffer);
+						strlcat(buffer, space, sizeof buffer);
 						if (++count == 4)
 						{
 							put_it("%s", convert_output_format(fget_string_var(FORMAT_COMPLETE_FSET),"%s", buffer));
@@ -2866,10 +2844,10 @@ BUILT_IN_COMMAND(type)
 			    }
 			    default:
 			    {
-				c = *(args++);
+				c = (unsigned char)*(args++);
 				if (islower(c))
 					c = toupper(c);
-				if (c < 64)
+				if (c < 64 || c > 95)
 				{
 					say("Invalid key sequence: ^%c", c);
 					return;

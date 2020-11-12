@@ -7,19 +7,20 @@
  * Copyright(c) 1997
  *
  */
-
-#ifndef __struct_h_
-#define	__struct_h_
+#ifndef STRUCT_H_
+#define STRUCT_H_
 
 #ifdef WINNT
 #include <windows.h>
 #endif
 
-#include "alist.h"
+#include "irc.h"
 #include "hash.h"
 #include "config.h"
 #include "ssl.h"
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
 
 /*
  * struct sockaddr_storage isn't avaiable on all ipv6-ready-systems, bleh ;(
@@ -95,7 +96,7 @@ typedef struct
 	void (*func_write) (int);
 	void (*cleanup) (int);
 	void *info;
-#if defined(HAVE_SSL) && !defined(IN_MODULE)
+#if defined(HAVE_LIBSSL) && !defined(IN_MODULE)
 	SSL_CTX* ctx;
 	int ssl_error;
 	SSL* ssl_fd;
@@ -434,74 +435,66 @@ struct	ScreenStru;	/* ooh! */
 #define nick_isaway(s) (s->flags & NICK_AWAY)
 #define nick_isircop(s) (s->flags & NICK_IRCOP)
 
-typedef unsigned int my_uint;
-
 /* NickList: structure for the list of nicknames of people on a channel */
 typedef struct nick_stru
 {
-	struct	nick_stru	*next;	/* pointer to next nickname entry */
-	char	*nick;			/* nickname of person on channel */
-	char	*host;
-	char	*ip;
-	char	*server;
+	struct nick_stru *next;	/* pointer to next nickname entry */
+	char *nick;			/* nickname of person on channel */
+	char *host;
+	char *ip;
+	char *server;
 	int	serverhops;
-	my_uint	ip_count;
+	unsigned ip_count;
 	UserList *userlist;
 	ShitList *shitlist;
+	unsigned flags;
+	time_t idle_time;
 
-	my_uint flags;
-#if 0
-	int	chanop;			/* True if the given nick has chanop */
-	int	halfop;
-	int	away;
-	int	voice;
-	int	ircop;
-#endif	
-	time_t	idle_time;
+	unsigned floodcount;
+	time_t floodtime;
 
-	my_uint	floodcount;
-	time_t	floodtime;
+	unsigned nickcount;
+	time_t nicktime;
 
-	my_uint	nickcount;
-	time_t  nicktime;
+	unsigned kickcount;
+	time_t kicktime;
 
-	my_uint	kickcount;
-	time_t	kicktime;
+	unsigned joincount;
+	time_t jointime;
 
-	my_uint	joincount;
-	time_t	jointime;
+	unsigned dopcount;
+	time_t doptime;
 
-	my_uint	dopcount;
-	time_t	doptime;
+	unsigned bancount;
+	time_t bantime;
 
-	my_uint	bancount;
-	time_t	bantime;
+	time_t created;
 
+	unsigned stat_kicks;		/* Total kicks done by user */
+	unsigned stat_dops;		/* Total deops done by user */
+	unsigned stat_ops;		/* Total ops done by user */
+	unsigned stat_hops;
+	unsigned stat_dhops;
+	unsigned stat_eban;
+	unsigned stat_uneban;
+	unsigned stat_bans;		/* Total bans done by user */
+	unsigned stat_unbans;		/* Total unbans done by user */
+	unsigned stat_nicks;		/* Total nicks done by user */
+	unsigned stat_pub;		/* Total publics sent by user */
+	unsigned stat_topics;		/* Total topics set by user */
 
-	time_t	created;
+	/* Tracking state changes for this client sent by us, so
+	 * we don't send them unnecessarily. */
+	unsigned sent_reop;
+	time_t sent_reop_time;
+	unsigned sent_voice;
+	time_t sent_voice_time;
+	unsigned sent_deop;
+	time_t sent_deop_time;
+	unsigned sent_kick;
 
-	my_uint	stat_kicks;		/* Total kicks done by user */
-	my_uint	stat_dops;		/* Total deops done by user */
-	my_uint	stat_ops;		/* Total ops done by user */
-	my_uint	stat_hops;
-	my_uint	stat_dhops;
-	my_uint	stat_eban;
-	my_uint	stat_uneban;
-	my_uint	stat_bans;		/* Total bans done by user */
-	my_uint	stat_unbans;		/* Total unbans done by user */
-	my_uint	stat_nicks;		/* Total nicks done by user */
-	my_uint	stat_pub;		/* Total publics sent by user */
-	my_uint	stat_topics;		/* Total topics set by user */
-
-	my_uint	sent_reop;
-	time_t	sent_reop_time;
-	my_uint	sent_voice;
-	time_t	sent_voice_time;
-	
-	my_uint	sent_deop;
-	time_t	sent_deop_time;
-	my_uint	need_userhost;		/* on join we send a userhost for this nick */	
-	my_uint	check_clone;		/* added for builtin clone detect */
+	unsigned need_userhost;		/* on join we send a userhost for this nick */	
+	unsigned check_clone;		/* added for builtin clone detect */
 }	NickList;
 
 typedef	struct	DisplayStru
@@ -642,7 +635,7 @@ typedef	struct	WindowStru
 	unsigned long window_level;		/* The LEVEL of the window, determines what
 						 * messages go to it */
 	int	skip;
-	int	columns;	
+	int	saved_columns;		/* Columns on the last screen used by this window */
 	char	*prompt;		/* A prompt string, usually set by EXEC'd process */
 	int	double_status;		/* number of status lines */
 	int	status_split;		/* split status to top and bottom */
@@ -697,7 +690,7 @@ typedef	struct	WindowStru
 
 	int	window_display;		/* should we display to this window */
 
-	void	(*output_func)	(struct WindowStru *, const unsigned char *);
+	void	(*output_func)	(struct WindowStru *, const char *);
 	void	(*status_output_func)	(struct WindowStru *);
 	
 	struct	ScreenStru	*screen;
@@ -946,11 +939,9 @@ typedef	struct	channel_stru
 	char	*chanpass;		/* if TS4 then this has the channel pass */
 	char	connected;		/* true if this channel is actually connected */
 
-	
 	HashEntry	NickListTable[NICKLIST_HASHSIZE];
 
 	chan_flags	flags;
-
 
 	time_t	max_idle;		/* max idle time for this channel */
 	int	tog_limit;
@@ -958,7 +949,6 @@ typedef	struct	channel_stru
 	int	do_scan;		/* flag for checking auto stuff */
 	struct timeval	channel_create;		/* time for channel creation */
 	struct timeval	join_time;		/* time of last join */
-
 
 	int	stats_ops;		/* total ops I have seen in channel */
 	int	stats_dops;		/* total dops I have seen in channel */
@@ -988,19 +978,15 @@ typedef	struct	channel_stru
 		
 	CSetList *csets;		/* All Channel sets */
 
-	
-	
 	int	msglog_on;
 	FILE	*msglog_fp;
 	char	*logfile;
-	unsigned long log_level;
 		
 	int	totalnicks;		/* total number of users in channel */
 	int	maxnicks;		/* max number of users I have seen */
 	time_t	maxnickstime;		/* time of max users */
 
 	int	totalbans;		/* total numbers of bans on channel */
-
 
 	BanList	*bans;			/* pointer to list of bans on channel */
 	BanList	*exemptbans;		/* pointer to list of bans on channel */
@@ -1028,10 +1014,10 @@ typedef struct	flood_stru
 	char	*name;
 	char	*host;
 	char	*channel;
-	int	type;
+	unsigned flags;
 	char	flood;
 	unsigned long	cnt;
-	time_t	start;
+	struct timeval	start;
 }	Flooding;
 
 
@@ -1052,16 +1038,15 @@ typedef struct	timerlist_stru
 	struct	timerlist_stru *next;
 	char	ref[REFNUM_MAX + 1];
 	unsigned long refno;
-struct	timeval	time;
+	struct	timeval	time;
 	int	(*callback) (void *, char *);
 	char	*command;
 	char	*subargs;
 	int	events;
-	time_t	interval;
+	double interval;
 	int	server;
 	int	window;
 	char	*whom;
-	int	delete;
 }	TimerList;
 
 typedef struct nicktab_stru
@@ -1155,30 +1140,6 @@ typedef struct  AliasItemStru
 	ArgList *arglist;
 }	Alias;
 
-typedef	struct	notify_stru
-{
-	char	*nick;			/* Who are we watching? */
-	u_32int_t hash;
-	char 	*host;
-	char	*looking;
-	int	times;
-	time_t	lastseen;
-	time_t	period;
-	time_t	added;
-	int	flag;			/* Is the person on irc? */
-} NotifyItem;
-
-
-typedef struct notify_alist
-{
-	struct notify_stru	**list;
-	int			max;
-	int			max_alloc;
-	alist_func 		func;
-	hash_type		hash;
-	char *			ison;
-} NotifyList;
-
 typedef Window *(*window_func) (Window *, char **args, char *usage);
 
 typedef struct window_ops_T {
@@ -1226,7 +1187,7 @@ typedef struct _dcc_internal {
 	struct transfer_struct transfer_orders;	/* structure for resending files */
 	int		file;			/* file handle open file */
 	u_32int_t	filesize;		/* the filesize to get */
-	u_32int_t	packets;		/* number of blocksize packets recieved */
+	u_32int_t	packets;		/* number of blocksize packets received */
 	int		eof;			/* in EOF condition. */
 	int		blocksize;		/* this dcc's blocksize */
 	int		dcc_fast;		/* set if non-blocking used */
@@ -1242,4 +1203,4 @@ typedef struct _dcc_struct_type {
 	u_32int_t 	struct_type;
 } dcc_struct_type;
                        
-#endif /* __struct_h_ */
+#endif /* STRUCT_H_ */

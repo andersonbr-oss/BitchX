@@ -12,7 +12,7 @@
  */
 
 #if 0
-static	char	rcsid[] = "@(#)$Id: wserv.c 3 2008-02-25 09:49:14Z keaston $";
+static	char	rcsid[] = "@(#)$Id$";
 #endif
 
 #include "defs.h"
@@ -22,19 +22,19 @@ static	char	rcsid[] = "@(#)$Id: wserv.c 3 2008-02-25 09:49:14Z keaston $";
 
 #include "ircterm.h"
 #include "ircaux.h"
+#include "vars.h"
 #define WTERM_C
 #include "modval.h"
 #include <errno.h>
 #include <sys/uio.h>
 
-static 	int 	s;
-static	char	buffer[256];
+static int sock;
+static char buffer[256];
 
-void 	my_exit(int);
-void 	ignore (int value);
+static void my_exit(int);
+static void sigint_handler(int value);
 
 #ifdef CLOAKED
-extern char proctitlestr[140];
 extern char **Argv;
 extern char *LastArgv;
 #endif
@@ -54,7 +54,7 @@ int main (int argc, char **argv)
 #endif
 	my_signal(SIGHUP, SIG_IGN, 0);
 	my_signal(SIGQUIT, SIG_IGN, 0);
-	my_signal(SIGINT, ignore, 0);
+	my_signal(SIGINT, sigint_handler, 0);
 
 	if (argc != 3)    /* no socket is passed */
 		my_exit(1);
@@ -64,8 +64,8 @@ int main (int argc, char **argv)
 	if (!port)
 		my_exit(2);		/* what the hey */
 
-	s = connect_by_number(host, &port, SERVICE_CLIENT, PROTOCOL_TCP, 0);
-	if (s < 0)
+	sock = connect_by_number(host, &port, SERVICE_CLIENT, PROTOCOL_TCP, 0);
+	if (sock < 0)
 		my_exit(23);
 
 	/*
@@ -73,8 +73,8 @@ int main (int argc, char **argv)
 	 * can grab the size of the tty, and have it changed.
 	 */
 	tmp = ttyname(0);
-	sprintf(stuff, "%s\n", tmp);
-	t = write(s, stuff, strlen(stuff));
+	snprintf(stuff, sizeof stuff, "%s\n", tmp);
+	t = write(sock, stuff, strlen(stuff));
 	term_init(NULL);
 	printf("t is %d", t);
 
@@ -86,21 +86,27 @@ int main (int argc, char **argv)
 	{
 		FD_ZERO(&reads);
 		FD_SET(0, &reads);
-		FD_SET(s, &reads);
-		if (select(s + 1, &reads, NULL, NULL, NULL) <= 0)
+		FD_SET(sock, &reads);
+		if (select(sock + 1, &reads, NULL, NULL, NULL) <= 0)
+		{
 			if (errno == EINTR)
 				continue;
+			else
+				break;
+		}
 
 		if (FD_ISSET(0, &reads))
 		{
-			if ((nread = read(0, buffer, sizeof(buffer))))
-				write(s, buffer, nread);
+			nread = read(0, buffer, sizeof buffer);
+			if (nread > 0)
+				write(sock, buffer, nread);
 			else
 				my_exit(3);
 		}
-		if (FD_ISSET(s, &reads))
+		if (FD_ISSET(sock, &reads))
 		{
-			if ((nread = read(s, buffer, sizeof(buffer))))
+			nread = read(sock, buffer, sizeof buffer);
+			if (nread > 0)
 				write(1, buffer, nread);
 			else
 				my_exit(4);
@@ -110,14 +116,14 @@ int main (int argc, char **argv)
 	my_exit(8);
 }
 
-void ignore (int value)
+static void sigint_handler(int value)
 {
 	/* send a ^C */
-	char foo = 3;
-	write(s, &foo, 1);
+	static const char ctrl_c = 3;
+	write(sock, &ctrl_c, 1);
 }
 
-void my_exit(int value)
+static void my_exit(int value)
 {
 	printf("exiting with %d!\n", value);
 	printf("errno is %d (%s)\n", errno, strerror(errno));

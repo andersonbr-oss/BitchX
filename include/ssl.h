@@ -1,7 +1,7 @@
-#if defined(HAVE_SSL) && !defined(IN_MODULE)
+#ifndef SSL_H_
+#define SSL_H_
 
-#ifndef __ssl_h__
-#define __ssl_h__
+#if defined(HAVE_LIBSSL) && !defined(IN_MODULE)
 
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
@@ -16,10 +16,6 @@
 #ifndef FALSE
 #define FALSE 1
 #endif
-
-#define CHK_NULL(x) if ((x)==NULL) { say("SSL error - NULL data form server"); close_server(refnum, empty_string); return(-1); }
-#define CHK_ERR(err,s) if ((err)==-1) {  say("SSL prime error - %s",s); close_server(refnum, empty_string); return(-1); }
-#define CHK_SSL(err) if ((err)==-1) {  say("SSL CHK error - %d %d",err,SSL_get_error(server_list[refnum].ssl_fd, err)); close_server(refnum, empty_string); return(-2); }
 
 void SSL_show_errors(void);
 

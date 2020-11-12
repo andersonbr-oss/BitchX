@@ -13,7 +13,7 @@
  */
 
 #include "irc.h"
-static char cvsrevision[] = "$Id: newio.c 104 2010-09-30 13:26:06Z keaston $";
+static char cvsrevision[] = "$Id$";
 CVS_REVISION(newio_c)
 #include "ircaux.h"
 #include "output.h"
@@ -86,7 +86,7 @@ static	void	init_io (void)
 	}
 }
 
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 void SSL_show_errors(void)
 {
 	char buf[1000];
@@ -130,13 +130,13 @@ const char *dgets_strerror(int dgets_errno)
  *
  * Return values:
  *
- *	-1 -- something really died.  Either a read error occured, the
- *	      fildesc wasnt really ready for reading, or the input buffer
+ *	-1 -- something really died.  Either a read error occurred, the
+ *	      fildesc wasn't really ready for reading, or the input buffer
  *	      for the filedesc filled up (8192 bytes)
  *	 0 -- If the data read in from the file descriptor did not form a 
  *	      complete line, then zero is always returned.  This should be
  *	      considered a stopping condition.  Do not call dgets() again
- *	      after it returns 0, because unless more data is avaiable on
+ *	      after it returns 0, because unless more data is available on
  *	      the fd, it will return -1, which you would misinterpret as an
  *	      error condition.
  *	      If "buffer" is 0, then whatever we have available will be 
@@ -183,7 +183,7 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 		}
 
 		/*
-		 * Dont try to read into a full buffer.
+		 * Don't try to read into a full buffer.
 		 */
 		if (ioe->write_pos >= ioe->buffer_size)
 		{
@@ -193,8 +193,8 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 		}
 		/*
 		 * Check to see if any bytes are ready.  If this fails,
-		 * then its almost always due to the filedesc being 
-		 * bogus.  Thats a fatal error.
+		 * then it's almost always due to the filedesc being 
+		 * bogus.  That's a fatal error.
 		 */
 		if (ioctl(des, FIONREAD, &nbytes) == -1)
 		{
@@ -214,23 +214,33 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 		 * use that as a cheap way to check for #1.  If #1 is false,
 		 * then #2 must have been true, and if nbytes is 0, then 
 		 * that indicates an EOF condition.
+		 *
+		 * The "EOF" condition might actually be a socket error, so check
+		 * for that and return it to the caller.
 		 */
 		else if (!nbytes && ioe->write_pos == 0)
 		{
+			int so_error;
+			socklen_t len = sizeof so_error;
+
 			*str = 0;
-			dgets_errno = -1;
+			if (getsockopt(des, SOL_SOCKET, SO_ERROR, &so_error, &len) == 0 && 
+				so_error != 0)
+				dgets_errno = so_error;
+			else
+				dgets_errno = -1;
 			return -1;
 		}
 
 		else if (nbytes)
 		{
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 			int rc = 0;
 #endif
 
 			if (nbytes >= IO_BUFFER_SIZE)
 				nbytes = IO_BUFFER_SIZE-1;
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 			if(ssl_fd)
 			{
 				c = SSL_read((SSL *)ssl_fd, ioe->buffer + ioe->write_pos,
@@ -256,7 +266,7 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 
 			if (c <= 0)
 			{
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 				if(ssl_fd)
 				{
 					say("SSL_read() failed, SSL error %d", rc);
@@ -274,7 +284,7 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 		else
 		{
 			/*
-			 * At this point nbytes is 0, and it doesnt
+			 * At this point nbytes is 0, and it doesn't
 			 * appear the socket is at EOF or ready to read.
 			 * Very little to do at this point but force the
 			 * issue and figure out what the heck went wrong.
@@ -295,11 +305,11 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 				}
 				case 0:
 				{
-					yell("des [%d] passed to dgets(), but it isnt ready.", des);
+					yell("des [%d] passed to dgets(), but it isn't ready.", des);
 					if (ioe->write_pos == 0)
 					{
 						yell("X*X*X*X*X*X*X*X*X ABANDON SHIP! X*X*X*X*X*X*X*X*X*X");
-						ircpanic("write_pos is zero when it cant be.");
+						ircpanic("write_pos is zero when it can't be.");
 					}
 					else
 					{
@@ -339,19 +349,16 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 	/*
 	 * Slurp up the data that is available into 'str'. 
 	 */
-	while (ioe->read_pos < ioe->write_pos)
+	while (ioe->read_pos < ioe->write_pos && cnt < (buffersize - 1))
 	{
-		if (((str[cnt] = ioe->buffer[ioe->read_pos++])) == '\n')
-			break;
-		cnt++;
-		if (cnt >= buffersize-1)
+		if ((str[cnt++] = ioe->buffer[ioe->read_pos++]) == '\n')
 			break;
 	}
 
 	/*
 	 * Terminate it
 	 */
-	str[cnt + 1] = 0;
+	str[cnt] = 0;
 
 	/*
 	 * If we end in a newline, then all is well.
@@ -359,8 +366,8 @@ int BX_dgets (char *str, int des, int buffer, int buffersize, void *ssl_fd)
 	 * The caller then would need to do a strlen() to get
  	 * the amount of data.
 	 */
-	if (str[cnt] == '\n')
-		return cnt;
+	if (cnt > 0 && str[cnt - 1] == '\n')
+		return cnt - 1;
 	else
 		return 0;
 }
